@@ -83,6 +83,7 @@ ExternalFileLevelStorage::ExternalFileLevelStorage(const std::string& levelId, c
 	entitiesFile(NULL),
 	tickCount(0),
 	lastSavedEntitiesTick(-999999),
+	omitPlayerFromLevelDat(false),
 	level(NULL),
 	loadedStorageVersion(SharedConstants::StorageVersion)
 {
@@ -110,6 +111,11 @@ ExternalFileLevelStorage::~ExternalFileLevelStorage()
 }
 
 void ExternalFileLevelStorage::saveLevelData(LevelData& levelData, std::vector<Player*>* players) {
+	// v21: Nether storage writes no Player compound (see the header).
+	// Passing NULL makes writeLevelData use the no-arg createTag(),
+	// which carries no player state at all for a fresh Nether
+	// LevelData (its loadedPlayerTag is NULL).
+	if (omitPlayerFromLevelDat) players = NULL;
 	ExternalFileLevelStorage::saveLevelData(levelPath, levelData, players);
 }
 

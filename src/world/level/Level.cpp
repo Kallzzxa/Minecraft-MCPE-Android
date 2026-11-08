@@ -1076,6 +1076,19 @@ void Level::removeEntity(Entity* e) {
     }
 }
 
+void Level::detachEntity(Entity* e) {
+	if (e->inChunk && hasChunk(e->xChunk, e->zChunk)) {
+		getChunk(e->xChunk, e->zChunk)->removeEntity(e);
+	}
+	e->inChunk = false;
+	entityIdLookup.erase(e->entityId);
+	Util::remove(entities, e);
+	if (e->isPlayer()) {
+		Util::remove(players, (Player*) e);
+	}
+	entityRemoved(e);
+}
+
 void Level::tileEntityChanged(int x, int y, int z, TileEntity* te) {
 	if (this->hasChunkAt(x, y, z)) {
 		getChunkAt(x, z)->markUnsaved();

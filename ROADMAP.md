@@ -968,7 +968,36 @@ Each version is ONE coherent batch of features, shipped as a new APK
     stand, run the reactor, brew awkward -> healing/swiftness, drink,
     check the effects, check the stand UI).
 
-## Next (v20)
+- **v21 — Nether dimension (SHIPPED, build-only).**
+  ### Audit (read from code before writing anything)
+  - A dimension system EXISTED but was never used for the Nether: `Dimension` base (`NORMAL=0`, `NORMAL_DAYCYCLE=10`) + `NormalDayCycleDimension`; `Dimension::getNew(id)` only handled those two; `DimensionFactory` picks by game type; `Level` accepts `fixedDimension`; `LevelData` has a `dimension` field the factory ignores. `Minecraft::toggleDimension(){}` was an empty stub (`Minecraft.h:68`).
+  - NO portal tile existed: `Tile::portalTile` declared in `Tile.h:219` but never defined/registered. NO soul sand tile either: `Tile::hellSand` declared but never defined, registration commented out in `Tile.cpp:269`, no `HellSandTile` class.
+  - Portal ingredients existed: obsidian tile 49, flint & steel item (id 3) — but `FlintAndSteelItem::useOn` was COMMENTED OUT, so flint & steel did nothing at all.
+  - Nether blocks partly existed: netherrack 87, nether brick 112, quartz block 155, glowstone = `LightGemTile` 89 (drops yellow dust). Quartz ore (id 153) and nether wart crop (id 115) were FREE ids; portal id 90 was FREE.
+  - Mobs: PigZombie existed (neutral, `fireImmune=true`, gold sword, `mob.zombiepig.*` sounds). NO ghast, NO blaze, NO magma cube. NO fireball projectile (`Arrow`/`Throwable` existed; skeleton ranged pattern is old-AI `checkHurtTarget`, every 3 s). `FlyingMob` existed (no gravity in air).
+  - The Nether Reactor is NOT a dimension: it converts the structure to glowing obsidian and spawns items/mobs in the OVERWORLD (~200 items/run incl. v20 wart/blaze/rod/tear). Left unchanged as a legacy placeholder.
+  - Storage: `ExternalFileLevelStorage` per level dir; per-region files `r.<rx>.<rz>.dat`; the player tag lives INSIDE `level.dat`. Consequence: a second storage dir for the Nether would get its own player tag — handled by the omit flag (below).
+  - Spawning: `MobSpawner::tick` -> `Level::getRandomMobSpawnAt` -> `ChunkSource::getMobsAt` (virtual) — the Nether spawn list lives in the new source. `isSpawnPositionOk` (solid below + 2 air) works on the Nether floor; `Monster::canSpawn` darkness check passes because `hasCeiling` leaves sky light at 0.
+  - Rendering/sky: `dimension->foggy` -> no sky plane/sun/moon/clouds + fog starts at camera; `hasCeiling` skips sky light; fog colour via `Dimension::getFogColor`; `ultraWarm` already branched in `LiquidTileDynamic.h:23`.
+  - Textures: `terrain.png` 256x256; NO uniform-magenta cells left, but light-purple placeholder cells (214,127,255) were free and verified unused by any tile tex: 170, 171, 172, 173, 216, 217, 231.
+  - Lang strings already existed for soul sand, glowstone, portal, nether wart; `tile.quartzOre.name` was missing and was added.
+  ### What shipped
+  - **Second dimension, real:** `NetherDimension` (`id = -1`, `foggy`, `hasCeiling`, `ultraWarm`, no day cycle, red fog 0.2/0.03/0.03, `NetherLevelSource` as its chunk source) registered in `Dimension::getNew`. The world keeps TWO `Level` objects alive in `Minecraft` (`overworldLevel`/`netherLevel`); the Nether storage lives at `<world>/DIM-1` and is created on first entry with a pre-seeded `level.dat` (same seed/gameType, spawn at the arrival portal) so generation centres on the portal.
+  - **Portal:** obsidian frame (any size 4–23 wide, 5–23 high, either plane) lit by flint & steel — `FlintAndSteelItem::useOn` restored (it was commented out) and extended with a frame search; otherwise it places fire as before. `PortalTile` (id 90, tex 170, `SHAPE_CROSS_TEXTURE`, non-solid, light 11/16, collapses when its frame is gone). Entering a portal requests a switch; the switch is deferred to `Minecraft::tick` (never inside a level tick), fires only on ENTERING (no bounce-back), 5 s cooldown. Coordinate scale 1:8 like modern MC. The destination portal is found within 16 blocks or built fresh (4x5 obsidian frame on solid ground) in `_levelGenerated()`; return position is stored at entry.
+  - **Player-tag safety:** the Nether storage sets `omitPlayerFromLevelDat`, so its `level.dat` never carries a Player compound (re-entering can never restore a stale inventory/position over the live player). The live player is detached with a new `Level::detachEntity` (does NOT set `removed=true` — `removeEntity` would freeze the player forever) and re-added by `setLevel`. Quitting while in the Nether merges the live player (pos/inventory/XP, incl. Nether loot) into the overworld tag at the return position (`leaveGame`); both dimension levels + storages are deleted on quit/app exit.
+  - **Nether terrain** (`NetherLevelSource`): bedrock floor y=0 (+scatter y1–4) and ceiling y=127 (+scatter y126), rolling netherrack floor height 28–62 (value noise), lava sea y<=31 where the floor dips below 32, soul sand patches (noise>0.78, top 3 layers), quartz ore ~1.2% of netherrack y10–110, glowstone clusters under the ceiling y120–125. No structures.
+  - **Nether mobs:** Ghast (4x4x4, 10 HP, flies — `FlyingMob`-style travel, no gravity; fireball ≤28 blocks every 3 s; drops 0–1 ghast tear + 0–2 gunpowder; cluster size 1) and Blaze (20 HP, fireball ≤16 blocks every 3 s + melee fallback; drops 0–1 blaze rod). Both fire-immune. New `Fireball` (`Throwable`, no gravity, explodes radius 1 with fire on hit). Spawn list: pig zombie 10, blaze 6, ghast 4 (weights; pig zombie already existed). New models/renderers + 64x32 textures (`mob/ghast.png`, `mob/blaze.png`); fireball renders as billboarded orange/yellow quads (no texture).
+  - **Nether wart farming:** `HellSandTile` (soul sand, id 88, tex 171) + `NetherWartTile` (crop, id 115, 4 stages, tex 173/216/217/231, grows without light, only on soul sand, mature drops 2–4) + wart item is now a `SeedItem` (id 116, plants on soul sand). Quartz ore tile (id 153, tex 172, drops quartz). Soul sand/quartz ore/glowstone added to the creative inventory; `tile.quartzOre.name=Nether Quartz Ore` added to `en_US.lang`.
+  - **Sounds are placeholders** (see debts): ghast ambient silent, hurt `random.pop`, death `random.explode`; blaze hurt `random.fizz`, death `random.explode`; fireball launch `random.bow` at pitch 0.6.
+  - Version bump 20 -> 21 (`app/build.gradle`, `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build` (r17c, both ABIs) passes: `libminecraftpe.so` arm64 10,072,904 B / armv7 8,695,684 B, zero errors.
+  ### Known limits / debts
+  - No Nether fortress / nether brick structures, no magma cube, no wither skeleton. No beds-explode behaviour in the Nether (beds behave as in the Overworld). Portal renders as crossed quads, not a flat plane (same `SHAPE_CROSS_TEXTURE` precedent as the web tile).
+  - Ghast/blaze/fireball sounds are placeholders (above); no `mob.ghast.*` / `mob.blaze.*` sounds exist in the sound table yet.
+  - Crash while in the Nether (not a clean quit) may lose Nether loot: the live player state is only merged into the overworld tag by `leaveGame()`; the Nether level itself never writes a player tag by design. A crash-safe variant (write the player into the overworld tag on every dimension switch, or on autosave) is a v22+ hardening item.
+  - Multiplayer dimension switching is NOT implemented (single-player only: `requestDimensionChange` returns early on `level->isClientSide`).
+  - All of it is build-only until a live test on device (build an obsidian frame, light it with flint & steel, enter, check terrain/lava/glowstone/fog, ghast/blaze spawns, return portal to the Overworld, no crash, Overworld world intact after return; quit while in the Nether and reload — loot must survive).
+
+## Next (v21)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
   walk session on the realme 8, memory flat, FPS within ~10% of v14
@@ -984,8 +1013,9 @@ Each version is ONE coherent batch of features, shipped as a new APK
   fallback until this stage passes.
   Also queued: the v18 debt — save `entities.dat` once per
   eviction sweep instead of once per evicted chunk. (PAID in v20.)
-- **v21 — Nether dimension** (next version after the device
-  verification above).
+- **v22 — The End** (next version after the device verification
+  above). Biggest. Ender dragon, end stone, chorus — only after
+  Nether works (it does, as of v21, build-only).
 
 ## Queued (priority order — re-evaluate after each version)
 
@@ -995,10 +1025,8 @@ Each version is ONE coherent batch of features, shipped as a new APK
   is visible in every screenshot the user takes and is low risk, so
   it shipped first. The witch fits the AI framework (GoalSelector
   exists) and ships once brewing gives it potions to throw.
-- **v21 — Nether dimension.** Big. The old Nether Reactor exists as a
-  placeholder; a real Nether needs a second dimension + portal.
 - **v22 — The End.** Biggest. Ender dragon, end stone, chorus — only
-  after Nether works.
+  after Nether works (it does, as of v21, build-only).
 - **v23 — Villages + trading.** Village generation + villagers + trading
   UI. Big; last among gameplay features.
 - **Night spawning live test (from old v8 scope).** Drops are done (v7);

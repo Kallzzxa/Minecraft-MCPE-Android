@@ -148,6 +148,13 @@ public:
 
     bool addEntity(Entity* e);
     void removeEntity(Entity* e);
+	// v21: detach an entity from this level WITHOUT marking it
+	// removed, for dimension switching: the player object is reused
+	// in the other level, so removeEntity() (which sets removed=true
+	// — and tickEntities then never ticks it again) is wrong here.
+	// Mirrors the tickEntities removal cleanup (chunk index, id
+	// lookup, entity list, players list, listener notice).
+	void detachEntity(Entity* e);
 	void removePlayer( Player* player );
     //void removeEntityImmediately(Entity* e);
 	//void removeAllPendingEntityRemovals();

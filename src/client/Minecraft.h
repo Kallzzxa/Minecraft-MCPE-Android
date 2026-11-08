@@ -65,7 +65,7 @@ public:
 
 	void handleBuildAction(BuildActionIntention*);
 
-	void toggleDimension(){}
+	void toggleDimension();
 	bool isCreativeMode();
 	void setIsCreativeMode(bool isCreative);
 	void setScreen(Screen*);
@@ -172,6 +172,44 @@ public:
 
 	User*  user;
 	Level* level;
+	// v21: Nether dimension switching. overworldLevel/netherLevel are
+	// the two Level objects of the current world; `level` points at
+	// whichever is active. The Nether level is created on first entry
+	// (storage <world>/DIM-1) and kept alive for the session, so
+	// switching back and forth never reloads it from scratch.
+	Level* overworldLevel;
+	Level* netherLevel;
+	// The level id (world folder name) the Nether storage id is
+	// derived from (<id>_nether).
+	std::string currentLevelId;
+	// A switch requested by LocalPlayer::tick (standing in a portal)
+	// is deferred to the top of update(), never run inside a level
+	// tick — see changeDimension().
+	bool pendingDimensionSwitch;
+	int pendingDimension;
+	// Where the player entered the Nether from (return position).
+	bool hasReturnPos;
+	float returnX, returnY, returnZ;
+	// Ticks until portal teleporting is allowed again (prevents
+	// instantly bouncing back through the destination portal).
+	int portalCooldownTicks;
+	// After a switch, the destination portal is found or built in
+	// _levelGenerated(), once generation has finished.
+	bool pendingPortalBuild;
+
+	// v21: request a switch to the other dimension (guards: must be
+	// single-player, not generating, cooldown elapsed). The switch
+	// itself runs in update() via changeDimension().
+	void requestDimensionChange(int targetDimension);
+	// v21: perform the switch now (caller must be outside a level
+	// tick and isGeneratingLevel must be false).
+	void changeDimension(int targetDimension);
+	// v21: return the existing Nether level, or create it (pre-seeded
+	// level.dat at the arrival portal, own storage under DIM-1).
+	Level* getOrCreateNetherLevel(int nx, int nz);
+	// v21: after generation, move the player into an existing portal
+	// near (px, py, pz), or build a fresh 4x5 obsidian frame there.
+	void findOrCreatePortal(float px, float py, float pz);
 
 	LocalPlayer*	player;
 	IInputHolder*	inputHolder;

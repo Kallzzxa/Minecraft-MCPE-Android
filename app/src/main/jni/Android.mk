@@ -167,6 +167,8 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/entity/item/TripodCamera.cpp \
 ../../../../src/world/entity/monster/Creeper.cpp \
 ../../../../src/world/entity/monster/Enderman.cpp \
+../../../../src/world/entity/monster/Ghast.cpp \
+../../../../src/world/entity/monster/Blaze.cpp \
 ../../../../src/world/entity/monster/Monster.cpp \
 ../../../../src/world/entity/monster/PigZombie.cpp \
 ../../../../src/world/entity/monster/Skeleton.cpp \
@@ -174,6 +176,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/entity/monster/Spider.cpp \
 ../../../../src/world/entity/monster/Zombie.cpp \
 ../../../../src/world/entity/projectile/Arrow.cpp \
+../../../../src/world/entity/projectile/Fireball.cpp \
 ../../../../src/world/entity/projectile/Throwable.cpp \
 ../../../../src/world/entity/player/Inventory.cpp \
 ../../../../src/world/entity/player/Player.cpp \
@@ -219,6 +222,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/level/levelgen/LargeCaveFeature.cpp \
 ../../../../src/world/level/levelgen/LargeFeature.cpp \
 ../../../../src/world/level/levelgen/RandomLevelSource.cpp \
+../../../../src/world/level/levelgen/NetherLevelSource.cpp \
 ../../../../src/world/level/levelgen/feature/Feature.cpp \
 ../../../../src/world/level/levelgen/synth/ImprovedNoise.cpp \
 ../../../../src/world/level/levelgen/synth/PerlinNoise.cpp \

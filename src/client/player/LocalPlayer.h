@@ -104,6 +104,12 @@ private:
 	float _prevX, _prevZ;
 	bool _prevPosInit;
 
+	// v21: whether the player was inside a portal block last tick.
+	// A dimension switch fires only on ENTERING a portal, so the
+	// player is not bounced straight back through the destination
+	// portal once the 5 s cooldown in Minecraft has elapsed.
+	bool _wasInPortal;
+
 	int sentInventoryItemId;
 	int sentInventoryItemData;
 

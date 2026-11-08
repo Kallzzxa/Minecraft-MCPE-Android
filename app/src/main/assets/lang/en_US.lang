@@ -330,6 +330,7 @@ tile.netherBrick.name=Nether Brick
 tile.netherFence.name=Nether Brick Fence
 tile.stairsNetherBrick.name=Nether Brick Stairs
 tile.netherStalk.name=Nether Wart
+tile.quartzOre.name=Nether Quartz Ore
 tile.cauldron.name=Cauldron
 tile.enchantmentTable.name=Enchantment Table
 tile.brewingStand.name=Brewing Stand

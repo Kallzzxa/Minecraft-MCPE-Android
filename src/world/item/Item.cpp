@@ -337,7 +337,11 @@ void Item::initItems() {
 	Item::blazeRod = (new Item(113))->setIcon(0, 9)->setCategory(ItemCategory::Tools)->setDescriptionId("blazeRod");
 	Item::ghastTear = (new Item(114))->setIcon(3, 9)->setCategory(ItemCategory::Tools)->setDescriptionId("ghastTear");
 	Item::goldNugget = (new Item(115))->setIcon(2, 10)->setCategory(ItemCategory::Decorations)->setDescriptionId("goldNugget");
-	Item::netherWart = (new Item(116))->setIcon(2, 9)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("netherStalkSeeds");
+	// v21: nether wart is now a SeedItem (plants the wart crop on soul
+	// sand, like wheat seeds on farmland). Safe: Tile::initTiles runs
+	// before Item::initItems (MinecraftApp.cpp), so both Tile pointers
+	// are live here. Icon/description unchanged.
+	Item::netherWart = (new SeedItem(116, Tile::netherWart->id, Tile::hellSand->id))->setIcon(2, 9)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("netherStalkSeeds");
 	Item::potion = (new PotionItem(117))->setIcon(0, 12)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("potion");
 	Item::glassBottle = (new GlassBottleItem(118))->setIcon(4, 10)->setCategory(ItemCategory::Tools)->setDescriptionId("glassBottle");
 	Item::spiderEye = (new Item(119))->setIcon(4, 9)->setCategory(ItemCategory::Tools)->setDescriptionId("spiderEye");

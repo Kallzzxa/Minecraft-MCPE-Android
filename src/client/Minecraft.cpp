@@ -17,6 +17,10 @@
 #include "../world/level/tile/Tile.h"
 #include "../world/level/storage/LevelStorageSource.h"
 #include "../world/level/storage/LevelStorage.h"
+#include "../world/level/storage/ExternalFileLevelStorage.h"
+#include "../world/level/storage/FolderMethods.h"
+#include "../world/level/dimension/NetherDimension.h"
+#include "../world/level/tile/FireTile.h"
 #include "player/input/KeyboardInput.h"
 #ifndef STANDALONE_SERVER
 #include "player/input/touchscreen/TouchInputHolder.h"
@@ -136,6 +140,14 @@ bool Minecraft::useAmbientOcclusion = false;
 Minecraft::Minecraft()
 :	user(NULL),
 	level(NULL),
+	overworldLevel(NULL),
+	netherLevel(NULL),
+	pendingDimensionSwitch(false),
+	pendingDimension(0),
+	hasReturnPos(false),
+	returnX(0), returnY(0), returnZ(0),
+	portalCooldownTicks(0),
+	pendingPortalBuild(false),
 	player(NULL),
 	cameraTargetPlayer(NULL),
 	levelRenderer(NULL),
@@ -230,12 +242,26 @@ Minecraft::~Minecraft()
 	}
 #endif
 	if (level != NULL) {
+		Level* deletedLevel = level;
 		level->saveGame();
 		if (level->getChunkSource())
 			level->getChunkSource()->saveAll(true);
 		delete level->getLevelStorage();
 		delete level;
 		level = NULL;
+		// v21: the inactive dimension level is owned here too.
+		if (deletedLevel == overworldLevel) overworldLevel = NULL;
+		if (deletedLevel == netherLevel) netherLevel = NULL;
+	}
+	if (overworldLevel != NULL) {
+		delete overworldLevel->getLevelStorage();
+		delete overworldLevel;
+		overworldLevel = NULL;
+	}
+	if (netherLevel != NULL) {
+		delete netherLevel->getLevelStorage();
+		delete netherLevel;
+		netherLevel = NULL;
 	}
 
 	//delete player;
@@ -268,6 +294,11 @@ void Minecraft::selectLevel( const std::string& levelId, const std::string& leve
 	// note: settings is useless beyond this point, since it's
 	//       either copied to LevelData (or LevelData read from file)
 	setLevel(level, "Generating level");
+	// v21: this is the overworld level; the Nether level is created
+	// on first entry and tracked separately (see changeDimension).
+	overworldLevel = level;
+	netherLevel = NULL;
+	currentLevelId = levelId;
 	setIsCreativeMode(level->getLevelData()->getGameType() == GameType::Creative);
 	_running = true;
 }
@@ -315,6 +346,184 @@ void Minecraft::setLevel(Level* level, const std::string& message /* ="" */, Loc
 
     this->lastTickTime = 0;
 	this->_running = true;
+}
+
+// ------------------------------------------------------------------
+// v21: Nether dimension switching.
+//
+// Design: the world keeps TWO Level objects alive for the session —
+// the overworld (created by selectLevel) and the Nether (created on
+// first entry, storage <world>/DIM-1). The player object is reused:
+// it is detached from the old level (Level::detachEntity, which does
+// NOT set removed=true — removeEntity would freeze the player
+// forever) and re-added to the new one by setLevel. Coordinates
+// scale 1:8 like modern MC. A switch is never run inside a level
+// tick: LocalPlayer::tick only sets a pending flag, and
+// Minecraft::tick() performs the switch between level ticks, when
+// isGeneratingLevel is false. The Nether storage never writes a
+// Player compound (see
+// ExternalFileLevelStorage::setOmitPlayerFromLevelDat), so the live
+// player state always belongs to the overworld tag — leaveGame()
+// merges it back when quitting from the Nether.
+// ------------------------------------------------------------------
+void Minecraft::toggleDimension() {
+	if (level == NULL || overworldLevel == NULL) return;
+	int target = (level->dimension->id == Dimension::NETHER)
+		? overworldLevel->dimension->id : Dimension::NETHER;
+	requestDimensionChange(target);
+}
+
+void Minecraft::requestDimensionChange(int targetDimension) {
+	if (level == NULL || player == NULL) return;
+	if (level->isClientSide) return;  // multiplayer: servers own dimensions
+	if (isGeneratingLevel) return;
+	if (portalCooldownTicks > 0) return;
+	if (targetDimension == level->dimension->id) return;
+	if (targetDimension == Dimension::NETHER && overworldLevel == NULL) return;
+	if (targetDimension != Dimension::NETHER && netherLevel != level) return;
+	pendingDimension = targetDimension;
+	pendingDimensionSwitch = true;
+}
+
+void Minecraft::changeDimension(int targetDimension) {
+	if (level == NULL || player == NULL || isGeneratingLevel) return;
+	if (targetDimension == level->dimension->id) return;
+	if (level->isClientSide) return;
+
+	Level* fromLevel = level;
+	fromLevel->saveGame();
+	if (fromLevel->getChunkSource())
+		fromLevel->getChunkSource()->saveAll(true);
+
+	if (targetDimension == Dimension::NETHER) {
+		// Remember where to come back to (exact portal spot).
+		returnX = player->x; returnY = player->y; returnZ = player->z;
+		hasReturnPos = true;
+		// 1:8 coordinate scale, like modern MC.
+		int nx = (int)(player->x / 8.0f);
+		int nz = (int)(player->z / 8.0f);
+		Level* nether = getOrCreateNetherLevel(nx, nz);
+		if (nether == NULL) return;
+		fromLevel->detachEntity(player);
+		player->setLevel(nether);
+		player->dimension = Dimension::NETHER;
+		player->setPos(nx + 0.5f, 70.0f, nz + 0.5f);
+		pendingPortalBuild = true;
+		setLevel(nether, "Entering the Nether", player);
+	} else {
+		// Back to the overworld, at the stored return position.
+		float dx = hasReturnPos ? returnX : (float)overworldLevel->getLevelData()->getXSpawn();
+		float dy = hasReturnPos ? returnY : (float)overworldLevel->getLevelData()->getYSpawn();
+		float dz = hasReturnPos ? returnZ : (float)overworldLevel->getLevelData()->getZSpawn();
+		fromLevel->detachEntity(player);
+		player->setLevel(overworldLevel);
+		player->dimension = overworldLevel->dimension->id;
+		player->setPos(dx, dy, dz);
+		pendingPortalBuild = true;
+		setLevel(overworldLevel, "Leaving the Nether", player);
+	}
+	portalCooldownTicks = 100;  // 5 seconds
+}
+
+Level* Minecraft::getOrCreateNetherLevel(int nx, int nz) {
+	if (netherLevel != NULL) {
+		// Re-point the stored spawn at the new arrival so
+		// prepareLevel generates around the portal (old levels only;
+		// the gen area is derived from the shared spawn).
+		netherLevel->getLevelData()->setSpawn(nx, 70, nz);
+		return netherLevel;
+	}
+
+	ExternalFileLevelStorage* owStorage = (ExternalFileLevelStorage*)overworldLevel->getLevelStorage();
+	std::string dimPath = owStorage->getLevelPath() + "/DIM-1";
+
+	// Pre-seed DIM-1/level.dat so the Nether level is NOT new:
+	// prepareLevel then generates around the portal destination
+	// instead of calling setInitialSpawn (which would wander the
+	// spawn to (256,64,256)). Same seed/gameType as the overworld.
+	createFolderIfNotExists(dimPath.c_str());
+	{
+		FILE* f = fopen((dimPath + "/level.dat").c_str(), "rb");
+		if (f == NULL) {
+			LevelData data(
+				LevelSettings(overworldLevel->getSeed(), overworldLevel->getLevelData()->getGameType()),
+				overworldLevel->getLevelData()->getLevelName() + " Nether",
+				SharedConstants::GeneratorVersion);
+			data.setSpawn(nx, 70, nz);
+			data.setDimension(Dimension::NETHER);
+			ExternalFileLevelStorage::saveLevelData(dimPath, data, NULL);
+		} else {
+			fclose(f);
+		}
+	}
+
+	ExternalFileLevelStorage* storage = new ExternalFileLevelStorage(currentLevelId + "_nether", dimPath);
+	storage->setOmitPlayerFromLevelDat(true);
+	LevelSettings settings(overworldLevel->getSeed(), overworldLevel->getLevelData()->getGameType());
+	netherLevel = new ServerLevel(
+		storage,
+		overworldLevel->getLevelData()->getLevelName(),
+		settings,
+		SharedConstants::GeneratorVersion,
+		new NetherDimension());
+	netherLevel->getLevelData()->setDimension(Dimension::NETHER);
+	netherLevel->getLevelData()->setSpawn(nx, 70, nz);
+	return netherLevel;
+}
+
+void Minecraft::findOrCreatePortal(float px, float py, float pz) {
+	if (level == NULL || player == NULL) return;
+	int cx = (int)px, cy = (int)py, cz = (int)pz;
+
+	// 1. Look for an existing portal within 16 blocks (horizontal),
+	// scanning near the arrival height first.
+	for (int r = 0; r <= 16; r++) {
+		for (int dx = -r; dx <= r; dx++) for (int dz = -r; dz <= r; dz++) {
+			if (r > 0 && std::max(abs(dx), abs(dz)) != r) continue;
+			int y0 = cy - 16; if (y0 < 1) y0 = 1;
+			int y1 = cy + 16; if (y1 > 126) y1 = 126;
+			for (int y = y0; y <= y1; y++) {
+				if (level->getTile(cx + dx, y, cz + dz) == Tile::portalTile->id) {
+					player->setPos(cx + dx + 0.5f, (float)y, cz + dz + 0.5f);
+					return;
+				}
+			}
+		}
+	}
+
+	// 2. None found: build a 4x5 obsidian frame on solid ground near
+	// the arrival point (spiral out to 8 blocks, scan down from
+	// y=110 for solid ground with 4 air above it).
+	for (int r = 0; r <= 8; r++) {
+		for (int dx = -r; dx <= r; dx++) for (int dz = -r; dz <= r; dz++) {
+			if (r > 0 && std::max(abs(dx), abs(dz)) != r) continue;
+			for (int y = 110; y >= 8; y--) {
+				int t = level->getTile(cx + dx, y, cz + dz);
+				if (t == 0 || !Tile::tiles[t]->isSolidRender()) continue;
+				bool clear = true;
+				for (int k = 1; k <= 4; k++) {
+					int a = level->getTile(cx + dx, y + k, cz + dz);
+					if (a != 0 && a != Tile::fire->id) { clear = false; break; }
+				}
+				if (!clear) break;  // low ceiling here; try the next column
+				int bx = cx + dx, baseY = y + 1, bz = cz + dz;
+				for (int i = -1; i <= 2; i++) {
+					level->setTile(bx + i, baseY, bz, Tile::obsidian->id);
+					level->setTile(bx + i, baseY + 4, bz, Tile::obsidian->id);
+				}
+				for (int j = 1; j <= 3; j++) {
+					level->setTile(bx - 1, baseY + j, bz, Tile::obsidian->id);
+					level->setTile(bx + 2, baseY + j, bz, Tile::obsidian->id);
+					level->setTile(bx,     baseY + j, bz, Tile::portalTile->id);
+					level->setTile(bx + 1, baseY + j, bz, Tile::portalTile->id);
+				}
+				player->setPos(bx + 1.0f, (float)(baseY + 1), bz + 0.5f);
+				return;
+			}
+		}
+	}
+	// 3. Last resort: the player stays at the arrival position set
+	// by changeDimension (no portal could be built nearby).
 }
 
 void Minecraft::cleanupLastJoinedServerFolders()
@@ -372,11 +581,55 @@ void Minecraft::leaveGame(bool renameLevel /*=false*/)
 	delete netCallback;
 	netCallback = NULL;
 
+	// v21: if quitting from the Nether, the live player state (pos,
+	// inventory, XP — including Nether loot) only exists in the
+	// Nether level's memory; the overworld level.dat still holds the
+	// pre-trip tag, and the Nether storage deliberately never writes
+	// a Player compound. Write the live player into the overworld
+	// tag at the return position before deleting anything, or the
+	// loot would be lost on the next load.
+	if (level != NULL && level->dimension != NULL
+		&& level->dimension->id == Dimension::NETHER
+		&& overworldLevel != NULL && player != NULL) {
+		float sx = player->x, sy = player->y, sz = player->z;
+		int sdim = player->dimension;
+		if (hasReturnPos) player->setPos(returnX, returnY, returnZ);
+		player->dimension = overworldLevel->dimension->id;
+		bool inPlayers = false;
+		for (unsigned int i = 0; i < overworldLevel->players.size(); i++) {
+			if (overworldLevel->players[i] == player) { inPlayers = true; break; }
+		}
+		if (!inPlayers) overworldLevel->players.push_back(player);
+		overworldLevel->saveLevelData();
+		for (unsigned int i = 0; i < overworldLevel->players.size(); i++) {
+			if (overworldLevel->players[i] == player) {
+				overworldLevel->players.erase(overworldLevel->players.begin() + i);
+				break;
+			}
+		}
+		player->setPos(sx, sy, sz);
+		player->dimension = sdim;
+	}
+
 	LOGI("Erasing level\n");
 	if (level != NULL) {
+		Level* deletedLevel = level;
 		delete level->getLevelStorage();
 		delete level;
 		level = NULL;
+		// v21: the inactive dimension level is owned here too.
+		if (deletedLevel == overworldLevel) overworldLevel = NULL;
+		if (deletedLevel == netherLevel) netherLevel = NULL;
+	}
+	if (overworldLevel != NULL) {
+		delete overworldLevel->getLevelStorage();
+		delete overworldLevel;
+		overworldLevel = NULL;
+	}
+	if (netherLevel != NULL) {
+		delete netherLevel->getLevelStorage();
+		delete netherLevel;
+		netherLevel = NULL;
 	}
 	//delete player;
 	player = NULL;
@@ -604,6 +857,17 @@ void Minecraft::tick(int nTick, int maxTick) {
 		}
 		_levelGenerated();
 	}
+
+	// v21: deferred dimension switch (requested from
+	// LocalPlayer::tick while standing in a portal). Runs between
+	// level ticks, never inside one; changeDimension starts a new
+	// generation, so this tick must end here.
+	if (pendingDimensionSwitch && !pause) {
+		pendingDimensionSwitch = false;
+		changeDimension(pendingDimension);
+		return;
+	}
+	if (portalCooldownTicks > 0) portalCooldownTicks--;
 
 	//
 	// Normal game loop, run before or efter level generation
@@ -1471,6 +1735,14 @@ void Minecraft::_levelGenerated()
 	// if we are client side, we trust the server to have given us a correct position
 	if (player && !level->isClientSide) {
 		player->resetPos(false);
+	}
+
+	// v21: after a dimension switch, move the player into the
+	// destination portal (found nearby, or freshly built) once
+	// generation has finished.
+	if (pendingPortalBuild && player) {
+		pendingPortalBuild = false;
+		findOrCreatePortal(player->x, player->y, player->z);
 	}
 
 	this->cameraTargetPlayer = player;

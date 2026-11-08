@@ -48,6 +48,12 @@ public:
 			case MobTypes::Enderman:
 				mob = new Enderman(level);
 				break;
+			case MobTypes::Ghast:
+				mob = new Ghast(level);
+				break;
+			case MobTypes::Blaze:
+				mob = new Blaze(level);
+				break;
 			default:
                 LOGE("Unknown mob type requested: %d\n", mobType);
                 break;

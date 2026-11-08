@@ -217,6 +217,8 @@ public:
     static Tile* hellSand;
     static Tile* lightGem;
 	static Tile* portalTile;
+	static Tile* quartzOre;
+	static Tile* netherWart;
     static Tile* litPumpkin;
     static Tile* cake;
     static Tile* diode_off;

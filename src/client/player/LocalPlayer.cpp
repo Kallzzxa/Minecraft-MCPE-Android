@@ -56,6 +56,7 @@ LocalPlayer::LocalPlayer(Minecraft* minecraft, Level* level, User* user, int dim
 	_prevX(0),
 	_prevZ(0),
 	_prevPosInit(false),
+	_wasInPortal(false),
 	armorTypeHash(0)
 {
 	this->dimension = dimension;
@@ -101,6 +102,22 @@ bool LocalPlayer::isSolidTile(int x, int y, int z) {
 void LocalPlayer::tick() {
 
 	super::tick();
+
+	// v21: standing inside a portal block requests a dimension
+	// switch (deferred to Minecraft::tick; the 5 s cooldown in
+	// Minecraft also guards the trip). The switch fires only on
+	// ENTERING a portal, so standing in the destination portal
+	// after arrival does not bounce the player straight back.
+	// Feet or head block counts.
+	if (minecraft != NULL && level != NULL && !level->isClientSide && health > 0) {
+		int bx = Mth::floor(x), by = Mth::floor(y), bz = Mth::floor(z);
+		bool inPortal = level->getTile(bx, by, bz) == Tile::portalTile->id
+			|| level->getTile(bx, by + 1, bz) == Tile::portalTile->id;
+		if (inPortal && !_wasInPortal && minecraft->portalCooldownTicks <= 0) {
+			minecraft->toggleDimension();
+		}
+		_wasInPortal = inPortal;
+	}
 
 	// Hunger exhaustion from movement (v6): measure the horizontal
 	// distance actually walked this tick (blocked by walls -> no

@@ -149,6 +149,9 @@ void Inventory::setupDefault() {
 		addItem(new ItemInstance(Tile::treeTrunk, 1, 2));
 		addItem(new ItemInstance(Tile::netherBrick));
 		addItem(new ItemInstance(Tile::netherrack));
+		addItem(new ItemInstance(Tile::hellSand));
+		addItem(new ItemInstance(Tile::quartzOre));
+		addItem(new ItemInstance(Tile::lightGem));
 		addItem(new ItemInstance(Tile::stairs_stone));
 		addItem(new ItemInstance(Tile::stairs_wood));
 		Sel[6] = addItem(new ItemInstance(Tile::stairs_brick));

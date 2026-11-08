@@ -31,6 +31,7 @@ public:
 	static const int IdThrownEgg= 82;
 	static const int IdPainting = 83;
 	static const int IdExperienceOrb = 84;
+	static const int IdFireball = 85;
 };
 
 // For now; mobs 0-63
@@ -54,6 +55,8 @@ public:
 	static const int PigZombie	= 36;
 	static const int Slime		= 37;
 	static const int Enderman	= 38;
+	static const int Ghast		= 39;
+	static const int Blaze		= 40;
 };
 
 struct ParticleType {

@@ -23,6 +23,9 @@
 #include "SpiderRenderer.h"
 #include "SlimeRenderer.h"
 #include "EndermanRenderer.h"
+#include "GhastRenderer.h"
+#include "BlazeRenderer.h"
+#include "FireballRenderer.h"
 
 #include "ChickenRenderer.h"
 #include "SheepRenderer.h"
@@ -54,6 +57,9 @@ EntityRenderDispatcher::EntityRenderDispatcher()
 	assign(	ER_SPIDER_RENDERER,		new SpiderRenderer());
 	assign(	ER_SLIME_RENDERER,		new SlimeRenderer());
 	assign(	ER_ENDERMAN_RENDERER,	new EndermanRenderer());
+	assign(	ER_GHAST_RENDERER,		new GhastRenderer());
+	assign(	ER_BLAZE_RENDERER,		new BlazeRenderer());
+	assign(	ER_FIREBALL_RENDERER,	new FireballRenderer());
 	assign(	ER_TNT_RENDERER,		new TntRenderer());
 	assign(	ER_ARROW_RENDERER,		new ArrowRenderer());
 	assign( ER_PLAYER_RENDERER,		new PlayerRenderer(new HumanoidModel(), 0));

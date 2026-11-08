@@ -128,6 +128,10 @@ Tile* Tile::enchantTable = NULL;
 Tile* Tile::brewingStand = NULL;
 Tile* Tile::chest		= NULL;
 Tile* Tile::lightGem    = NULL;
+Tile* Tile::portalTile   = NULL;
+Tile* Tile::hellSand     = NULL;
+Tile* Tile::quartzOre    = NULL;
+Tile* Tile::netherWart   = NULL;
 Tile* Tile::stairs_wood = NULL;
 Tile* Tile::stairs_stone= NULL;
 Tile* Tile::stairs_brick= NULL;
@@ -266,9 +270,19 @@ void Tile::initTiles() {
 	fence		= (new FenceTile(85, 4))->init()->setDestroyTime(2.0f)->setExplodeable(5)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Structures)->setDescriptionId("fence");
 
 	netherrack = (new Tile(87, 7 + 6 * 16, Material::stone))->init()->setDestroyTime(0.4f)->setSoundType(SOUND_STONE)->setDescriptionId("hellrock");
-	//hellSand = (new HellSandTile(88, 8 + 6 * 16, Material::sand))->init()->setDestroyTime(0.5f)->setSoundType(SOUND_SAND)->setDescriptionId("hellsand");
+	// v21: soul sand. The original tree had this line commented out
+	// AND no HellSandTile class; the tile is live now (texture 171).
+	hellSand = (new HellSandTile(88, 171))->init()->setDestroyTime(0.5f)->setSoundType(SOUND_SAND)->setCategory(ItemCategory::Structures)->setDescriptionId("hellsand");
 
 	lightGem	= (new LightGemTile(89, 9 + 16 * 6, Material::glass))->init()->setDestroyTime(0.3f)->setCategory(ItemCategory::Structures)->setSoundType(SOUND_GLASS)->setLightEmission(1.0f)->setDescriptionId("lightgem");
+	// v21: Nether portal block (texture 170, the swirl). Tile::
+	// portalTile was declared in Tile.h since the original tree but
+	// never defined or registered.
+	portalTile = (new PortalTile(90, 170))->init()->setDestroyTime(0.0f)->setLightEmission(11 / 16.0f)->setSoundType(SOUND_GLASS)->setCategory(ItemCategory::Structures)->setDescriptionId("portal");
+	// v21: nether wart crop (id 115, textures 173/216/217/231) and
+	// nether quartz ore (id 153, texture 172).
+	netherWart = (new NetherWartTile(115, 173))->init()->setDestroyTime(0.0f)->setSoundType(SOUND_GRASS)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("netherStalk");
+	quartzOre = (new QuartzOreTile(153, 172))->init()->setDestroyTime(3.0f)->setExplodeable(5)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("quartzOre");
 	invisible_bedrock = (new InvisibleTile(95, 0, Material::stone))->init()->setDestroyTime(-1)->setExplodeable(6000000);//->setSoundType(SOUND_SILENT);
 	trapdoor = (new TrapDoorTile(96, Material::wood))->init()->setDestroyTime(3.0f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Structures)->setDescriptionId("trapdoor");//->sendTileData();
 

@@ -40,6 +40,18 @@ public:
     ExternalFileLevelStorage(const std::string& levelId, const std::string& fullPath);
 	virtual ~ExternalFileLevelStorage();
 
+	// v21: the world directory this storage reads/writes
+	// (Minecraft needs it to place the Nether's DIM-1 subdir).
+	std::string getLevelPath() const { return levelPath; }
+
+	// v21: when true, level.dat is written WITHOUT a Player compound
+	// (createTag() instead of createTag(players)). The Nether level
+	// uses this: its storage must never capture the player tag, or
+	// re-entering the Nether would restore a stale inventory/position
+	// over the live player (Level::loadPlayer applies the tag once).
+	// The live player state always belongs to the overworld tag.
+	void setOmitPlayerFromLevelDat(bool omit) { omitPlayerFromLevelDat = omit; }
+
     LevelData* prepareLevel(Level* level);
 
 	//throws LevelConflictException
@@ -89,6 +101,7 @@ private:
 	int loadedStorageVersion;
 	UnsavedChunkList unsavedChunkList;
 	int lastSavedEntitiesTick;
+	bool omitPlayerFromLevelDat;
 };
 
 #endif /*NET_MINECRAFT_WORLD_LEVEL_STORAGE__ExternalFileLevelStorage_H__*/
