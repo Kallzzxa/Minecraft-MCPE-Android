@@ -175,6 +175,8 @@ public:
     static Tile* workBench;
 	static Tile* stonecutterBench;
     static Tile* crops;
+	static Tile* carrots;
+	static Tile* potatoes;
     static Tile* farmland;
     static Tile* furnace;
     static Tile* furnace_lit;

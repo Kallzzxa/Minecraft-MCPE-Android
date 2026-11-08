@@ -101,6 +101,15 @@ int Zombie::getDeathLoot() {
 	return Item::rotten_flesh->id;
 }
 
+// v9: keep the 0-2 rotten flesh from Mob::dropDeathLoot, plus a rare bonus:
+// 2.5% chance of one carrot or one potato (50/50), like modern MC.
+void Zombie::dropDeathLoot() {
+	super::dropDeathLoot();
+	if (random.nextFloat() < 0.025f) {
+		spawnAtLocation(random.nextInt(2) == 0 ? Item::carrot->id : Item::potato->id, 1);
+	}
+}
+
 bool Zombie::useNewAi() {
 	return _useNewAi;
 }

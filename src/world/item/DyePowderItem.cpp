@@ -65,9 +65,11 @@ bool DyePowderItem::useOn( ItemInstance* itemInstance, Player* player, Level* le
 			  }
 			  itemInstance->count--;
 			  return true;
-		  } else if (tile == Tile::crops->id) {
+		  } else if (tile == Tile::crops->id || tile == Tile::carrots->id || tile == Tile::potatoes->id) {
+			  // v9: bonemeal grows root crops too (RootCropTile is a CropTile,
+			  // so growCropsToMax still applies — cast via the tile table).
 			  if (!level->isClientSide) {
-				  ((CropTile*) Tile::crops)->growCropsToMax(level, x, y, z);
+				  ((CropTile*) Tile::tiles[tile])->growCropsToMax(level, x, y, z);
 			  }
 			  itemInstance->count--;
 		  } else if (tile == Tile::grass->id) {

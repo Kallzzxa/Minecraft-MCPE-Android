@@ -115,6 +115,8 @@ Tile* Tile::emeraldBlock= NULL;
 Tile* Tile::workBench   = NULL;
 Tile* Tile::stonecutterBench = NULL;
 Tile* Tile::crops		= NULL;
+Tile* Tile::carrots		= NULL;
+Tile* Tile::potatoes	= NULL;
 Tile* Tile::furnace     = NULL;
 Tile* Tile::furnace_lit = NULL;
 Tile* Tile::chest		= NULL;
@@ -208,6 +210,12 @@ void Tile::initTiles() {
 	emeraldBlock= (new MetalTile(57, 40 - 16))->init()->setDestroyTime(5.0f)->setExplodeable(10)->setSoundType(SOUND_METAL)->setCategory(ItemCategory::Decorations)->setDescriptionId("blockDiamond");
 	workBench   = (new WorkbenchTile(58))->init()->setDestroyTime(2.5f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Structures)->setDescriptionId("workbench");
 	crops		= (new CropTile(59, 8 + 5 * 16))->init()->setDestroyTime(0.0f)->setSoundType(SOUND_GRASS)->setCategory(ItemCategory::Structures)->setDescriptionId("crops");//->sendTileData();
+	// v9: root crops. Tile ids 141/142 match modern MC; textures 184-187
+	// (carrots) and 188-191 (potatoes) are row-11 cells of terrain.png that
+	// were unused magenta placeholders. Yield item ids: carrot 427
+	// (Item ctor id 171), potato 428 (ctor id 172) — see RootCropTile.h.
+	carrots		= (new RootCropTile(141, 8 + 11 * 16, 427))->init()->setDestroyTime(0.0f)->setSoundType(SOUND_GRASS)->setCategory(ItemCategory::Structures)->setDescriptionId("carrots");
+	potatoes	= (new RootCropTile(142, 12 + 11 * 16, 428))->init()->setDestroyTime(0.0f)->setSoundType(SOUND_GRASS)->setCategory(ItemCategory::Structures)->setDescriptionId("potatoes");
 	farmland    = (new FarmTile(60))->init()->setDestroyTime(0.6f)->setSoundType(SOUND_GRAVEL)->setCategory(ItemCategory::Structures)->setDescriptionId("farmland");
 	furnace		= (new FurnaceTile(61, false))->init()->setDestroyTime(3.5f)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("furnace");//.sendTileData();
 	furnace_lit = (new FurnaceTile(62, true))->init()->setDestroyTime(3.5f)->setSoundType(SOUND_STONE)->setLightEmission(14 / 16.0f)->setCategory(ItemCategory::Structures)->setDescriptionId("furnace");//.sendTileData();

@@ -30,6 +30,7 @@
 #include "WeaponItem.h"
 
 #include "SeedItem.h"
+#include "PlantableFoodItem.h"
 #include "HangingEntityItem.h"
 #include "SignItem.h"
 

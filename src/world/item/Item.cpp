@@ -150,6 +150,9 @@ Item* Item::chicken_cooked = NULL;
 Item* Item::mutton_raw = NULL;
 Item* Item::mutton_cooked = NULL;
 Item* Item::rotten_flesh = NULL;
+Item* Item::carrot = NULL;
+Item* Item::potato = NULL;
+Item* Item::potato_baked = NULL;
 
 Item* Item::netherbrick = NULL;
 Item* Item::netherQuartz = NULL;
@@ -289,6 +292,14 @@ void Item::initItems() {
 	// (FoodItem::setEatEffect is commented out), so it has no downside.
 	// Icon drawn into gui/items.png cell (6, 7); lang name already existed.
 	Item::rotten_flesh = (new FoodItem(170, 4, true))->setIcon(6, 7)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("rottenFlesh");
+
+	// v9: carrots & potatoes. The items ARE the seed (PlantableFoodItem):
+	// use on farmland to plant, hold-to-eat like any other food.
+	// Nutrition matches modern MC: carrot 3, raw potato 1, baked potato 5.
+	// Icons drawn into blank gui/items.png cells (6, 9), (6, 10), (8, 9).
+	Item::carrot = (new PlantableFoodItem(171, 3, false, Tile::carrots->id))->setIcon(6, 9)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("carrot");
+	Item::potato = (new PlantableFoodItem(172, 1, false, Tile::potatoes->id))->setIcon(6, 10)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("potato");
+	Item::potato_baked = (new FoodItem(173, 5, false))->setIcon(8, 9)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("potatoBaked");
 
 	Item::netherbrick = (new Item(149))->setIcon(5, 9)->setDescriptionId("netherbrickItem")->setCategory(ItemCategory::Structures);
 	Item::netherQuartz = (new Item(150))->setIcon(5, 10)->setDescriptionId("netherquartz")->setCategory(ItemCategory::Mechanisms);

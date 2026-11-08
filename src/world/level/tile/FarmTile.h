@@ -86,7 +86,9 @@ private:
         int r = 0;
         for (int xx = x - r; xx <= x + r; xx++)
             for (int zz = z - r; zz <= z + r; zz++) {
-                if (level->getTile(xx, y + 1, zz) == Tile::crops->id) {
+                int above = level->getTile(xx, y + 1, zz);
+                // v9: carrots/potatoes keep farmland from drying out too
+                if (above == Tile::crops->id || above == Tile::carrots->id || above == Tile::potatoes->id) {
                     return true;
                 }
             }

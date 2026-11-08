@@ -10,7 +10,7 @@ Each version is ONE coherent batch of features, shipped as a new APK
 - One batch per version. Small enough to implement + CI in ~10–20 minutes.
 - Never break what already works: right-side jump button, hunger + meat
   drops + furnace, sprint, 512×512 world, v4 lighting, 0.8× fog,
-  v7 hostile mob drops, v8 XP orbs + levels + HUD.
+  v7 hostile mob drops, v8 XP orbs + levels + HUD, v9 carrots/potatoes.
 - If a feature proves unfeasible after reasonable investigation, mark it
   skipped here with the reason and move on. Don't grind.
 - World 1024×1024 ONLY with measurements (v3/v6 rejected it on paper:
@@ -67,10 +67,31 @@ Each version is ONE coherent batch of features, shipped as a new APK
   default difficulty NORMAL — chain intact, nothing broken, no code
   change; a live night test on device is still the real proof.
 
-## Next (v9)
+- **v9 — Carrots & potatoes.** New `RootCropTile` (subclass of `CropTile`:
+  same farmland growth, 8 data values, but only 4 visual stages — data maps
+  2:1 onto new terrain.png sprites drawn into row-11 cells 184–191, which
+  were unused magenta placeholders; harvest drops the plant itself, 1–3
+  when mature, 1 when immature, and NO wheat seeds — `CropTile`'s
+  seed-spawning `spawnResources` is deliberately NOT inherited).
+  Tile ids 141 (carrots) / 142 (potatoes), matching modern MC. New
+  `PlantableFoodItem` (FoodItem + SeedItem planting on farmland): carrot
+  (item id 171, +3 hunger, icon cell (6, 9)), potato (id 172, +1, (6, 10));
+  baked potato (id 173, FoodItem +5, icon (8, 9)) via a new furnace recipe
+  (raw potato → baked potato). Icons drawn into blank `gui/items.png`
+  cells; lang `tile.carrots/potatoes.name`, `item.carrot/potato/potatoBaked.name`.
+  Zombies keep their 0–2 rotten flesh and gain a rare bonus: 2.5% chance of
+  1 carrot or 1 potato (50/50) via a `Zombie::dropDeathLoot` override.
+  `FarmTile::isUnderCrops` now also counts carrots/potatoes so farmland
+  under them does not dry out and revert to dirt. Eating uses the existing
+  FoodItem path (no change). Caveats: crop sprites are simple drawn
+  sprouts (4 stages, not 8 distinct like wheat); no golden carrot /
+  poisonous potato (no status-effect system yet); zombie drop rate is
+  code-only until a live kill test on device.
 
-- **v9 — Carrots & potatoes.** New crop tiles + food items, farmable
-  like wheat (CropTile exists). Carrot/potato drops from zombies as a bonus.
+## Next (v10)
+
+- **v10 — Enchanting** (see Queued below): enchanting table + basic
+  enchantments, building on the v8 XP system.
 
 ## Queued (priority order — re-evaluate after each version)
 

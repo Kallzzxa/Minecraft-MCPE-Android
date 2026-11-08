@@ -200,6 +200,9 @@ public:
 	static Item* mutton_raw;
 	static Item* mutton_cooked;
 	static Item* rotten_flesh;
+	static Item* carrot;
+	static Item* potato;
+	static Item* potato_baked;
 
 	static Item* netherbrick;
 	static Item* netherQuartz;

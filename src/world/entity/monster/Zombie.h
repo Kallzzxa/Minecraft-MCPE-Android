@@ -33,6 +33,7 @@ protected:
 	
 	//@todo
     int getDeathLoot();
+	void dropDeathLoot();
 
 	virtual bool useNewAi();
 

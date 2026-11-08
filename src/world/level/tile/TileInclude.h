@@ -12,6 +12,7 @@
 #include "ChestTile.h"
 #include "ClothTile.h"
 #include "CropTile.h"
+#include "RootCropTile.h"
 #include "DirtTile.h"
 #include "DoorTile.h"
 #include "FarmTile.h"
