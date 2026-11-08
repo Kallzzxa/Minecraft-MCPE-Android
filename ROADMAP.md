@@ -1571,7 +1571,14 @@ Each version is ONE coherent batch of features, shipped as a new APK
     10,158,920 B / armv7 8,748,932 B, new symbols confirmed
     (`PotionItem::applyEffect/getTypeDesc`, `BrewingRecipes::
     isIngredient`, extended/level II handling). CI
-    `./gradlew assembleDebug` SUCCESS (see run in the v26 report).
+    `./gradlew assembleDebug` SUCCESS (run 42528844420, ~4m41s);
+    APK `minecraft-mcpe-android-0.6.1-debug-v26.apk`
+    12,898,917 B, sha256 2df5e2b3…5847a2, versionCode 26,
+    `apksigner verify` v1+v2 true, `unzip -t` clean; the APK
+    itself was re-checked to contain all 26 new lang keys
+    (`item.potion.*Long` / `*2` + `item.splashPotion.*` twins)
+    and the new symbols in its `libminecraftpe.so` (arm64
+    10,163,016 B / armv7 8,748,932 B).
   ### Known limits / debts
   - No lingering potions, no buckets (v25 debts stand). Splash
     potions are still not in the creative inventory (brew them).
