@@ -97,6 +97,11 @@ with zipfile.ZipFile(stage + "/unsigned.apk", "a", zipfile.ZIP_STORED) as z:
 EOF
 
 echo "== 6. align + sign (debug keystore) =="
+# The output path may live under app/build/outputs/... which Gradle
+# never created when gradlew failed — apksigner does not create
+# parent directories, so make it here (CI run 42483450427 died on
+# exactly this: FileNotFoundException for the --out path).
+mkdir -p "$(dirname "$OUT")"
 "$ZIPALIGN" -f -p 4 "$STAGE/unsigned.apk" "$STAGE/aligned.apk"
 if [ ! -f "$STAGE/debug.keystore" ]; then
     keytool -genkeypair -keystore "$STAGE/debug.keystore" \

@@ -5,6 +5,11 @@ buildscript {
     repositories {
         google()
         maven { url 'https://dl.google.com/dl/android/maven2/' }
+        // NOTE: AGP 3.3.2's own classpath deps (e.g.
+        // org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.3.21) are NOT on
+        // Google's maven mirror — the build fails at project
+        // configuration without mavenCentral() here.
+        mavenCentral()
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:3.3.2'

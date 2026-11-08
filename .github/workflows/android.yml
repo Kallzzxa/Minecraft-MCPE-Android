@@ -9,10 +9,12 @@
 #
 # The Gradle distribution download is the fragile part: downloads from
 # services.gradle.org time out from GitHub runners (SocketTimeout,
-# proven repeatedly on the sibling project). The wrapper here points
-# straight at the CDN (downloads.gradle-dn.com), and the build step
-# retries the wrapper against three mirrors in turn (CDN, GitHub
-# Releases, Aliyun). If gradlew still cannot run after all retries,
+# proven repeatedly on the sibling project), and downloads.gradle-dn.com
+# does not even resolve there (UnknownHostException, run 42483450427).
+# The wrapper therefore points at the GitHub Releases mirror
+# (gradle/gradle-distributions), and the build step retries the wrapper
+# against three mirrors in turn (GitHub Releases, Aliyun,
+# services.gradle.org). If gradlew still cannot run after all retries,
 # the job falls back to the proven direct pipeline in
 # app/build-apk.sh (ndk-build + aapt2/d8, no Gradle) so the APK still
 # ships; the log then shows exactly which gradlew attempt failed.
@@ -111,12 +113,15 @@ jobs:
     - name: Build debug APK (gradlew, with mirror retries; fallback to ndk-build pipeline)
       run: |
         set +e
-        CDN="https://downloads.gradle-dn.com/distributions/gradle-4.10.1-bin.zip"
+        # NOTE: downloads.gradle-dn.com does NOT resolve from GitHub
+        # runners at all (UnknownHostException) — do not use it. The
+        # GitHub Releases mirror works; Aliyun works too.
         GH="https://github.com/gradle/gradle-distributions/releases/download/v4.10.1/gradle-4.10.1-bin.zip"
         ALIYUN="https://mirrors.aliyun.com/gradle/gradle-4.10.1-bin.zip"
+        SERVICES="https://services.gradle.org/distributions/gradle-4.10.1-bin.zip"
         ok=0
         i=1
-        for URL in "$CDN" "$CDN" "$GH" "$ALIYUN"; do
+        for URL in "$GH" "$GH" "$ALIYUN" "$SERVICES"; do
           sed -i "s|^distributionUrl=.*|distributionUrl=$URL|" gradle/wrapper/gradle-wrapper.properties
           echo "== gradlew attempt $i (dist: $URL) =="
           ./gradlew assembleDebug --stacktrace
