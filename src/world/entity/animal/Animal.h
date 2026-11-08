@@ -27,6 +27,9 @@ public:
 
 	int getCreatureBaseType() const;
 
+	// v8: passive animals drop 1-3 XP when killed by a player.
+	virtual int getExperienceReward(Player* killedBy);
+
 	bool removeWhenFarAway();
 
 protected:

@@ -1,4 +1,5 @@
 #include "EntityRenderDispatcher.h"
+#include "ExperienceOrbRenderer.h"
 
 #include "../../Options.h"
 #include "../../../world/entity/player/Player.h"
@@ -56,6 +57,7 @@ EntityRenderDispatcher::EntityRenderDispatcher()
 	assign( ER_SNOWBALL_RENDERER,   new ItemSpriteRenderer(Item::snowBall->getIcon(0)));
 	assign( ER_PAINTING_RENDERER,   new PaintingRenderer());
 	assign( ER_FALLINGTILE_RENDERER,new FallingTileRenderer());
+	assign( ER_EXPERIENCE_ORB_RENDERER, new ExperienceOrbRenderer());
 
 	for (RendererIterator it = _renderers.begin(); it != _renderers.end(); ++it) {
 		it->second->init(this);

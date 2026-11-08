@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "player/Player.h"
+#include "item/ExperienceOrb.h"
 #include "../food/FoodConstants.h"
 #include "SharedFlags.h"
 #include "../entity/EntityEvent.h"
@@ -492,6 +493,12 @@ void Mob::die( Entity* source )
 	if (!level->isClientSide) {
 		if (!isBaby()) {
 			dropDeathLoot();
+			// v8: XP orbs only when a player lands the killing blow
+			// (a creeper that explodes remove()s instead of dying,
+			// so it drops no XP — same as modern MC).
+			if (source != NULL && Player::isPlayer(source)) {
+				dropExperience(getExperienceReward((Player*) source));
+			}
 		}
 		level->broadcastEntityEvent(this, EntityEvent::DEATH);
 	}
@@ -510,6 +517,24 @@ void Mob::dropDeathLoot()
 int Mob::getDeathLoot()
 {
 	return 0;
+}
+
+int Mob::getExperienceReward( Player* killedBy )
+{
+	(void) killedBy;
+	return 0;
+}
+
+void Mob::dropExperience( int total )
+{
+	// Split the reward into orbs worth 1-3 XP each (modern MC splits
+	// into several orbs instead of one big orb).
+	while (total > 0) {
+		int v = total;
+		if (v > 3) v = 1 + random.nextInt(3);
+		level->addEntity(new ExperienceOrb(level, x, y + 0.5f, z, v));
+		total -= v;
+	}
 }
 
 void Mob::reset() {

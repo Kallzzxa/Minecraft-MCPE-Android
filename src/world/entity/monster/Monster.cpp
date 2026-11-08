@@ -117,6 +117,12 @@ int Monster::getCreatureBaseType() const {
 	return MobTypes::BaseEnemy;
 }
 
+int Monster::getExperienceReward( Player* killedBy )
+{
+	(void) killedBy;
+	return 3 + random.nextInt(3);
+}
+
 Mob* Monster::getTarget() {
 	if (targetId == 0) return NULL;
 	return level->getMob(targetId);

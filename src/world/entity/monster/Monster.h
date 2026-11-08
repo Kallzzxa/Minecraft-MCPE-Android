@@ -34,6 +34,8 @@ public:
 	Mob* getLastHurtByMob();
 	void setLastHurtByMob(Mob* mob);
 	virtual int getAttackDamage(Entity* target);
+	// v8: hostile mobs drop 3-5 XP when killed by a player.
+	virtual int getExperienceReward(Player* killedBy);
 protected:
 	Entity* findAttackTarget();
 

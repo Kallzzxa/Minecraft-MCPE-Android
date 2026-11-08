@@ -88,6 +88,15 @@ public:
 
     int getScore();
     void awardKillScore(Entity* victim, int score);
+
+	// v8: experience / levels (classic MC XP curve; enchanting in v11
+	// will spend these levels). XP is deliberately KEPT on death for
+	// now — death drops nothing in this build (see Player::die).
+	void addExperience(int amount);
+	int getExperienceLevel() const { return experienceLevel; }
+	int getExperienceProgress() const { return experienceProgress; }
+	float getExperienceProgressFraction() const;
+	static int getXpNeededForLevel(int level);
 	void handleEntityEvent(char id);
 
 	virtual void take(Entity* e, int orgCount);
@@ -164,6 +173,10 @@ private:
 public:
     char userType;
     int score;
+	// v8: experience state (saved in Player NBT, kept on death).
+	int experienceLevel;
+	int experienceProgress;
+	int totalExperience;
     float oBob, bob;
 
     std::string name;

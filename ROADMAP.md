@@ -9,7 +9,8 @@ Each version is ONE coherent batch of features, shipped as a new APK
 
 - One batch per version. Small enough to implement + CI in ~10–20 minutes.
 - Never break what already works: right-side jump button, hunger + meat
-  drops + furnace, sprint, 512×512 world, v4 lighting, 0.8× fog.
+  drops + furnace, sprint, 512×512 world, v4 lighting, 0.8× fog,
+  v7 hostile mob drops, v8 XP orbs + levels + HUD.
 - If a feature proves unfeasible after reasonable investigation, mark it
   skipped here with the reason and move on. Don't grind.
 - World 1024×1024 ONLY with measurements (v3/v6 rejected it on paper:
@@ -45,43 +46,58 @@ Each version is ONE coherent batch of features, shipped as a new APK
   80%-hunger downside (modern MC has one); a creeper that explodes
   drops nothing (it `remove()`s instead of dying — matches modern MC).
 
-## Next (v8)
+- **v8 — XP orbs + levels + HUD.** New `ExperienceOrb` entity
+  (`src/world/entity/item/ExperienceOrb.*`, id 84, follows the
+  `ItemEntity` pattern: falls with gravity, magnet-flies to the player
+  within 6 blocks, collected on touch, 5-min lifetime) rendered as a
+  pulsing billboarded green quad (`ExperienceOrbRenderer`, no texture —
+  `gui/icons.png` has no XP-orb sprite). Mobs killed by the player drop
+  orbs: passive animals 1–3 XP (`Animal::getExperienceReward`), hostile
+  mobs 3–5 XP (`Monster::getExperienceReward`), water animals 1–3 XP
+  (pre-existing `WaterAnimal::getExperienceReward`, now a real override
+  of `Mob::getExperienceReward`); orbs split into 1–3 XP pieces.
+  `Player` tracks `experienceLevel` / `experienceProgress` /
+  `totalExperience` with the classic MC curve (L<16: 2L+7, L<31: 5L−38,
+  else 9L−158), saved in player NBT (`XpLevel`/`XpProgress`/`XpTotal`).
+  HUD: green XP bar (182×5, plain fills) above the hotbar + level
+  number centered above it. XP is deliberately KEPT on death for now
+  (death drops nothing in this build). Enchanting NOT included — v10.
+  Night-spawn check (v8 scope): `Level::tick` → `MobSpawner::tick`
+  every 2 ticks when `spawnMobs` (Survival), `_spawnEnemies=true`,
+  default difficulty NORMAL — chain intact, nothing broken, no code
+  change; a live night test on device is still the real proof.
 
-- **v7 — DONE (fallback: hostile mob drops, see "Done").** Boats were
-  investigated and blocked (see below); v8 drops shipped in their place.
+## Next (v9)
+
+- **v9 — Carrots & potatoes.** New crop tiles + food items, farmable
+  like wheat (CropTile exists). Carrot/potato drops from zombies as a bonus.
 
 ## Queued (priority order — re-evaluate after each version)
 
-- **v8 — Night spawning verification + spider eye.** Drops are done (v7);
-  what remains is verifying hostile mobs actually spawn at night
-  (`Level::spawnMobs` / `MobSpawner::tick` runs when `_spawnEnemies` and
-  difficulty > peaceful — code exists, needs a live night test on device).
-  Optional: spider eye drop (its `dropDeathLoot` is commented out).
-- **v9 — XP orbs + levels + HUD.** No XP system exists yet
-  (no `ExperienceOrb` in the tree). Orbs on mob kill, level bar, level
-  number. Enchanting comes later.
-- **v10 — Carrots & potatoes.** New crop tiles + food items, farmable
-  like wheat (CropTile exists). Carrot/potato drops from zombies as a bonus.
-- **v11 — Enchanting.** Enchanting table + basic enchantments
-  (sharpness, efficiency, protection, unbreaking). Needs v9 XP.
-- **v12 — Redstone basics.** Redstone dust + torch + lever + simple power
+- **v10 — Enchanting.** Enchanting table + basic enchantments
+  (sharpness, efficiency, protection, unbreaking). Needs v8 XP (done).
+- **v11 — Redstone basics.** Redstone dust + torch + lever + simple power
   propagation. (Redstone ore tile exists; no wiring yet.)
-- **v13 — Minecarts + rails.** Rideable minecart on rails.
-- **v14 — More mobs.** Slime (+ slimeball), Enderman (+ ender pearl),
+- **v12 — Minecarts + rails.** Rideable minecart on rails.
+- **v13 — More mobs.** Slime (+ slimeball), Enderman (+ ender pearl),
   witch — whichever fits the AI framework (GoalSelector exists).
-- **v15 — Graphics polish.** Clouds, water animation, sky, particles
+- **v14 — Graphics polish.** Clouds, water animation, sky, particles
   (breaking, splashing). Low risk, high visibility.
-- **v16 — Music + ambient sounds.** 102 sound files exist; check what
+- **v15 — Music + ambient sounds.** 102 sound files exist; check what
   plays today and add a music/ambience layer.
-- **v17 — Brewing.** Brewing stand + potions. Blocked on Nether
+- **v16 — Brewing.** Brewing stand + potions. Blocked on Nether
   ingredients (nether wart, blaze powder) — needs a Nether source first,
-  so this waits behind v18 or a Nether-reactor loot change.
-- **v18 — Nether dimension.** Big. The old Nether Reactor exists as a
+  so this waits behind v17 or a Nether-reactor loot change.
+- **v17 — Nether dimension.** Big. The old Nether Reactor exists as a
   placeholder; a real Nether needs a second dimension + portal.
-- **v19 — The End.** Biggest. Ender dragon, end stone, chorus — only
+- **v18 — The End.** Biggest. Ender dragon, end stone, chorus — only
   after Nether works.
-- **v20 — Villages + trading.** Village generation + villagers + trading
+- **v19 — Villages + trading.** Village generation + villagers + trading
   UI. Big; last among gameplay features.
+- **Night spawning live test (from old v8 scope).** Drops are done (v7);
+  code chain verified intact in v8, but hostile mobs spawning at night
+  still needs a live night test on device. Optional: spider eye drop
+  (its `dropDeathLoot` is commented out).
 
 ## Skipped / blocked
 

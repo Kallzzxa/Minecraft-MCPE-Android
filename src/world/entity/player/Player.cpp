@@ -485,6 +485,38 @@ void Player::_init() {
 	swinging = 0;
 	swingTime = 0;
 	score = 0;
+	experienceLevel = 0;
+	experienceProgress = 0;
+	totalExperience = 0;
+}
+
+// v8: classic MC XP curve — XP needed to go from `level` to `level+1`:
+// levels 0-15: 2L+7, 16-30: 5L-38, 31+: 9L-158.
+int Player::getXpNeededForLevel(int level) {
+	if (level < 16) return 2 * level + 7;
+	if (level < 31) return 5 * level - 38;
+	return 9 * level - 158;
+}
+
+float Player::getExperienceProgressFraction() const {
+	int needed = getXpNeededForLevel(experienceLevel);
+	if (needed <= 0) return 0.0f;
+	float f = (float) experienceProgress / (float) needed;
+	if (f > 1.0f) f = 1.0f;
+	if (f < 0.0f) f = 0.0f;
+	return f;
+}
+
+void Player::addExperience(int amount) {
+	if (amount <= 0) return;
+	totalExperience += amount;
+	experienceProgress += amount;
+	int needed = getXpNeededForLevel(experienceLevel);
+	while (experienceProgress >= needed) {
+		experienceProgress -= needed;
+		experienceLevel++;
+		needed = getXpNeededForLevel(experienceLevel);
+	}
 }
 
 float Player::getWalkingSpeedModifier() {
@@ -601,6 +633,10 @@ void Player::readAdditionalSaveData(CompoundTag* entityTag) {
     if (entityTag->contains("SpawnX") && entityTag->contains("SpawnY") && entityTag->contains("SpawnZ")) {
 		respawnPosition.set(entityTag->getInt("SpawnX"), entityTag->getInt("SpawnY"), entityTag->getInt("SpawnZ"));
     }
+	// v8: experience (missing on old saves -> stays 0 from _init()).
+	if (entityTag->contains("XpLevel")) experienceLevel = entityTag->getInt("XpLevel");
+	if (entityTag->contains("XpProgress")) experienceProgress = entityTag->getInt("XpProgress");
+	if (entityTag->contains("XpTotal")) totalExperience = entityTag->getInt("XpTotal");
 	playerHasRespawnPosition = respawnPosition.y >= 0;
 }
 
@@ -628,6 +664,11 @@ void Player::addAdditonalSaveData(CompoundTag* entityTag) {
 	entityTag->putInt("SpawnX", respawnPosition.x);
 	entityTag->putInt("SpawnY", respawnPosition.y);
 	entityTag->putInt("SpawnZ", respawnPosition.z);
+
+	// v8: experience (kept on death by design for now).
+	entityTag->putInt("XpLevel", experienceLevel);
+	entityTag->putInt("XpProgress", experienceProgress);
+	entityTag->putInt("XpTotal", totalExperience);
 }
 
 //static Pos getRespawnPosition(Level level, CompoundTag entityTag) {

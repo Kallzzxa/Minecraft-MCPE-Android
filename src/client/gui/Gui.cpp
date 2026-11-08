@@ -90,6 +90,7 @@ void Gui::render(float a, bool mouseFree, int xMouse, int yMouse) {
 		renderHunger();
 		renderBubbles();
 		t.endOverrideAndDraw();
+		renderExperience();
 	}
 
 	if(minecraft->player->getSleepTimer() > 0) {
@@ -626,6 +627,35 @@ void Gui::renderHunger() {
 		blit(xo, yo, 16 + 0 * 9, 9 * 3, 9, 9);
 		if (ip2 < food) blit(xo, yo, 16 + 4 * 9, 9 * 3, 9, 9);
 		else if (ip2 == food) blit(xo, yo, 16 + 5 * 9, 9 * 3, 9, 9);
+	}
+}
+
+void Gui::renderExperience() {
+	// v8: XP bar above the hotbar (modern MC layout) + level number
+	// centered above it. gui/icons.png has NO xp-bar sprite in this
+	// 0.6.1 tree (rows y=64..74 are fully transparent), so the bar is
+	// drawn with plain fills: black background, XP-green fill.
+	Player* player = minecraft->player;
+	const int screenWidth = (int)(minecraft->width * InvGuiScale);
+	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+	const int ySlot = screenHeight - 16 - 3;
+
+	const int barW = 182;
+	const int barH = 5;
+	const int x0 = screenWidth / 2 - barW / 2;
+	const int y0 = ySlot - barH - 3;
+
+	fill(x0, y0, x0 + barW, y0 + barH, 0xFF000000);
+	int filled = (int)(barW * player->getExperienceProgressFraction());
+	if (filled > 0) {
+		fill(x0, y0, x0 + filled, y0 + barH, 0xFF80FF20);
+	}
+
+	if (player->experienceLevel > 0) {
+		char buf[16];
+		sprintf(buf, "%d", player->experienceLevel);
+		Font* font = minecraft->font;
+		font->drawShadow(buf, (float)(screenWidth / 2 - font->width(buf) / 2), (float)(y0 - 9), 0xFF80FF20);
 	}
 }
 

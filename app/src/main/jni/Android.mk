@@ -109,6 +109,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/client/renderer/entity/HumanoidMobRenderer.cpp \
 ../../../../src/client/renderer/entity/ItemRenderer.cpp \
 ../../../../src/client/renderer/entity/ItemSpriteRenderer.cpp \
+../../../../src/client/renderer/entity/ExperienceOrbRenderer.cpp \
 ../../../../src/client/renderer/entity/MobRenderer.cpp \
 ../../../../src/client/renderer/entity/PaintingRenderer.cpp \
 ../../../../src/client/renderer/entity/PlayerRenderer.cpp \
@@ -159,6 +160,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/entity/animal/WaterAnimal.cpp \
 ../../../../src/world/entity/item/FallingTile.cpp \
 ../../../../src/world/entity/item/ItemEntity.cpp \
+../../../../src/world/entity/item/ExperienceOrb.cpp \
 ../../../../src/world/entity/item/PrimedTnt.cpp \
 ../../../../src/world/entity/item/TripodCamera.cpp \
 ../../../../src/world/entity/monster/Creeper.cpp \

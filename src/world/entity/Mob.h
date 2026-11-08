@@ -128,6 +128,10 @@ protected:
 
 	virtual int getDeathLoot();
     virtual void dropDeathLoot();
+	// v8: XP orbs dropped when killed by a player (0 by default;
+	// Monster 3-5, Animal 1-3, WaterAnimal 1-3).
+	virtual int getExperienceReward(Player* killedBy);
+	void dropExperience(int total);
 
     virtual bool isImmobile();
 

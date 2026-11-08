@@ -90,3 +90,9 @@ bool Animal::removeWhenFarAway()
 int Animal::getCreatureBaseType() const {
 	return MobTypes::BaseCreature;
 }
+
+int Animal::getExperienceReward( Player* killedBy )
+{
+	(void) killedBy;
+	return 1 + random.nextInt(3);
+}
