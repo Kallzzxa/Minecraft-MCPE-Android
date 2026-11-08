@@ -48,7 +48,8 @@
 #include "data/pig3.pcm"
 #include "data/pigdeath.pcm"
 
-//#include "data/chicken1.pcm"
+#include "data/chicken1.pcm"
+#include "data/chickenplop.pcm"
 #include "data/chicken2.pcm"
 #include "data/chicken3.pcm"
 #include "data/chickenhurt1.pcm"
@@ -158,7 +159,8 @@ SoundDesc SA_pig2((char*)PCM_pig2);
 SoundDesc SA_pig3((char*)PCM_pig3);
 SoundDesc SA_pigdeath((char*)PCM_pigdeath);
 
-//SoundDesc SA_chicken1((char*)PCM_chicken1);
+SoundDesc SA_chicken1((char*)PCM_chicken1);
+SoundDesc SA_chickenplop((char*)PCM_chickenplop);
 SoundDesc SA_chicken2((char*)PCM_chicken2);
 SoundDesc SA_chicken3((char*)PCM_chicken3);
 SoundDesc SA_chickenhurt1((char*)PCM_chickenhurt1);

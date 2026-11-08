@@ -133,7 +133,12 @@ void OptionsScreen::generateOptionScreens() {
 	// Mojang Pane
 	optionPanes[0]->createOptionsGroup("options.group.mojang")
 		//.addOptionItem(&Options::Option::THIRD_PERSON, minecraft);
-		.addOptionItem(&Options::Option::SENSITIVITY, minecraft);
+		.addOptionItem(&Options::Option::SENSITIVITY, minecraft)
+		// v19: the MUSIC/SOUND options existed (Options.h, defaults 1)
+		// but no UI ever exposed them, so music could not be muted.
+		// The lang strings (options.music / options.sound) exist.
+		.addOptionItem(&Options::Option::MUSIC, minecraft)
+		.addOptionItem(&Options::Option::SOUND, minecraft);
 // 	int mojangGroup = optionPanes[0]->createOptionsGroup("Mojang");
 // 	static const int arr[] = {5,4,3,15};
 // 	std::vector<int> vec (arr, arr + sizeof(arr) / sizeof(arr[0]) );

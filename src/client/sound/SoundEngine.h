@@ -62,6 +62,31 @@ public:
 
 	float _getVolumeMult(float x, float y, float z);
 private:
+	// v19: procedural music + ambience. No music/ambience audio files
+	// exist in the tree (all 102 .pcm files are short SFX, <= ~1.5 s),
+	// so the tracks below are synthesised in code (mono 16-bit PCM)
+	// and played as one-shot buffers through the existing OpenSL path.
+	void _generateMusic();
+	void _updateMusic(Mob* player);
+	void _playMusic(const SoundDesc& sound, float volume);
+	SoundDesc _makeMusicTrack(int seed);
+	SoundDesc _makeChirp(bool cricket);
+
+	static const int MUSIC_RATE = 22050;
+	static const int MUSIC_TRACK_SECONDS = 18;
+	// update() runs once per rendered frame (~60 fps); the scheduler
+	// counts frames, so these are approximate, not wall-clock exact.
+	static const int MUSIC_TRACK_FRAMES = MUSIC_TRACK_SECONDS * 60;
+
+	bool musicReady;
+	SoundDesc musicTracks[2];
+	SoundDesc birdChirp;
+	SoundDesc cricketChirp;
+	int musicIdleFrames;		// frames since the last track ended
+	int musicGapFrames;			// frames to wait before the next track
+	int musicTrackFramesLeft;	// frames left of the playing track
+	int ambienceIdleFrames;
+	int ambienceGapFrames;
 	void loadLibrary() {}
     SoundDesc _pp(const std::string& fn);
     

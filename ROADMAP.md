@@ -776,7 +776,92 @@ Each version is ONE coherent batch of features, shipped as a new APK
     snapshot once per sweep instead.
   - The 10-minute device walk itself (see "Verification" above).
 
-## Next (v18)
+- **v19 — Music + ambient sounds (SHIPPED, build-only).**
+  ### Audit (read from code, `src/client/sound/`)
+  All 102 "sound files" are raw-PCM C arrays in
+  `src/client/sound/data/*.pcm` (`unsigned char PCM_<name>[N]`), NOT
+  ogg/mp3 — and every one is a SHORT effect: stereo 16-bit 44.1 kHz,
+  longest is the creeper fuse hiss (~1.4 s), most are 0.3–1.0 s.
+  There is NO music file, NO bird/cricket/wind/ambience file, and NO
+  audio decoder in the tree (the Android backend,
+  `SoundSystemSL`, only enqueues raw PCM through OpenSL; max 4
+  simultaneous buffers, one-shot only, no loop, no stop, and it
+  ignores the `pitch` parameter entirely). Recorded music was
+  therefore NOT feasible in one batch — v19 synthesises its
+  music/ambience instead (below). What played before v19: 40
+  registered names (`SoundEngine::init`) covering steps (6 surfaces),
+  dig/break (via `TileSoundType`), mob ambient/hurt/death for
+  pig/cow/sheep/chicken/zombie/skeleton/spider/creeper/zombiepig,
+  eat, bow, fuse, explode, splash, click, pop/pop2, door, glass,
+  hurt, fall damage. What was SILENT despite a live call site:
+  `random.drink` (potion drinking), `random.burp` (after eating),
+  `random.fizz` (item in lava/water), `fire.ignite` (flint & steel),
+  `random.chestopen`/`random.chestclosed` (chest use) — no file and
+  no registration for any of them, so `SoundRepository::get` only
+  logged "Couldn't find a sound". Also silent: slime + enderman
+  (`Slime`/`Enderman::getAmbientSound` return `mob.slime` /
+  `mob.enderman*`, none registered, no files). Three files existed
+  but never sounded: `chicken1.pcm` (include + definition commented
+  out, so `mob.chicken` had only 2 variants), `chickenplop.pcm`
+  (never included at all; its call site in `Chicken::tick` was
+  commented out along with the whole egg-lay block), and
+  `skeletondeath.pcm` (file + `SoundDesc` existed but the name was
+  never registered AND `Skeleton::getDeathSound` returned
+  `mob.skeletonhurt`). One quirk found, NOT a bug: `SA_pop2` looks
+  undefined in `Sound.cpp`, but `data/pop2.pcm:583` itself contains
+  the `SoundDesc SA_pop2(...)` definition at the end of the array.
+  ### What shipped
+  - Procedural music (`SoundEngine::_generateMusic` /
+    `_makeMusicTrack`, `SoundEngine.h/.cpp`): two 18 s calm tracks
+    synthesised once at startup as mono 16-bit 22.05 kHz PCM
+    (~0.8 MB each) — a quiet 3-note pad (C major / A minor) plus a
+    slow random-walk pentatonic melody (sine + octave harmonic,
+    attack/decay envelope). Scheduler in `SoundEngine::update`:
+    first track ~10 s after entering a world, then a random track
+    every 45–120 s (MC-style gap). Only while in a world and not
+    paused; nothing plays on the title screen (player == NULL).
+  - Procedural ambience (`_makeChirp`, same scheduler): bird-chirp
+    bursts (3 descending glissandi) by day, cricket pulses (4.2 kHz,
+    45 ms on/off) by night (`Level::isDay()`), every ~20–45 s.
+  - Music volume is `options->music` (`_playMusic`); SFX volume
+    (`options->sound`) no longer gates the scheduler — before v19,
+    `update()` returned early when `sound == 0`, which would have
+    killed music too. The Options screen never exposed either
+    slider (only sensitivity was live), so MUSIC + SOUND sliders
+    were added to the Mojang pane (`OptionsScreen.cpp`); the
+    `options.music` / `options.sound` lang strings already existed.
+    Caveat: `Options::load()` is entirely commented out tree-wide,
+    so the slider is per-session like every other option here.
+  - Silent-sound fixes (no new files): `chicken1` compiled in
+    (`mob.chicken` now 3 variants); `chickenplop` compiled in +
+    registered + the egg-lay block in `Chicken::tick` re-enabled
+    (field `eggTime` + `Item::egg` already existed — chickens now
+    lay an egg every 5–10 min with the plop sound); `skeletondeath`
+    registered + `Skeleton::getDeathSound` now returns it; slime
+    ambient/hurt/death now return `random.pop` (placeholder squelch
+    — closest existing sound); `random.chestopen/closed` →
+    door open/close, `random.drink`/`random.burp` → eat sounds,
+    `random.fizz` → splash, `fire.ignite` → fuse hiss.
+  ### Known limits / debts
+  - The music is synthesised, not recorded Minecraft music (no
+    C418 tracks in the tree, no decoder) — it sounds like calm
+    generative chimes, not the real soundtrack. A real track would
+    need a licensed/added audio file + a decoder or a Java-side
+    MediaPlayer path — out of scope for this batch.
+  - Enderman is STILL silent (`mob.enderman`, `.hit`, `.death` —
+    no file exists; mapping it to zombie sounds would misattribute
+    the mob, so it was left alone, not faked).
+  - A track already playing cannot be stopped: the OpenSL backend
+    has no stop call, so muting music mid-track (or pausing) lets
+    that ≤18 s track play out. `pitch` is ignored by the backend
+    for ALL sounds (pre-existing, not v19).
+  - If 4 SFX buffers are already playing, a starting music/ambience
+    buffer is dropped silently (`MAX_BUFFERS_PLAYING = 4`).
+  - All of it is build-only until a live test on device (first
+    track ~10 s in, day chirps vs night crickets, old sounds still
+    audible, no crash/loop).
+
+## Next (v19)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
   walk session on the realme 8, memory flat, FPS within ~10% of v14
@@ -790,15 +875,12 @@ Each version is ONE coherent batch of features, shipped as a new APK
   (the old 0..15 bug is gone); a mob left behind >16 chunks despawns
   instead of freezing forever (v18 net). The v17 APK stays the
   fallback until this stage passes.
-- **v19 — Music + ambient sounds** (first item in "Queued" below).
-  Also queued there: the v18 debt — save `entities.dat` once per
+  Also queued: the v18 debt — save `entities.dat` once per
   eviction sweep instead of once per evicted chunk.
+- **v20 — Brewing** (first item in "Queued" below).
 
 ## Queued (priority order — re-evaluate after each version)
 
-- **v19 — Music + ambient sounds (was v14, moved to the queue by the
-  user 2026-11-08 — HUD + sprint jumped ahead).** 102 sound files
-  exist; check what plays today and add a music/ambience layer.
 - **v20 — Brewing.** Brewing stand + potions. Blocked on Nether
   ingredients (nether wart, blaze powder) — needs a Nether source first,
   so this waits behind v21 or a Nether-reactor loot change.

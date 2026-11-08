@@ -50,14 +50,18 @@ void Chicken::aiStep()
 
 	flap += flapping * 2;
 
-	//@todo
-	//if (!isBaby()) {
-	//	if (!level->isClientSide && --eggTime <= 0) {
-	//		level->playSound(this, "mob.chickenplop", 1.0f, (random.nextFloat() - random.nextFloat()) * 0.2f + 1.0f);
-	//		spawnAtLocation(Item::egg->id, 1);
-	//		eggTime = random.nextInt(SharedConstants::TicksPerSecond * 60 * 5) + SharedConstants::TicksPerSecond * 60 * 5;
-	//	}
-	//}
+	// v19: re-enabled (was commented out since the original tree).
+	// The eggTime field was already initialised in the constructor
+	// and Item::egg already exists; this only wires the existing
+	// "mob.chickenplop" sound (its file was never compiled in either)
+	// to the egg-lay event, like modern MC.
+	if (!isBaby()) {
+		if (!level->isClientSide && --eggTime <= 0) {
+			level->playSound(this, "mob.chickenplop", 1.0f, (random.nextFloat() - random.nextFloat()) * 0.2f + 1.0f);
+			spawnAtLocation(Item::egg->id, 1);
+			eggTime = random.nextInt(SharedConstants::TicksPerSecond * 60 * 5) + SharedConstants::TicksPerSecond * 60 * 5;
+		}
+	}
 }
 
 void Chicken::addAdditonalSaveData( CompoundTag* tag )

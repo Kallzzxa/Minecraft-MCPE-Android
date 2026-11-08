@@ -116,7 +116,8 @@ extern SoundDesc SA_pig2;
 extern SoundDesc SA_pig3;
 extern SoundDesc SA_pigdeath;
 
-//extern SoundDesc SA_chicken1;
+extern SoundDesc SA_chicken1;
+extern SoundDesc SA_chickenplop;
 extern SoundDesc SA_chicken2;
 extern SoundDesc SA_chicken3;
 extern SoundDesc SA_chickenhurt1;

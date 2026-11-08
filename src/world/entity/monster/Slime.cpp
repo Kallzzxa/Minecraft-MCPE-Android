@@ -79,15 +79,19 @@ int Slime::getEntityTypeId() const {
 }
 
 const char* Slime::getAmbientSound() {
-	return "mob.slime";
+	// v19: no slime sound file exists in the tree ("mob.slime" was
+	// never registered, so slimes were silent). Placeholder: the
+	// short "pop" squelch is the closest existing sound until a real
+	// slime squish file is added.
+	return "random.pop";
 }
 
 std::string Slime::getHurtSound() {
-	return "mob.slime";
+	return "random.pop";
 }
 
 std::string Slime::getDeathSound() {
-	return "mob.slime";
+	return "random.pop";
 }
 
 int Slime::getDeathLoot() {

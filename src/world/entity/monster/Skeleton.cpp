@@ -56,7 +56,9 @@ std::string Skeleton::getHurtSound() {
 }
 
 std::string Skeleton::getDeathSound() {
-	return "mob.skeletonhurt";
+	// v19: was "mob.skeletonhurt" (same as the hurt sound) while the
+	// real skeletondeath file sat unregistered; now the distinct file.
+	return "mob.skeletondeath";
 }
 
 void Skeleton::checkHurtTarget( Entity* target, float d ) {
