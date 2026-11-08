@@ -2045,9 +2045,16 @@ Each version is ONE coherent batch of features, shipped as a new APK
     10,175,304 B / armv7 8,757,124 B, new symbol confirmed
     (`EnderDragon::findAttackTarget()` defined (T) in both
     ABIs). CI `./gradlew assembleDebug` SUCCESS (run
-    TBD, ~TBD); APK `minecraft-mcpe-android-0.6.1-debug-v30.apk`
-    TBD B, sha256 TBD, versionCode 30, `apksigner verify`
-    v1+v2 true, `unzip -t` clean.
+    42534573320, ~5m40s); APK
+    `minecraft-mcpe-android-0.6.1-debug-v30.apk`
+    12,910,000 B, sha256
+    df4fe483775975a33599a00d8b0efaa80cb1b3ac8278f42a380d41c59a4056eb,
+    versionCode 30, `apksigner verify` v1+v2 true, `unzip -t`
+    clean; the APK itself was re-checked to contain the new
+    symbol in its `libminecraftpe.so`
+    (`EnderDragon::findAttackTarget()` defined (T) in both
+    ABIs; arm64 10,175,304 B / armv7 8,757,124 B — byte-identical
+    sizes to the local build).
   ### Known limits / debts
   - The dragon still cannot be hit by a sword while orbiting
     (melee reach is the 3-block pick ray, v28 note) — the
