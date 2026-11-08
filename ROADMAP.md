@@ -1830,8 +1830,14 @@ Each version is ONE coherent batch of features, shipped as a new APK
     (r17c, both ABIs) passes: `libminecraftpe.so` arm64
     10,191,688 B / armv7 8,757,124 B, new symbols confirmed
     (`EnderDragon::steerTo`, `EndLevelSource::getPillarTop`,
-    "Initial" tag string). CI `./gradlew assembleDebug` (see run
-    in the v28 report).
+    "Initial" tag string). CI `./gradlew assembleDebug` SUCCESS
+    (run 42532281341, ~4m42s); APK
+    `minecraft-mcpe-android-0.6.1-debug-v28.apk`
+    12,909,822 B, sha256 978a2206…20a3aa, versionCode 28,
+    `apksigner verify` v1+v2 true, `unzip -t` clean; the APK
+    itself was re-checked to contain the new symbols in its
+    `libminecraftpe.so` (arm64 10,191,688 B — byte-identical size
+    to the local build) and the "Initial" tag string.
   ### Known limits / debts
   - No heal BEAM visual (v27 debt stands — the heal is still a
     silent +1 HP/10 ticks; no beam renderer exists in this tree).
