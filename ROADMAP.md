@@ -14,9 +14,11 @@ Each version is ONE coherent batch of features, shipped as a new APK
 - If a feature proves unfeasible after reasonable investigation, mark it
   skipped here with the reason and move on. Don't grind.
 - World 1024×1024 ONLY with measurements (v3/v6 rejected it on paper:
-  4096 chunks ~339 MB + ~400k VBO buffers). The engine is a fixed chunk
-  cache — a truly infinite world like modern Minecraft is NOT feasible
-  without rewriting the engine; don't promise it.
+  4096 chunks ~339 MB + ~400k VBO buffers). A truly infinite world
+  like modern Minecraft needs the fixed chunk cache replaced with a
+  dynamic chunk map + streaming — a multi-version engine job, NOT one
+  batch; v15 starts with investigation/design (see "Next"), and no
+  version promises "infinite" until the streaming core is proven.
 - Everything is BUILD-ONLY until tested on the user's realme 8.
 
 ## Done
@@ -211,29 +213,88 @@ Each version is ONE coherent batch of features, shipped as a new APK
   are hardcoded 0 in `Level::getCloudColor`), so no rain splashes;
   all of it is build-only until a live test on device.
 
-## Next (v13)
+- **v14 — Modern HUD + sprint fix (USER PRIORITY 2026-11-08 23:59, from
+  2 screenshots — jumped the queue ahead of music).**
+  Sprint bug, diagnosed from code (not guessed): v6 detected a
+  double-tap from `_buttons[N]` LEVEL transitions sampled once per
+  game tick, but that level comes from the pointer's CURRENT position
+  via `TouchAreaModel::getPointerId`, and the two diagonal corner
+  cells of the 3×3 D-pad (`aUpLeft`/`aUpRight`) are created but never
+  `addArea`'d — so a held thumb rolling a few px into a corner
+  dropped the level for a tick (phantom release), and sliding back
+  onto N re-pressed inside the 7-tick window (phantom double-tap),
+  sprinting on a single press-and-hold. The analog bounding-rect
+  steering made it worse: once moving forward, the whole 3×3 box
+  steers, so the thumb naturally wanders into the corners while
+  "holding forward". Fix (`TouchscreenInput::tick`): count ONLY
+  discrete finger-down edges (`Multitouch::isPressed`, the true DOWN
+  edge from the Android event stream, latched until
+  `Multitouch::reset()` at the end of the game tick); remember the
+  pressing pointer id, so the hold survives the thumb sliding inside
+  the D-pad while it keeps steering forward (upper half of the box);
+  a genuine lift records the release tick, the 2nd edge within 7
+  ticks (~350 ms) of it sprints. Still 1.4× (`LocalPlayer`), still no
+  sprint in water (new explicit guard — v6 actually sprinted while
+  swimming) or while flying. Caveat: tap edges are sampled at 20 tps,
+  so a double-tap faster than one 50 ms tick collapses into one edge
+  (humanly impossible — a thumb tap is longer than that).
+  HUD (`Gui.cpp`, layout only — no hunger/XP/gameplay change):
+  hearts + hunger moved from the top-left corner to one row above the
+  hotbar (hearts left-aligned, hunger right-aligned with the hotbar);
+  XP bar is now exactly as wide as the hotbar (was fixed 182 px,
+  overhanging the 160 px touch hotbar) directly above it, green on
+  black with a 1 px inset; level number green + centered above the
+  bar — on the hearts/hunger row when the hotbar is wide enough to
+  leave a gap (≥174 px), otherwise one row above the hearts so it
+  never overlaps an icon (touch hotbar is 8 slots = 160 px, hearts +
+  hunger already fill that row); armor moved to the row above the
+  bubbles, bubbles to the row above the hearts. Hotbar polish:
+  dark translucent backing under the classic bar texture, thin frame
+  around every slot, selected slot = explicit white frame + faint
+  white fill (replaces the gui.png selection box), item counts now
+  white (was light grey). All of it is build-only until a live test
+  on device (press-hold = walk, double-tap-hold = sprint).
 
-- **v14 — Music + ambient sounds.** 102 sound files exist; check what
-  plays today and add a music/ambience layer.
+## Next (v14)
+
+- **v15 — Infinite world, stage 1: investigation + design.** The user
+  asked for a world with no borders, 100% like modern MC (screenshot:
+  terrain ends in a vertical edge, blue void outside). The engine's
+  chunk cache is a fixed array, so this is a dynamic chunk map +
+  streaming rewrite, staged: v15 maps the fixed cache (`ChunkCache`,
+  `Level` chunk storage, render-chunk grid, save format), measures
+  memory per chunk and streaming cost, and prototypes a hashed chunk
+  map behind the existing interface — no gameplay change yet.
+- **v16 — Infinite world, stage 2: streaming core.** Load/unload
+  chunks around the player as they move; the 512×512 world keeps
+  working as the fallback.
+- **v17 — Infinite world, stage 3: remove the border.** Endless
+  terrain gen + save/load of streamed chunks.
+- **v18 — Infinite world, stage 4: polish.** Distant fog / loading
+  behaviour, perf on realme 8. Each stage ships only if the previous
+  one is proven; the 512 world stays the fallback until streaming is
+  stable. No version promises "infinite" until the streaming core
+  (v16) is proven.
 
 ## Queued (priority order — re-evaluate after each version)
 
-- **v14 — Music + ambient sounds.** 102 sound files exist; check what
-  plays today and add a music/ambience layer.
-- **v15 — Brewing.** Brewing stand + potions. Blocked on Nether
+- **v19 — Music + ambient sounds (was v14, moved to the queue by the
+  user 2026-11-08 — HUD + sprint jumped ahead).** 102 sound files
+  exist; check what plays today and add a music/ambience layer.
+- **v20 — Brewing.** Brewing stand + potions. Blocked on Nether
   ingredients (nether wart, blaze powder) — needs a Nether source first,
-  so this waits behind v16 or a Nether-reactor loot change.
-- **Witch — AFTER brewing, not v13.** Re-prioritised 2026-11-08: a
+  so this waits behind v21 or a Nether-reactor loot change.
+- **Witch — AFTER brewing.** Re-prioritised 2026-11-08: a
   witch without potions (brewing does not exist yet) would just be
   another melee mob, so its value is small; graphics polish (v13)
   is visible in every screenshot the user takes and is low risk, so
   it shipped first. The witch fits the AI framework (GoalSelector
   exists) and ships once brewing gives it potions to throw.
-- **v16 — Nether dimension.** Big. The old Nether Reactor exists as a
+- **v21 — Nether dimension.** Big. The old Nether Reactor exists as a
   placeholder; a real Nether needs a second dimension + portal.
-- **v17 — The End.** Biggest. Ender dragon, end stone, chorus — only
+- **v22 — The End.** Biggest. Ender dragon, end stone, chorus — only
   after Nether works.
-- **v18 — Villages + trading.** Village generation + villagers + trading
+- **v23 — Villages + trading.** Village generation + villagers + trading
   UI. Big; last among gameplay features.
 - **Night spawning live test (from old v8 scope).** Drops are done (v7);
   code chain verified intact in v8, but hostile mobs spawning at night

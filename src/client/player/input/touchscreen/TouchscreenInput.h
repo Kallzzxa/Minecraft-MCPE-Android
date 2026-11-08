@@ -72,10 +72,15 @@ private:
 	RenderChunk _render;
 	bool _allowHeightChange;
 	float _sneakTapTime;
-	// Sprint (v6): double-tap D-pad forward within ~350 ms (7 ticks).
+	// Sprint (v6, fixed v14): double-tap D-pad forward within ~350 ms
+	// (7 ticks). v14 counts only discrete finger-down edges
+	// (Multitouch::isPressed) on the forward button, and remembers
+	// which pointer pressed it, so a held thumb sliding/rolling inside
+	// the D-pad can no longer fake a release + re-press.
 	int _tickCount;
 	int _lastForwardReleaseTick;
-	bool _forwardWasDown;
+	bool _forwardHeld;
+	int _forwardPointerId;
 
 	bool _buttons[8];
 	bool _wasPressed[8];

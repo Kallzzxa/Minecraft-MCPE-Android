@@ -72,7 +72,8 @@ TouchscreenInput_TestFps::TouchscreenInput_TestFps( Minecraft* mc, Options* opti
 	_sneakTapTime(-999),
 	_tickCount(0),
 	_lastForwardReleaseTick(-1000),
-	_forwardWasDown(false),
+	_forwardHeld(false),
+	_forwardPointerId(-1),
 	aLeft(0),
 	aRight(0),
 	aUp(0),
@@ -244,7 +245,8 @@ void TouchscreenInput_TestFps::releaseAllKeys()
 	_pressedJump = false;
 	_allowHeightChange = false;
 	sprinting = false;
-	_forwardWasDown = false;
+	_forwardHeld = false;
+	_forwardPointerId = -1;
 	_lastForwardReleaseTick = -1000;
 }
 
@@ -258,6 +260,11 @@ void TouchscreenInput_TestFps::tick( Player* player )
 	bool heldJump = false;
 	bool tmpForward = false;
 	bool tmpNorthJump = false;
+	// Sprint (v14): one discrete finger-down edge on forward this tick,
+	// and whether forward is held (button cell OR the tracked finger
+	// still steering forward). See the tracking block in the loop below.
+	bool fwdPressEdge = false;
+	bool fwdHeldThisTick = false;
 
 	for (int i = 0; i < 7; ++i)
 		_buttons[i] = false;
@@ -278,6 +285,34 @@ void TouchscreenInput_TestFps::tick( Player* player )
 		}
 
 		int areaId = _model.getPointerId(x, y, p);
+
+		// Sprint (v14): discrete forward taps. Only a real finger-down
+		// on the forward button counts as a tap (Multitouch::isPressed
+		// is the true DOWN edge from the Android event stream, latched
+		// until Multitouch::reset() at the end of the game tick). The
+		// finger that pressed forward is remembered by pointer id:
+		// while it stays down and keeps steering forward (upper half
+		// of the D-pad box) forward stays held even if its centroid
+		// slides off the N cell into a diagonal corner — those corners
+		// are not registered areas (aUpLeft/aUpRight are never
+		// addArea'd), so the old level-based code saw a phantom
+		// release + re-press there and sprinted on a single hold.
+		if (p == _forwardPointerId) {
+			if (Multitouch::isPointerDown(p)
+				&& _boundingRectangle.isInside((float)x, (float)y)
+				&& y <= _boundingRectangle.centerY()) {
+				fwdHeldThisTick = true;
+			} else if (!Multitouch::isPointerDown(p)) {
+				_forwardPointerId = -1;
+			}
+		}
+		if (areaId == AREA_DPAD_N && Multitouch::isPressed(p)
+			&& _forwardPointerId < 0) {
+			_forwardPointerId = p;
+			fwdPressEdge = true;
+			fwdHeldThisTick = true;
+		}
+
 		if (areaId < AREA_DPAD_FIRST)
 		{
 			continue;
@@ -412,19 +447,29 @@ void TouchscreenInput_TestFps::tick( Player* player )
 		player->startCrafting((int)player->x, (int)player->y, (int)player->z, Recipe::SIZE_2X2);
 #endif
 
-	// Sprint (v6): double-tap D-pad forward within ~350 ms (7 ticks at
-	// 20 tps). Sprint lasts while forward is held; releasing forward ends
-	// it. Uses _buttons transitions across ticks (works on Android).
+	// Sprint (v6, fixed v14): double-tap = two discrete finger-down
+	// edges on forward with a genuine lift between them, the 2nd within
+	// ~350 ms (7 ticks at 20 tps) of the lift. Sprint lasts while
+	// forward is held; releasing forward ends it. A single
+	// press-and-hold is only ONE edge, so it walks (v6 bug: it counted
+	// _buttons[N] level transitions sampled once per tick, and a held
+	// thumb rolling into an unregistered diagonal corner dropped the
+	// level for a tick — phantom release + re-press inside the 7-tick
+	// window = sprint on a single hold). Still 1.4x (LocalPlayer),
+	// still no sprint in water or while flying.
 	++_tickCount;
-	bool fwdDown = isButtonDown(AREA_DPAD_N);
-	if (fwdDown && !_forwardWasDown && (_tickCount - _lastForwardReleaseTick) <= 7) {
+	bool fwdHeld = isButtonDown(AREA_DPAD_N) || fwdHeldThisTick;
+	if (fwdPressEdge && (_tickCount - _lastForwardReleaseTick) <= 7) {
 		sprinting = true;
 	}
-	if (!fwdDown) {
-		if (_forwardWasDown) _lastForwardReleaseTick = _tickCount;
+	if (!fwdHeld) {
+		if (_forwardHeld) _lastForwardReleaseTick = _tickCount;
 		sprinting = false;
 	}
-	_forwardWasDown = fwdDown;
+	if (player->isInWater() || player->abilities.flying) {
+		sprinting = false;
+	}
+	_forwardHeld = fwdHeld;
 
 	if (sneaking) {
 		xa *= 0.3f;

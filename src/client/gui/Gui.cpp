@@ -326,9 +326,9 @@ void Gui::renderSlotText( const ItemInstance* item, float x, float y, bool hasFi
 
 	//LOGI("slot: %d - %s\n", slot, buffer);
 	if (shadow)
-		minecraft->font->drawShadow(buffer, x, y, item->count>0?0xffcccccc:0x60cccccc);
+		minecraft->font->drawShadow(buffer, x, y, item->count>0?0xffffffff:0x60ffffff);
 	else
-		minecraft->font->draw(buffer, x, y, item->count>0?0xffcccccc:0x60cccccc);
+		minecraft->font->draw(buffer, x, y, item->count>0?0xffffffff:0x60ffffff);
 }
 
 void Gui::inventoryUpdated() {
@@ -575,6 +575,20 @@ void Gui::renderProgressIndicator( const bool isTouchInterface, const int screen
 	}
 }
 
+// v14: modern HUD layout (reference: modern MC HUD — hearts left +
+// hunger right on one row above the hotbar, XP bar exactly as wide as
+// the hotbar directly above it, level number green + centered).
+// The hotbar is 20 px per slot, centered; hotbarTop is its top edge
+// (getSlotPos puts slots at screenHeight - 22).
+static void hudLayout(int numSlots, int screenWidth, int screenHeight,
+		int& x0, int& barW, int& hotbarTop, int& xpBarY, int& iconRowY) {
+	barW = 20 * numSlots;
+	x0 = screenWidth / 2 - barW / 2;
+	hotbarTop = screenHeight - 22;
+	xpBarY = hotbarTop - 5 - 1;      // 5 px bar, 1 px gap above hotbar
+	iconRowY = xpBarY - 9 - 1;       // 9 px icons, 1 px gap above bar
+}
+
 void Gui::renderHearts() {
 	bool blink = (minecraft->player->invulnerableTime / 3) % 2 == 1;
 	if (minecraft->player->invulnerableTime < 10) blink = false;
@@ -582,18 +596,28 @@ void Gui::renderHearts() {
 	int oh = minecraft->player->lastHealth;
 	random.setSeed(tickCount * 312871);
 
-	int xx = 2;//screenWidth / 2 - getNumSlots() * 10;
+	// v14: hearts sit left-aligned with the hotbar, one row above the
+	// XP bar (was: top-left corner of the screen).
+	const int screenWidth = (int)(minecraft->width * InvGuiScale);
+	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+	int hbX0, hbW, hbTop, xpY, iconY;
+	hudLayout(getNumSlots(), screenWidth, screenHeight, hbX0, hbW, hbTop, xpY, iconY);
+	int xx = hbX0;
 
 	int armor = minecraft->player->getArmorValue();
 	for (int i = 0; i < Player::MAX_HEALTH / 2; i++) {
-		int yo = 2;
+		int yo = iconY;
 		int ip2 = i + i + 1;
 
 		if (armor > 0) {
-		    int xo = xx + 80 + i * 8 + 4;
-		    if (ip2 < armor) blit(xo, yo, 16 + 2 * 9, 9 * 1, 9, 9);
-		    else if (ip2 == armor) blit(xo, yo, 16 + 4 * 9, 9 * 1, 9, 9);
-		    else if (ip2 > armor) blit(xo, yo, 16 + 0 * 9, 9 * 1, 9, 9);
+		    // Armor row above the bubbles row, which sits above the
+		    // hearts row (was: to the right of the hearts, at the
+		    // top of the screen).
+		    int xo = xx + i * 8;
+		    int ayo = iconY - 20;
+		    if (ip2 < armor) blit(xo, ayo, 16 + 2 * 9, 9 * 1, 9, 9);
+		    else if (ip2 == armor) blit(xo, ayo, 16 + 4 * 9, 9 * 1, 9, 9);
+		    else if (ip2 > armor) blit(xo, ayo, 16 + 0 * 9, 9 * 1, 9, 9);
 		}
 
 		int bg = 0;
@@ -614,8 +638,15 @@ void Gui::renderHearts() {
 
 void Gui::renderHunger() {
 	int food = minecraft->player->foodData.getFoodLevel();
-	int xx = 2;
-	int yo = 12;
+	// v14: hunger sits right-aligned with the hotbar, on the same row
+	// as the hearts (was: top-left, below the hearts). 10 icons at an
+	// 8 px stride span 81 px, so the row ends at the hotbar's right edge.
+	const int screenWidth = (int)(minecraft->width * InvGuiScale);
+	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+	int hbX0, hbW, hbTop, xpY, iconY;
+	hudLayout(getNumSlots(), screenWidth, screenHeight, hbX0, hbW, hbTop, xpY, iconY);
+	int xx = hbX0 + hbW - (10 * 8 + 1);
+	int yo = iconY;
 	// Shake the bar when starving, like the hearts shake at low health.
 	if (food <= 6) {
 		yo = yo + random.nextInt(2) - 1;
@@ -631,41 +662,53 @@ void Gui::renderHunger() {
 }
 
 void Gui::renderExperience() {
-	// v8: XP bar above the hotbar (modern MC layout) + level number
-	// centered above it. gui/icons.png has NO xp-bar sprite in this
-	// 0.6.1 tree (rows y=64..74 are fully transparent), so the bar is
-	// drawn with plain fills: black background, XP-green fill.
+	// v14: XP bar exactly as wide as the hotbar, directly above it,
+	// green on black; level number green, centered above the bar — on
+	// the hearts/hunger row when it fits (wide hotbar), otherwise one
+	// row above the hearts so it never overlaps an icon (the touch
+	// hotbar is 8 slots = 160 px, and hearts + hunger already fill
+	// that row exactly). Was (v8): fixed 182 px wide — wider than the
+	// 160 px touch hotbar, so it overhung both ends.
 	Player* player = minecraft->player;
 	const int screenWidth = (int)(minecraft->width * InvGuiScale);
 	const int screenHeight = (int)(minecraft->height * InvGuiScale);
-	const int ySlot = screenHeight - 16 - 3;
+	int hbX0, barW, hbTop, barY, iconY;
+	hudLayout(getNumSlots(), screenWidth, screenHeight, hbX0, barW, hbTop, barY, iconY);
 
-	const int barW = 182;
 	const int barH = 5;
-	const int x0 = screenWidth / 2 - barW / 2;
-	const int y0 = ySlot - barH - 3;
+	const int x0 = hbX0;
+	const int y0 = barY;
 
 	fill(x0, y0, x0 + barW, y0 + barH, 0xFF000000);
 	int filled = (int)(barW * player->getExperienceProgressFraction());
-	if (filled > 0) {
-		fill(x0, y0, x0 + filled, y0 + barH, 0xFF80FF20);
+	if (filled > 1) {
+		fill(x0 + 1, y0 + 1, x0 + filled, y0 + barH - 1, 0xFF80FF20);
 	}
 
 	if (player->experienceLevel > 0) {
 		char buf[16];
 		sprintf(buf, "%d", player->experienceLevel);
 		Font* font = minecraft->font;
-		font->drawShadow(buf, (float)(screenWidth / 2 - font->width(buf) / 2), (float)(y0 - 9), 0xFF80FF20);
+		// Hearts (81 px) + hunger (81 px) leave a gap in the middle
+		// only on a hotbar wider than ~174 px.
+		int numY = (barW - 162 >= 12) ? iconY : iconY - 10;
+		font->drawShadow(buf, (float)(screenWidth / 2 - font->width(buf) / 2), (float)numY, 0xFF80FF20);
 	}
 }
 
 void Gui::renderBubbles() {
 	if (minecraft->player->isUnderLiquid(Material::water)) {
-		int yo = 22;
+		// v14: bubbles sit one row above the hearts (was: top-left
+		// corner), left-aligned with the hotbar.
+		const int screenWidth = (int)(minecraft->width * InvGuiScale);
+		const int screenHeight = (int)(minecraft->height * InvGuiScale);
+		int hbX0, hbW, hbTop, xpY, iconY;
+		hudLayout(getNumSlots(), screenWidth, screenHeight, hbX0, hbW, hbTop, xpY, iconY);
+		int yo = iconY - 10;
 		int count = (int) std::ceil((minecraft->player->airSupply - 2) * 10.0f / Player::TOTAL_AIR_SUPPLY);
 		int extra = (int) std::ceil((minecraft->player->airSupply) * 10.0f / Player::TOTAL_AIR_SUPPLY) - count;
 		for (int i = 0; i < count + extra; i++) {
-			int xo =  i * 8 + 2;
+			int xo = hbX0 + i * 8;
 			if (i < count) blit(xo, yo, 16, 9 * 2, 9, 9);
 			else blit(xo, yo, 16 + 9, 9 * 2, 9, 9);
 		}
@@ -774,9 +817,41 @@ void Gui::renderToolBar( float a, int ySlot, const int screenWidth ) {
 	getSlotPos(0, xBase, yBase);
 	const float baseItemX = (float)xBase + 3;
 	const int slotsWidth = 20 * getNumSlots();
+	// v14: modern hotbar polish — dark translucent backing under the
+	// classic bar texture, a thin frame around every slot, and the
+	// selected slot highlighted with an explicit white frame + fill
+	// (replaces the gui.png selection box). Inventory system itself
+	// untouched. NOTE: fill() sets the Tesselator vertex colour, so
+	// the white vertex colour is restored after the fills; the fills
+	// run at full global alpha, the texture blits at the classic 0.5.
+	glColor4f2(1, 1, 1, 1);
+	fill(xBase, yBase, xBase + slotsWidth, yBase + 22, 0x80000000);
+	Tesselator::instance.colorABGR(0xffffffff);
+	glColor4f2(1, 1, 1, .5);
 	// Left + right side of the selection bar
 	blit(xBase, yBase, 0, 0, slotsWidth, 22);
 	blit(xBase + slotsWidth, yBase, 180, 0, 2, 22);
+
+	// Per-slot frames: thin light top/left edges, dark bottom/right.
+	glColor4f2(1, 1, 1, 1);
+	for (int i = 0; i < getNumSlots(); i++) {
+		int sx = xBase + i * 20;
+		fill(sx, yBase, sx + 20, yBase + 1, 0x50FFFFFF);
+		fill(sx, yBase, sx + 1, yBase + 22, 0x50FFFFFF);
+		fill(sx, yBase + 21, sx + 20, yBase + 22, 0x50000000);
+		fill(sx + 19, yBase, sx + 20, yBase + 22, 0x50000000);
+	}
+	// Selected slot: white frame + faint white fill.
+	{
+		int sx = xBase + 20 * inventory->selected;
+		fill(sx, yBase, sx + 20, yBase + 22, 0x28FFFFFF);
+		fill(sx, yBase, sx + 20, yBase + 1, 0xFFFFFFFF);
+		fill(sx, yBase + 21, sx + 20, yBase + 22, 0xFFFFFFFF);
+		fill(sx, yBase, sx + 1, yBase + 22, 0xFFFFFFFF);
+		fill(sx + 19, yBase, sx + 20, yBase + 22, 0xFFFFFFFF);
+	}
+	Tesselator::instance.colorABGR(0xffffffff);
+	glColor4f2(1, 1, 1, .5);
 
 	if (_currentDropSlot >= 0 && inventory->getItem(_currentDropSlot)) {
 		int x = xBase + 3 +  _currentDropSlot * 20;
@@ -788,7 +863,8 @@ void Gui::renderToolBar( float a, int ySlot, const int screenWidth ) {
 		}
 		fill(x, ySlot+16-yy, x+16, ySlot+16, color);
 	}
-	blit(xBase-1 + 20*inventory->selected, yBase - 1, 0, 22, 24, 22);
+	// (v14: selected-slot highlight is the explicit white frame drawn
+	// above; the old gui.png selection-box blit is removed.)
 	glColor4f2(1, 1, 1, 1);
 
 	// Flash a slot background
