@@ -581,9 +581,12 @@ void GameRenderer::setupFog(int i) {
 //        }
     } else {
         glFogx(GL_FOG_MODE, GL_LINEAR);
-        // Fog starts closer (0.5x render distance) so far terrain fades out
-        // gradually instead of popping out of existence at the edge.
-        glFogf(GL_FOG_START, renderDistance * 0.5f);
+        // Fog starts far out (0.8x render distance) so the player can see
+        // the full render distance: with the old 0.5x, terrain began fading
+        // at 128 blocks and looked like the world ended there.
+        // END stays 1.0x so distant terrain fully fades before the chunk
+        // grid ends (see LevelRenderer dist cap), no hard pop-in edge.
+        glFogf(GL_FOG_START, renderDistance * 0.8f);
         glFogf(GL_FOG_END, renderDistance);
         if (i < 0) {
             glFogf(GL_FOG_START, 0);

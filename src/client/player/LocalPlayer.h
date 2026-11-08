@@ -28,6 +28,7 @@ public:
 
     void aiStep();
     void updateAi();
+    virtual float getWalkingSpeedModifier(); // sprint: 1.4x when sprinting (v6)
 
 	void setKey(int eventKey, bool eventKeyState);
     void releaseAllKeys();
@@ -94,6 +95,10 @@ private:
     SmoothFloat smoothFlyZ;
 
 	int autoJumpTime;
+
+	// Hunger exhaustion from movement (v6): position at the previous tick.
+	float _prevX, _prevZ;
+	bool _prevPosInit;
 
 	int sentInventoryItemId;
 	int sentInventoryItemData;

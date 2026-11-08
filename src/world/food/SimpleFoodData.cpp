@@ -6,7 +6,7 @@
 
 SimpleFoodData::SimpleFoodData()
 :	foodLevel(FoodConstants::MAX_FOOD),
-	foodTimer(0),
+	exhaustion(0),
 	healTimer(0),
 	starveTimer(0)
 {
@@ -20,22 +20,29 @@ void SimpleFoodData::eat( FoodItem* item ) {
 	eat(item->getNutrition());
 }
 
+void SimpleFoodData::addExhaustion(float amount) {
+	exhaustion += amount;
+	// 4.0 exhaustion drains 1 hunger point (modern Minecraft rule).
+	while (exhaustion >= FoodConstants::EXHAUSTION_PER_FOOD) {
+		exhaustion -= FoodConstants::EXHAUSTION_PER_FOOD;
+		if (foodLevel > 0) foodLevel--;
+	}
+}
+
 void SimpleFoodData::tick( Player* player ) {
 	// Peaceful: hunger stays full, no drain (like modern MCPE).
 	if (player->level && player->level->difficulty == Difficulty::PEACEFUL) {
 		foodLevel = FoodConstants::MAX_FOOD;
-		foodTimer = healTimer = starveTimer = 0;
+		exhaustion = 0;
+		healTimer = starveTimer = 0;
 		return;
 	}
 
-	if (foodLevel > 0) {
-		// Hunger slowly drains over time: 1 point per FOOD_DEPLETE_TICKS.
-		// A full bar (20) lasts about 20 minutes of play.
-		if (++foodTimer >= FoodConstants::FOOD_DEPLETE_TICKS) {
-			foodTimer = 0;
-			foodLevel--;
-		}
-	} else {
+	// Hunger drain is activity-based only (v6 exhaustion): walking,
+	// sprinting and jumping feed addExhaustion() above. Standing still
+	// costs nothing, like modern Minecraft. (The old v5 wall-clock
+	// drain of 1 point per 60 s is removed.)
+	if (foodLevel <= 0) {
 		// Starving: lose 1 health every STARVE_TICKS, but never below 1 HP.
 		if (player->health > 1 && ++starveTimer >= FoodConstants::STARVE_TICKS) {
 			starveTimer = 0;

@@ -70,6 +70,9 @@ TouchscreenInput_TestFps::TouchscreenInput_TestFps( Minecraft* mc, Options* opti
 	_pressedJump(false),
 	_pauseIsDown(false),
 	_sneakTapTime(-999),
+	_tickCount(0),
+	_lastForwardReleaseTick(-1000),
+	_forwardWasDown(false),
 	aLeft(0),
 	aRight(0),
 	aUp(0),
@@ -240,6 +243,9 @@ void TouchscreenInput_TestFps::releaseAllKeys()
 #endif
 	_pressedJump = false;
 	_allowHeightChange = false;
+	sprinting = false;
+	_forwardWasDown = false;
+	_lastForwardReleaseTick = -1000;
 }
 
 void TouchscreenInput_TestFps::tick( Player* player )
@@ -405,6 +411,20 @@ void TouchscreenInput_TestFps::tick( Player* player )
 	if (_keys[KEY_CRAFT])
 		player->startCrafting((int)player->x, (int)player->y, (int)player->z, Recipe::SIZE_2X2);
 #endif
+
+	// Sprint (v6): double-tap D-pad forward within ~350 ms (7 ticks at
+	// 20 tps). Sprint lasts while forward is held; releasing forward ends
+	// it. Uses _buttons transitions across ticks (works on Android).
+	++_tickCount;
+	bool fwdDown = isButtonDown(AREA_DPAD_N);
+	if (fwdDown && !_forwardWasDown && (_tickCount - _lastForwardReleaseTick) <= 7) {
+		sprinting = true;
+	}
+	if (!fwdDown) {
+		if (_forwardWasDown) _lastForwardReleaseTick = _tickCount;
+		sprinting = false;
+	}
+	_forwardWasDown = fwdDown;
 
 	if (sneaking) {
 		xa *= 0.3f;

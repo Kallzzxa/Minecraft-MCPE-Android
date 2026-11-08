@@ -72,6 +72,10 @@ private:
 	RenderChunk _render;
 	bool _allowHeightChange;
 	float _sneakTapTime;
+	// Sprint (v6): double-tap D-pad forward within ~350 ms (7 ticks).
+	int _tickCount;
+	int _lastForwardReleaseTick;
+	bool _forwardWasDown;
 
 	bool _buttons[8];
 	bool _wasPressed[8];

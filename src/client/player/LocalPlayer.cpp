@@ -3,6 +3,7 @@
 #include "../../ErrorCodes.h"
 #include "../../world/entity/EntityEvent.h"
 #include "../../world/entity/player/Player.h"
+#include "../../world/food/FoodConstants.h"
 #include "../../world/inventory/BaseContainerMenu.h"
 #include "../../world/item/BowItem.h"
 #include "../../world/level/Level.h"
@@ -50,6 +51,9 @@ LocalPlayer::LocalPlayer(Minecraft* minecraft, Level* level, User* user, int dim
 	sentInventoryItemId(-1),
 	sentInventoryItemData(-1),
 	autoJumpEnabled(true),
+	_prevX(0),
+	_prevZ(0),
+	_prevPosInit(false),
 	armorTypeHash(0)
 {
 	this->dimension = dimension;
@@ -95,6 +99,25 @@ bool LocalPlayer::isSolidTile(int x, int y, int z) {
 void LocalPlayer::tick() {
 
 	super::tick();
+
+	// Hunger exhaustion from movement (v6): measure the horizontal
+	// distance actually walked this tick (blocked by walls -> no
+	// distance, no cost; teleports/respawns excluded by the cap).
+	if (!_prevPosInit) {
+		_prevX = x; _prevZ = z; _prevPosInit = true;
+	} else {
+		float dx = x - _prevX;
+		float dz = z - _prevZ;
+		float dist = Mth::sqrt(dx * dx + dz * dz);
+		if (dist > 0.0f && dist < 2.0f && !abilities.flying) {
+			float rate = (input && input->sprinting)
+				? FoodConstants::EXHAUSTION_SPRINT_PER_BLOCK
+				: FoodConstants::EXHAUSTION_WALK_PER_BLOCK;
+			foodData.addExhaustion(dist * rate);
+		}
+		_prevX = x; _prevZ = z;
+	}
+
 	if(!useItem.isNull()) {
 		ItemInstance* item = inventory->getSelected();
 		if(item != NULL && *item == useItem) {
@@ -284,6 +307,15 @@ void LocalPlayer::updateAi() {
     this->xxa = input->xa;
     this->yya = input->ya;
     this->jumping = input->jumping || autoJumpTime > 0;
+}
+
+/*public*/
+float LocalPlayer::getWalkingSpeedModifier() {
+	// Sprint (v6): double-tap forward on the D-pad = 1.4x walk speed.
+	// Not while flying (fly speed is separate).
+	if (input && input->sprinting && !abilities.flying)
+		return 1.4f;
+	return 1.0f;
 }
 
 void LocalPlayer::take( Entity* e, int orgCount )

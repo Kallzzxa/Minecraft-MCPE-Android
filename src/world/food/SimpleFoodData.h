@@ -15,12 +15,15 @@ public:
     void eat(FoodItem* item);
 
     void tick(Player* player);
+    // Adds exhaustion from activity (v6); every EXHAUSTION_PER_FOOD
+    // drains 1 hunger point (modern Minecraft rule).
+    void addExhaustion(float amount);
 
     int getFoodLevel() const { return foodLevel; }
 private:
 	int foodLevel;
+	float exhaustion; // accumulated activity cost, 0..EXHAUSTION_PER_FOOD
 	// Tick counters for the hunger system (20 ticks = 1 second).
-	int foodTimer;   // counts up to FOOD_DEPLETE_TICKS, then -1 hunger
 	int healTimer;   // counts up to HEAL_TICKS while regenerating
 	int starveTimer; // counts up to STARVE_TICKS while starving
 };

@@ -162,7 +162,13 @@ void LevelRenderer::allChanged()
 		dist *= 0.6f;
 	#endif
 
-	if (dist > 400) dist = 400;
+	// Render chunk grid radius (far = 512, i.e. 33x33 chunks = 528 blocks
+	// wide, ~264 blocks around the player). Must extend past the fog END
+	// (256 blocks) so terrain fades out in fog instead of hitting a hard
+	// un-rendered edge; the old 400 cap left a visible cut at ~208 blocks.
+	// VBO pool is sized by LEVEL_WIDTH (65-wide, 101400 lists); this grid
+	// needs 8712 chunks x 3 lists = 26136, well within it.
+	if (dist > 512) dist = 512;
 	/*
 	* if (Minecraft.FLYBY_MODE) { dist = 512 - CHUNK_SIZE * 2; }
 	*/

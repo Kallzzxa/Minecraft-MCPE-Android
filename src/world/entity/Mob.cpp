@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "player/Player.h"
+#include "../food/FoodConstants.h"
 #include "SharedFlags.h"
 #include "../entity/EntityEvent.h"
 #include "../level/Level.h"
@@ -721,6 +722,11 @@ void Mob::aiStep()
 			yd += 0.04f;
 		} else if (onGround) {
 			jumpFromGround();
+			// Hunger: each jump costs exhaustion (v6, players only).
+			// Fires once per jump: after takeoff onGround is false until
+			// the next landing, so holding jump re-charges per jump.
+			if (isPlayer())
+				((Player*)this)->foodData.addExhaustion(FoodConstants::EXHAUSTION_JUMP);
 		}
 	}
 
