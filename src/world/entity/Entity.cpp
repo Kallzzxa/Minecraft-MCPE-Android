@@ -488,11 +488,13 @@ void Entity::baseTick()
 		        float zo = (sharedRandom.nextFloat() * 2 - 1) * bbWidth;
 		        level->addParticle(PARTICLETYPE(bubble), x + xo, yt + 1, z + zo, xd, yd - sharedRandom.nextFloat() * 0.2f, zd);
 		    }
-		    //for (int i = 0; i < 1 + bbWidth * 20; i++) {
-		    //    float xo = (sharedRandom.nextFloat() * 2 - 1) * bbWidth;
-		    //    float zo = (sharedRandom.nextFloat() * 2 - 1) * bbWidth;
-		    //    level->addParticle(PARTICLETYPE(splash), x + xo, yt + 1, z + zo, xd, yd, zd);
-		    //}
+		    // v13: splash droplets on entering water (was commented out;
+		    // SplashParticle is a real Particle subclass now).
+		    for (int i = 0; i < 1 + bbWidth * 20; i++) {
+		        float xo = (sharedRandom.nextFloat() * 2 - 1) * bbWidth;
+		        float zo = (sharedRandom.nextFloat() * 2 - 1) * bbWidth;
+		        level->addParticle(PARTICLETYPE(splash), x + xo, yt + 1, z + zo, xd, yd, zd);
+		    }
 		}
 		fallDistance = 0;
 		wasInWater = true;
@@ -553,6 +555,17 @@ void Entity::checkFallDamage( float ya, bool onGround )
 
 				if (t > 0) {
 					Tile::tiles[t]->fallOn(level, xt, yt, zt, this, fallDistance);
+				}
+			}
+			// v13: dust puffs on a hard landing (grey smoke particles at
+			// the feet; count grows with the fall, capped at 8).
+			if (fallDistance > 3.0f) {
+				int n = (int) fallDistance;
+				if (n > 8) n = 8;
+				for (int i = 0; i < n; i++) {
+					float ox = (sharedRandom.nextFloat() * 2 - 1) * 0.4f;
+					float oz = (sharedRandom.nextFloat() * 2 - 1) * 0.4f;
+					level->addParticle("smoke", x + ox, y + 0.1f, z + oz, ox * 0.3f, 0.05f, oz * 0.3f);
 				}
 			}
 			causeFallDamage(fallDistance);

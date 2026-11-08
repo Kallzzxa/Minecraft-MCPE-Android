@@ -175,27 +175,65 @@ Each version is ONE coherent batch of features, shipped as a new APK
   no ender-pearl throwing (no throwable use for the item yet);
   all of it is build-only until a live night test on device.
 
-## Next (v12)
+- **v13 — Graphics polish (RE-PRIORITISED ahead of the witch — see
+  "Next").** Investigation first: clouds ALREADY existed
+  (`LevelRenderer::renderClouds`, +X drift 0.03/tick, y 128, only when
+  `fancyGraphics` — default ON); water ALREADY animated (dynamic
+  `WaterTexture`/`WaterSideTexture` wave simulation, ticked every game
+  tick via `Textures::tick` from `Minecraft::tick`); the sky was a flat
+  colour ONLY — no sun, no moon, no sunrise tint (`renderSky` draws
+  just the sky-colour plane; `getSunAngle` existed but no renderer
+  used it; no sun.png/moon.png assets, only `environment/clouds.png`);
+  block-break particles ALREADY existed and were wired
+  (`GameMode::destroyBlock` → `ParticleEngine::destroy`, digging
+  crack puffs from `Minecraft.cpp`); bubbles underwater ALREADY
+  existed (`Entity::baseTick`, `Mob::tick`). What v13 shipped:
+  sun + moon — solid-colour camera-facing billboards
+  (`LevelRenderer::renderSunMoon`, called from `renderSky`), sun
+  travels east→west from `Level::getSunAngle`, moon exactly opposite,
+  both fade in/out near the horizon, dimmer low in the sky; sunrise /
+  sunset orange tint blended into `Level::getSkyColor` while the sun
+  is near the horizon; clouds drift diagonally now (+X 0.05 and +Z
+  0.03 blocks/tick, was +X 0.03 only) so the movement is actually
+  visible; splash particles on entering water — `SplashParticle`
+  used to extend a `WaterDropParticle` header that never existed in
+  this tree (uncompilable dead code, "splash" commented out of
+  `LevelRenderer::addParticle` and `Entity::baseTick`), so it now
+  extends `Particle` directly (tex 33, next to the bubble sprite)
+  and both call sites are live (`ParticleType::splash` added to the
+  enum); dust puffs on a hard landing (`Entity::checkFallDamage`,
+  fall > 3 blocks, up to 8 grey smoke puffs at the feet) and while
+  sprinting (`LocalPlayer::tick`, ~35% of ticks while moving on the
+  ground). Caveats: no shader, no HD textures, no dynamic shadows
+  (out of scope); the sun/moon are flat solid-colour squares, not
+  textured discs; landing/sprint dust reuses the grey smoke sprite;
+  no rain/weather system exists in this tree (rainLevel/thunderLevel
+  are hardcoded 0 in `Level::getCloudColor`), so no rain splashes;
+  all of it is build-only until a live test on device.
 
-- **v13 — More mobs.** Witch — whichever fits the AI framework
-  (GoalSelector exists). Slime + Enderman shipped in v12.
+## Next (v13)
+
+- **v14 — Music + ambient sounds.** 102 sound files exist; check what
+  plays today and add a music/ambience layer.
 
 ## Queued (priority order — re-evaluate after each version)
 
-- **v13 — More mobs.** Witch — whichever fits the AI framework
-  (GoalSelector exists).
-- **v14 — Graphics polish.** Clouds, water animation, sky, particles
-  (breaking, splashing). Low risk, high visibility.
-- **v15 — Music + ambient sounds.** 102 sound files exist; check what
+- **v14 — Music + ambient sounds.** 102 sound files exist; check what
   plays today and add a music/ambience layer.
-- **v16 — Brewing.** Brewing stand + potions. Blocked on Nether
+- **v15 — Brewing.** Brewing stand + potions. Blocked on Nether
   ingredients (nether wart, blaze powder) — needs a Nether source first,
-  so this waits behind v17 or a Nether-reactor loot change.
-- **v17 — Nether dimension.** Big. The old Nether Reactor exists as a
+  so this waits behind v16 or a Nether-reactor loot change.
+- **Witch — AFTER brewing, not v13.** Re-prioritised 2026-11-08: a
+  witch without potions (brewing does not exist yet) would just be
+  another melee mob, so its value is small; graphics polish (v13)
+  is visible in every screenshot the user takes and is low risk, so
+  it shipped first. The witch fits the AI framework (GoalSelector
+  exists) and ships once brewing gives it potions to throw.
+- **v16 — Nether dimension.** Big. The old Nether Reactor exists as a
   placeholder; a real Nether needs a second dimension + portal.
-- **v18 — The End.** Biggest. Ender dragon, end stone, chorus — only
+- **v17 — The End.** Biggest. Ender dragon, end stone, chorus — only
   after Nether works.
-- **v19 — Villages + trading.** Village generation + villagers + trading
+- **v18 — Villages + trading.** Village generation + villagers + trading
   UI. Big; last among gameplay features.
 - **Night spawning live test (from old v8 scope).** Drops are done (v7);
   code chain verified intact in v8, but hostile mobs spawning at night

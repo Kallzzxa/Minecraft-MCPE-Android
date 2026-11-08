@@ -1021,7 +1021,86 @@ void LevelRenderer::renderSky(float alpha) {
 #ifdef OPENGL_ES
 	drawArrayVT(skyBuffer, skyVertexCount);
 #endif
+	renderSunMoon(alpha);
     glEnable2(GL_TEXTURE_2D);
+}
+
+void LevelRenderer::renderSunMoon(float alpha) {
+	// v13: the sky used to be a flat colour only — no sun, no moon.
+	// There are no sun.png/moon.png assets in this tree (only
+	// environment/clouds.png), so both are drawn as solid-colour
+	// camera-facing billboards positioned from the sun angle, classic
+	// Minecraft style: the sun travels east (+X) to west (-X) across
+	// the sky, the moon sits exactly opposite it. Called from
+	// renderSky(), i.e. inside prepareAndRenderClouds() before the
+	// terrain is drawn, with the depth buffer still empty — so the
+	// terrain drawn afterwards correctly overdraws them at the horizon.
+	if (!level || !mc->player) return;
+
+	float angle = level->getSunAngle(alpha);
+	float sunH = Mth::sin(angle); // +1 noon, 0 horizon, -1 midnight
+	float cx = (float) (mc->player->xo + (mc->player->x - mc->player->xo) * alpha);
+	float cy = (float) (mc->player->yo + (mc->player->y - mc->player->yo) * alpha);
+	float cz = (float) (mc->player->zo + (mc->player->z - mc->player->zo) * alpha);
+
+	// Camera right/up from the current (camera) modelview matrix.
+	float mv[16];
+	glGetFloatv(GL_MODELVIEW_MATRIX, mv);
+	float rx = mv[0], ry = mv[4], rz = mv[8];
+	float ux = mv[1], uy = mv[5], uz = mv[9];
+
+	float dx = Mth::cos(angle);
+	float dy = sunH;
+	const float DIST = 120.0f;
+
+	glDisable2(GL_FOG);
+	glDisable(GL_CULL_FACE);
+	glDepthMask(false);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	Tesselator& t = Tesselator::instance;
+
+	// Sun, while above the horizon (fades in/out near it).
+	float sunA = (sunH + 0.10f) / 0.20f;
+	if (sunA > 0.0f) {
+		if (sunA > 1.0f) sunA = 1.0f;
+		float sx = cx + dx * DIST;
+		float sy = cy + dy * DIST;
+		float sz = cz;
+		float h = 18.0f;
+		float br = 0.55f + 0.45f * (sunH > 0 ? sunH : 0); // dimmer low in the sky
+		t.begin();
+		t.color(1.0f * br, 0.88f * br, 0.45f * br, sunA);
+		t.vertex(sx - rx * h - ux * h, sy - ry * h - uy * h, sz - rz * h - uz * h);
+		t.vertex(sx - rx * h + ux * h, sy - ry * h + uy * h, sz - rz * h + uz * h);
+		t.vertex(sx + rx * h + ux * h, sy + ry * h + uy * h, sz + rz * h + uz * h);
+		t.vertex(sx + rx * h - ux * h, sy + ry * h - uy * h, sz + rz * h - uz * h);
+		t.draw();
+	}
+
+	// Moon, exactly opposite the sun.
+	float moonA = (-sunH + 0.10f) / 0.20f;
+	if (moonA > 0.0f) {
+		if (moonA > 1.0f) moonA = 1.0f;
+		float mx = cx - dx * DIST;
+		float my = cy - dy * DIST;
+		float mz = cz;
+		float h = 12.0f;
+		t.begin();
+		t.color(0.88f, 0.92f, 1.0f, moonA);
+		t.vertex(mx - rx * h - ux * h, my - ry * h - uy * h, mz - rz * h - uz * h);
+		t.vertex(mx - rx * h + ux * h, my - ry * h + uy * h, mz - rz * h + uz * h);
+		t.vertex(mx + rx * h + ux * h, my + ry * h + uy * h, mz + rz * h + uz * h);
+		t.vertex(mx + rx * h - ux * h, my + ry * h - uy * h, mz + rz * h - uz * h);
+		t.draw();
+	}
+
+	glDisable(GL_BLEND);
+	glEnable(GL_CULL_FACE);
+	glEnable2(GL_FOG);
+	// Depth mask stays false: the caller (prepareAndRenderClouds) draws
+	// the clouds next under the same assumption and restores it after.
 }
 
 void LevelRenderer::renderClouds( float alpha ) {
@@ -1048,8 +1127,10 @@ void LevelRenderer::renderClouds( float alpha ) {
 	float scale = 1 / 2048.0f;
 
 	float time = (ticks + alpha);
-	float xo = mc->player->xo + (mc->player->x - mc->player->xo) * alpha + time * 0.03f;
-	float zo = mc->player->zo + (mc->player->z - mc->player->zo) * alpha;
+	// v13: clouds drift diagonally now (were +X only) and a little faster
+	// (0.03 -> 0.05 blocks/tick on X) so the movement is actually visible.
+	float xo = mc->player->xo + (mc->player->x - mc->player->xo) * alpha + time * 0.05f;
+	float zo = mc->player->zo + (mc->player->z - mc->player->zo) * alpha + time * 0.03f;
 	int xOffs = Mth::floor(xo / 2048);
 	int zOffs = Mth::floor(zo / 2048);
 	xo -= xOffs * 2048;
@@ -1110,6 +1191,9 @@ void LevelRenderer::addParticle(const std::string& name, float x, float y, float
 	//sw.start();
 
     if (name == "bubble") mc->particleEngine->add(new BubbleParticle(level, x, y, z, xa, ya, za));
+	// v13: splash droplets (was commented out; SplashParticle is now a
+	// real Particle subclass — see SplashParticle.h).
+	else if (name == "splash") mc->particleEngine->add(new SplashParticle(level, x, y, z, xa, ya, za));
 	else if (name == "crit") mc->particleEngine->add(new CritParticle2(level, x, y, z, xa, ya, za));
 	else if (name == "smoke") mc->particleEngine->add(new SmokeParticle(level, x, y, z, xa, ya, za));
     //else if (name == "note") mc->particleEngine->add(new NoteParticle(level, x, y, z, xa, ya, za));

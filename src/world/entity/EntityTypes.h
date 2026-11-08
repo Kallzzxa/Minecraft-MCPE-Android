@@ -69,6 +69,7 @@ struct ParticleType {
 		reddust,
 		iconcrack,
 		snowballpoof,
+		splash,
 		largeexplode,
 		hugeexplosion
 	};

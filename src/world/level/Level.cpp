@@ -1188,6 +1188,21 @@ Vec3 Level::getSkyColor(Entity* source, float a) {
     g *= br;
     b *= br;
 
+    // v13: orange sunrise/sunset tint while the sun is near the horizon
+    // (sun height = sin(sun angle): +1 noon, 0 horizon, -1 midnight).
+    float sunH = Mth::sin(getSunAngle(a));
+    if (sunH > -0.12f) {
+        float f = 1.0f - (sunH < 0 ? -sunH : sunH) / 0.25f;
+        if (f > 1.0f) f = 1.0f;
+        if (sunH < 0) f *= 1.0f + sunH / 0.12f; // fade out once the sun is down
+        if (f > 0.0f) {
+            f *= 0.6f;
+            r += (1.0f - r) * f;
+            g += (0.55f - g) * f;
+            b += (0.20f - b) * f;
+        }
+    }
+
     return Vec3(r, g, b);
 }
 

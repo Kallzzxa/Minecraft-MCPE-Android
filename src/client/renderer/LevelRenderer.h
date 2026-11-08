@@ -43,6 +43,7 @@ public:
 	void renderDebug(const AABB& b, float a) const;
 
 	void renderSky(float alpha);
+	void renderSunMoon(float alpha);
 	void renderClouds(float alpha);
 	void renderEntities(Vec3 cam, Culler* culler, float a);
     void renderSameAsLast(int layer, float alpha);
