@@ -65,12 +65,16 @@ ChunkSource* Dimension::createRandomLevelSource() {
 
 void Dimension::updateLightRamp()
 {
-	float ambientLight = 0.05f;
+	float ambientLight = 0.12f;
 	for (int i = 0; i <= 15; /*Level::MAX_BRIGHTNESS;*/ i++) {
 		float v = (1 - i / (float) (16 /*Level::MAX_BRIGHTNESS*/));
-		// Authentic formula: darkest light level maps to ~0.05, brightest ~0.80.
-		// The old code used "+ ambientLight * 3" (floor 0.15), which washed out
-		// all shadows and made lighting look flat.
+		// Tuned floor: darkest light level maps to ~0.12, brightest ~0.81.
+		// v3 used the authentic 0.05 floor, but shaded faces (x0.6 side
+		// shading, xAO) came out nearly pitch black on phones. The old
+		// code used "+ ambientLight * 3" (floor 0.15), which washed out
+		// all shadows and made lighting look flat. 0.12 sits between:
+		// floor 2.4x brighter than v3, peak almost unchanged (0.80->0.81),
+		// contrast ratio 6.8x (v3: 16x, old: 5.5x).
 		brightnessRamp[i] = ((1 - v) / (v * 3 + 1)) * (1 - ambientLight) + ambientLight;
 	}
 }
