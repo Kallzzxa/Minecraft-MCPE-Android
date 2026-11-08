@@ -68,8 +68,10 @@ void Dimension::updateLightRamp()
 	float ambientLight = 0.05f;
 	for (int i = 0; i <= 15; /*Level::MAX_BRIGHTNESS;*/ i++) {
 		float v = (1 - i / (float) (16 /*Level::MAX_BRIGHTNESS*/));
-		// Boosted ambient lightning by ten times.
-		brightnessRamp[i] = ((1 - v) / (v * 3 + 1)) * (1 - ambientLight) + ambientLight * 3;
+		// Authentic formula: darkest light level maps to ~0.05, brightest ~0.80.
+		// The old code used "+ ambientLight * 3" (floor 0.15), which washed out
+		// all shadows and made lighting look flat.
+		brightnessRamp[i] = ((1 - v) / (v * 3 + 1)) * (1 - ambientLight) + ambientLight;
 	}
 }
 

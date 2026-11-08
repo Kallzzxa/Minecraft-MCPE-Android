@@ -581,7 +581,9 @@ void GameRenderer::setupFog(int i) {
 //        }
     } else {
         glFogx(GL_FOG_MODE, GL_LINEAR);
-        glFogf(GL_FOG_START, renderDistance * 0.6f);
+        // Fog starts closer (0.5x render distance) so far terrain fades out
+        // gradually instead of popping out of existence at the edge.
+        glFogf(GL_FOG_START, renderDistance * 0.5f);
         glFogf(GL_FOG_END, renderDistance);
         if (i < 0) {
             glFogf(GL_FOG_START, 0);

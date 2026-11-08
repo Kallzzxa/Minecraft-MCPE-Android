@@ -1304,6 +1304,10 @@ void Minecraft::setSize(int w, int h) {
 
 void Minecraft::reloadOptions() {
 	options.update();
+	// Sync the renderer's AO switch from the option. The static defaults to
+	// false and only the PC KEY_O toggle changed it before, so AO never
+	// turned on on Android even when options.ambientOcclusion was true.
+	useAmbientOcclusion = options.ambientOcclusion;
 	options.save();
 	bool wasTouchscreen = options.useTouchScreen;
 	options.useTouchScreen = useTouchscreen();

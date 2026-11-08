@@ -30,12 +30,12 @@ void Options::initDefaultValues() {
 	sound = 1;
 	sensitivity = 0.5f;
 	invertYMouse = false;
-	viewDistance = 2;
+	viewDistance = 0; // far (256 blocks). Was 2 (short, 64) — modern phones can handle far.
 	bobView = true;
 	anaglyph3d = false;
 	limitFramerate = false;
 	fancyGraphics = true;//false;
-	ambientOcclusion = false;
+	ambientOcclusion = true; // smooth lighting on by default (was false).
 	if(minecraft->supportNonTouchScreen())
 		useTouchScreen = false;
 	else
@@ -93,7 +93,7 @@ void Options::initDefaultValues() {
 //	it would be slightly better performance with it inlined. Should
 //  probably create separate subclasses (or read from file). @fix @todo.
 #if defined(ANDROID) || defined(__APPLE__) || defined(RPI)
-    viewDistance = 2;
+    viewDistance = 0; // far on Android too (was 2 = short, 64 blocks).
     thirdPersonView = false;
 	useMouseForDigging = false;
 	fancyGraphics = false;
@@ -185,7 +185,9 @@ const char* Options::GUI_SCALE[] = {
 
 void Options::update()
 {
-	viewDistance = 2;
+	// NOTE: update() hard-resets viewDistance every time it runs, so the
+	// default lives HERE (not only in initDefaultValues). 0 = far (256 blocks).
+	viewDistance = 0;
 	StringVector optionStrings = optionsFile.getOptionStrings();
 	for (unsigned int i = 0; i < optionStrings.size(); i += 2) {
 		const std::string& key = optionStrings[i];
