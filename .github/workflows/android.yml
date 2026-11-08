@@ -36,12 +36,18 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    env:
-      ANDROID_NDK_HOME: ${{ runner.temp }}/android-ndk-r17c
-      NDK_R17C: ${{ runner.temp }}/android-ndk-r17c
 
     steps:
     - uses: actions/checkout@v4
+
+    - name: Set NDK paths
+      # NOTE: ${{ runner.temp }} is NOT a valid expression in job-level
+      # env (GitHub rejects the workflow: "Unrecognized named-value:
+      # 'runner'") — use the $RUNNER_TEMP shell variable instead and
+      # export the paths via $GITHUB_ENV for the later steps.
+      run: |
+        echo "ANDROID_NDK_HOME=$RUNNER_TEMP/android-ndk-r17c" >> "$GITHUB_ENV"
+        echo "NDK_R17C=$RUNNER_TEMP/android-ndk-r17c" >> "$GITHUB_ENV"
 
     - name: Set up JDK 8 (Gradle 4.10.1 / AGP 3.3.2)
       uses: actions/setup-java@v4
