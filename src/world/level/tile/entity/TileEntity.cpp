@@ -6,6 +6,7 @@ TileEntity::MapTypeId TileEntity::classIdMap;
 #include "FurnaceTileEntity.h"
 #include "ChestTileEntity.h"
 #include "NetherReactorTileEntity.h"
+#include "BrewingStandTileEntity.h"
 #include "../../Level.h"
 #include "../../../../nbt/CompoundTag.h"
 #include "SignTileEntity.h"
@@ -22,6 +23,7 @@ TileEntity* TileEntityFactory::createTileEntity( int type )
 	case TileEntityType::Chest:	    return new ChestTileEntity();
     case TileEntityType::Sign:		return new SignTileEntity();
     case TileEntityType::NetherReactor:	return new NetherReactorTileEntity();
+    case TileEntityType::BrewingStand:	return new BrewingStandTileEntity();
 	default:
 		LOGE("Can't find TileEntity of type: %d\n", type);
 		return NULL;
@@ -41,6 +43,9 @@ void TileEntity::initTileEntities()
 	//         setId(RecordPlayerTile.Entity.class, "RecordPlayer");
 	//         setId(DispenserTileEntity.class, "Trap");
 	setId(TileEntityType::Sign, "Sign");
+	// v20: brewing stand (the old commented-out line above even named
+	// it "Cauldron" — the real id string is "BrewingStand").
+	setId(TileEntityType::BrewingStand, "BrewingStand");
 	//         setId(MobSpawnerTileEntity.class, "MobSpawner");
 	//         setId(MusicTileEntity.class, "Music");
 	//         setId(PistonPieceEntity.class, "Piston");

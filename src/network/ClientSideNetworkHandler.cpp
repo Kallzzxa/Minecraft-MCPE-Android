@@ -20,6 +20,7 @@
 #include "../raknet/RakPeerInterface.h"
 #include "../world/level/Explosion.h"
 #include "../world/level/tile/entity/FurnaceTileEntity.h"
+#include "../world/level/tile/entity/BrewingStandTileEntity.h"
 #include "../world/inventory/BaseContainerMenu.h"
 #ifndef STANDALONE_SERVER
 #include "../client/particle/TakeAnimationParticle.h"
@@ -826,6 +827,14 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, Containe
 		FurnaceTileEntity* te = new FurnaceTileEntity();
 		te->clientSideOnly = true;
 		minecraft->player->openFurnace(te);
+		if (minecraft->player->containerMenu)
+			minecraft->player->containerMenu->containerId = packet->containerId;
+	}
+	// v20: brewing stand (same client-side flow as the furnace).
+	if (packet->type == ContainerType::BREWING_STAND) {
+		BrewingStandTileEntity* te = new BrewingStandTileEntity();
+		te->clientSideOnly = true;
+		minecraft->player->openBrewingStand(te);
 		if (minecraft->player->containerMenu)
 			minecraft->player->containerMenu->containerId = packet->containerId;
 	}

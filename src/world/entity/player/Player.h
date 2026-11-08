@@ -15,6 +15,7 @@ class ItemInstance;
 class Inventory;
 class FillingContainer;
 class FurnaceTileEntity;
+class BrewingStandTileEntity;
 class CompoundTag;
 class ChestTileEntity;
 class BaseContainerMenu;
@@ -138,6 +139,8 @@ public:
 
 	virtual void openContainer(ChestTileEntity* container);
 	virtual void openFurnace(FurnaceTileEntity* e);
+	// v20: opens the brewing-stand screen (LocalPlayer only).
+	virtual void openBrewingStand(BrewingStandTileEntity* e);
 	// v10: opens the enchanting-table screen (LocalPlayer only).
 	virtual void openEnchantTable();
 	void tileEntityDestroyed( int tileEntityId );

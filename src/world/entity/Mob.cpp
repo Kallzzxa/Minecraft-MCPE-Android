@@ -271,6 +271,29 @@ void Mob::superTick()
 
 void Mob::tick()
 {
+	// v20: potion-effect timers tick down here, BEFORE super::tick()
+	// runs the fire/lava damage in Entity::baseTick — so a
+	// fire-resistant mob is extinguished before it can take a tick of
+	// burn damage, and poison/regeneration use the same cadence as
+	// modern MC (poison 1 HP / 25 ticks, never below 1 HP; regeneration
+	// 1 HP / 50 ticks).
+	if (speedEffectTicks > 0) speedEffectTicks--;
+	if (slownessEffectTicks > 0) slownessEffectTicks--;
+	if (strengthEffectTicks > 0) strengthEffectTicks--;
+	if (weaknessEffectTicks > 0) weaknessEffectTicks--;
+	if (fireResistanceEffectTicks > 0) {
+		fireResistanceEffectTicks--;
+		onFire = 0;
+	}
+	if (regenerationEffectTicks > 0) {
+		if (regenerationEffectTicks % 50 == 0) heal(1);
+		regenerationEffectTicks--;
+	}
+	if (poisonEffectTicks > 0) {
+		if (poisonEffectTicks % 25 == 0 && health > 1) hurt(NULL, 1);
+		poisonEffectTicks--;
+	}
+
 	super::tick();
 
 	if (arrowCount > 0) {
@@ -388,6 +411,19 @@ void Mob::heal( int heal )
 	health += heal;
 	if (health > 20) health = 20;
 	invulnerableTime = invulnerableDuration / 2;
+}
+
+// v20: fire resistance blocks all fire damage (Entity::burn is the
+// fire-tick damage path, lavaHurt is the in-lava path; both are
+// virtual on Entity so these overrides catch every caller).
+void Mob::burn(int dmg) {
+	if (fireResistanceEffectTicks > 0) return;
+	super::burn(dmg);
+}
+
+void Mob::lavaHurt() {
+	if (fireResistanceEffectTicks > 0) return;
+	super::lavaHurt();
 }
 
 bool Mob::hurt( Entity* source, int dmg )
@@ -562,6 +598,15 @@ void Mob::_init() {
 
 	health = 10;
 	lastHealth = 20;
+
+	// v20: no potion effect active on spawn.
+	speedEffectTicks = 0;
+	slownessEffectTicks = 0;
+	strengthEffectTicks = 0;
+	weaknessEffectTicks = 0;
+	fireResistanceEffectTicks = 0;
+	regenerationEffectTicks = 0;
+	poisonEffectTicks = 0;
 }
 
 void Mob::causeFallDamage( float distance )

@@ -12,7 +12,9 @@
 #include "../network/packet/TakeItemEntityPacket.h"
 #include "../client/Minecraft.h"
 #include "../world/level/tile/entity/FurnaceTileEntity.h"
+#include "../world/level/tile/entity/BrewingStandTileEntity.h"
 #include "../world/inventory/FurnaceMenu.h"
+#include "../world/inventory/BrewingMenu.h"
 #include "../world/inventory/FillingContainer.h"
 #include "../world/inventory/ContainerMenu.h"
 #include "../world/entity/EntityEvent.h"
@@ -92,6 +94,15 @@ void ServerPlayer::openFurnace( FurnaceTileEntity* furnace ) {
 	ContainerOpenPacket packet(_containerCounter, ContainerType::FURNACE, furnace->getName(), furnace->getContainerSize());
 	_mc->raknetInstance->send(owner, packet);
 	setContainerMenu(new FurnaceMenu(furnace));
+}
+
+// v20: brewing stand (same packet flow as the furnace).
+void ServerPlayer::openBrewingStand( BrewingStandTileEntity* stand ) {
+	LOGI("Client is opening a brewing stand\n");
+	nextContainerCounter();
+	ContainerOpenPacket packet(_containerCounter, ContainerType::BREWING_STAND, stand->getName(), stand->getContainerSize());
+	_mc->raknetInstance->send(owner, packet);
+	setContainerMenu(new BrewingMenu(stand));
 }
 
 void ServerPlayer::closeContainer() {

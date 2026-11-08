@@ -16,6 +16,7 @@
 #include "DirtTile.h"
 #include "DoorTile.h"
 #include "EnchantTableTile.h"
+#include "BrewingStandTile.h"
 #include "FarmTile.h"
 #include "FenceTile.h"
 #include "FenceGateTile.h"

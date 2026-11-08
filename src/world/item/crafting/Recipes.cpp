@@ -488,6 +488,49 @@ Recipes::Recipes()
 
 		definition('#', Tile::obsidian, 'B', Item::book, 'D', Item::emerald));
 
+	// v20: brewing. The brewing-stand recipe was commented out in this
+	// file since the original tree (blaze rod + stoneBrick); it is
+	// live now with stone (Tile::rock — there is no cobblestone tile
+	// in this tree; stone is the abundant early material, same choice
+	// as the v11 lever recipe) as the base.
+	addShapedRecipe(ItemInstance(Tile::brewingStand, 1),
+		" B ",
+		"###",
+
+		definition('#', Tile::rock, 'B', Item::blazeRod));
+
+	// Glass bottle: 3 glass -> 3 bottles (modern MC shape).
+	addShapedRecipe(ItemInstance(Item::glassBottle, 3),
+		"# #",
+		" # ",
+
+		definition('#', Tile::glass));
+
+	// Gold nugget: 1 gold ingot -> 9 nuggets (modern MC).
+	addShapelessRecipe(ItemInstance(Item::goldNugget, 9),
+		definition('X', Item::goldIngot));
+
+	// Glistering melon: melon surrounded by 8 gold nuggets (modern MC).
+	addShapedRecipe(ItemInstance(Item::glisteringMelon, 1),
+		"XXX",
+		"XMX",
+		"XXX",
+
+		definition('X', Item::goldNugget, 'M', Item::melon));
+
+	// Fermented spider eye: spider eye + sugar + brown mushroom
+	// (modern MC, shapeless).
+	addShapelessRecipe(ItemInstance(Item::fermentedSpiderEye, 1),
+		definition('E', Item::spiderEye, 'S', Item::sugar, 'M', Tile::mushroom1));
+
+	// Magma cream: blaze powder + slimeball (modern MC, shapeless).
+	addShapelessRecipe(ItemInstance(Item::magmaCream, 1),
+		definition('B', Item::blazePowder, 'S', Item::slimeBall));
+
+	// Blaze powder: 1 blaze rod -> 2 powder (modern MC, shapeless).
+	addShapelessRecipe(ItemInstance(Item::blazePowder, 2),
+		definition('B', Item::blazeRod));
+
 	//addShapelessRecipe(ItemInstance(Item::eyeOfEnder, 1), //
 	//	Item::enderPearl, Item::blazePowder);
 	addShapedRecipe(ItemInstance(Tile::netherReactor, 1), //

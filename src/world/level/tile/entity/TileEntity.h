@@ -20,6 +20,8 @@ public:
 	static const int Chest = 2;
 	static const int NetherReactor = 3;
 	static const int Sign = 4;
+	// v20: brewing stand.
+	static const int BrewingStand = 5;
 };
 
 class TileEntityFactory {

@@ -160,6 +160,19 @@ Item* Item::potato_baked = NULL;
 Item* Item::netherbrick = NULL;
 Item* Item::netherQuartz = NULL;
 
+// v20: brewing items (see the comment in Item.h).
+Item* Item::blazeRod = NULL;
+Item* Item::ghastTear = NULL;
+Item* Item::goldNugget = NULL;
+Item* Item::netherWart = NULL;
+Item* Item::potion = NULL;
+Item* Item::glassBottle = NULL;
+Item* Item::spiderEye = NULL;
+Item* Item::fermentedSpiderEye = NULL;
+Item* Item::blazePowder = NULL;
+Item* Item::magmaCream = NULL;
+Item* Item::glisteringMelon = NULL;
+
 //Item* Item::record_01 = NULL;
 //Item* Item::record_02 = NULL;
 
@@ -312,6 +325,26 @@ void Item::initItems() {
 
 	Item::netherbrick = (new Item(149))->setIcon(5, 9)->setDescriptionId("netherbrickItem")->setCategory(ItemCategory::Structures);
 	Item::netherQuartz = (new Item(150))->setIcon(5, 10)->setDescriptionId("netherquartz")->setCategory(ItemCategory::Mechanisms);
+
+	// v20: brewing. Ctor ids -> full ids match modern MC (ctor + 256).
+	// The lang strings already existed in en_US.lang (item.blazeRod /
+	// ghastTear / goldNugget / glassBottle / spiderEye /
+	// fermentedSpiderEye / blazePowder / magmaCream / speckledMelon /
+	// potion / emptyPotion .name); nether wart reuses
+	// item.netherStalkSeeds.name ("Nether Wart"). Potion names come
+	// from PotionItem::getDescriptionId (item.potion.<type>.name).
+	// Icons drawn into blank gui/items.png cells, see Item.h.
+	Item::blazeRod = (new Item(113))->setIcon(0, 9)->setCategory(ItemCategory::Tools)->setDescriptionId("blazeRod");
+	Item::ghastTear = (new Item(114))->setIcon(3, 9)->setCategory(ItemCategory::Tools)->setDescriptionId("ghastTear");
+	Item::goldNugget = (new Item(115))->setIcon(2, 10)->setCategory(ItemCategory::Decorations)->setDescriptionId("goldNugget");
+	Item::netherWart = (new Item(116))->setIcon(2, 9)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("netherStalkSeeds");
+	Item::potion = (new PotionItem(117))->setIcon(0, 12)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("potion");
+	Item::glassBottle = (new GlassBottleItem(118))->setIcon(4, 10)->setCategory(ItemCategory::Tools)->setDescriptionId("glassBottle");
+	Item::spiderEye = (new Item(119))->setIcon(4, 9)->setCategory(ItemCategory::Tools)->setDescriptionId("spiderEye");
+	Item::fermentedSpiderEye = (new Item(120))->setIcon(0, 10)->setCategory(ItemCategory::Tools)->setDescriptionId("fermentedSpiderEye");
+	Item::blazePowder = (new Item(121))->setIcon(1, 9)->setCategory(ItemCategory::Tools)->setDescriptionId("blazePowder");
+	Item::magmaCream = (new Item(122))->setIcon(1, 10)->setCategory(ItemCategory::Tools)->setDescriptionId("magmaCream");
+	Item::glisteringMelon = (new Item(126))->setIcon(3, 10)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("speckledMelon");
 
 	//Item::record_01 = (new RecordingItem(2000, "13"))->setIcon(0, 15)->setCategory(ItemCategory::Decorations)->setDescriptionId("record");
 	//Item::record_02 = (new RecordingItem(2001, "cat"))->setIcon(1, 15)->setCategory(ItemCategory::Decorations)->setDescriptionId("record");

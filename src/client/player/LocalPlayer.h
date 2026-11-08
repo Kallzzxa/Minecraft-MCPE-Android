@@ -46,6 +46,8 @@ public:
 
 	void openContainer(ChestTileEntity* container);
 	void openFurnace(FurnaceTileEntity* e);
+	// v20: brewing stand.
+	void openBrewingStand(BrewingStandTileEntity* e);
 	// v10: enchanting table.
 	void openEnchantTable();
 

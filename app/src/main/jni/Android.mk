@@ -53,6 +53,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/client/gui/screens/DeathScreen.cpp \
 ../../../../src/client/gui/screens/EnchantScreen.cpp \
 ../../../../src/client/gui/screens/FurnaceScreen.cpp \
+../../../../src/client/gui/screens/BrewingScreen.cpp \
 ../../../../src/client/gui/screens/InBedScreen.cpp \
 ../../../../src/client/gui/screens/IngameBlockSelectionScreen.cpp \
 ../../../../src/client/gui/screens/JoinGameScreen.cpp \
@@ -181,6 +182,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/inventory/ContainerMenu.cpp \
 ../../../../src/world/inventory/FillingContainer.cpp \
 ../../../../src/world/inventory/FurnaceMenu.cpp \
+../../../../src/world/inventory/BrewingMenu.cpp \
 ../../../../src/world/item/ArmorItem.cpp \
 ../../../../src/world/item/BedItem.cpp \
 ../../../../src/world/item/DyePowderItem.cpp \
@@ -196,6 +198,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/item/crafting/Recipe.cpp \
 ../../../../src/world/item/crafting/Recipes.cpp \
 ../../../../src/world/item/crafting/FurnaceRecipes.cpp \
+../../../../src/world/item/crafting/BrewingRecipes.cpp \
 ../../../../src/world/item/crafting/OreRecipes.cpp \
 ../../../../src/world/item/crafting/StructureRecipes.cpp \
 ../../../../src/world/item/crafting/ToolRecipes.cpp \
@@ -235,6 +238,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/level/tile/EnchantTableTile.cpp \
 ../../../../src/world/level/tile/EntityTile.cpp \
 ../../../../src/world/level/tile/FurnaceTile.cpp \
+../../../../src/world/level/tile/BrewingStandTile.cpp \
 ../../../../src/world/level/tile/GrassTile.cpp \
 ../../../../src/world/level/tile/HeavyTile.cpp \
 ../../../../src/world/level/tile/LightGemTile.cpp \
@@ -253,6 +257,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/level/tile/entity/SignTileEntity.cpp \
 ../../../../src/world/level/tile/entity/TileEntity.cpp \
 ../../../../src/world/level/tile/entity/FurnaceTileEntity.cpp \
+../../../../src/world/level/tile/entity/BrewingStandTileEntity.cpp \
 ../../../../src/world/phys/HitResult.cpp
 
 LOCAL_CFLAGS := -Wno-psabi $(LOCAL_CFLAGS)

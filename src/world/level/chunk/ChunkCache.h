@@ -316,7 +316,15 @@ public:
     //    contents survive a full save/load cycle too. Empty chests /
     //    idle furnaces report shouldSave()==false and are simply
     //    re-created empty on reload — empty is empty, nothing is lost.
-    void evictChunk(int64_t key, LevelChunk* chunk) {
+    // v20 (v18 debt, paid): evictChunk() used to rewrite the whole
+    // entities.dat on EVERY evicted chunk — up to 32 rewrites in one
+    // sweep while a teleport drains. The snapshot is global anyway
+    // (ExternalFileLevelStorage::saveEntities ignores its chunk
+    // argument and writes every entity), so the sweep now skips the
+    // per-chunk write (saveEntitiesSnapshot=false) and writes the
+    // snapshot ONCE afterwards, in evictFarChunks(). A single-chunk
+    // evict (or any other caller) keeps the old behaviour.
+    void evictChunk(int64_t key, LevelChunk* chunk, bool saveEntitiesSnapshot = true) {
         if (chunk == NULL || chunk == emptyChunk) return;
 
         std::vector<Entity*> chunkEntities;
@@ -351,7 +359,8 @@ public:
             // refuses removed entities).
             storage->onChunkEvicted(chunk);
             save(chunk);
-            saveEntities(chunk);
+            if (saveEntitiesSnapshot)
+                saveEntities(chunk);
         }
         chunks.erase(key);
         if (source != NULL && source->evictChunk(chunk->x, chunk->z)) {
@@ -425,9 +434,17 @@ public:
             // real evictions against the cap so a sweep full of refused
             // chunks does not starve later sweeps.
             size_t before = chunks.size();
-            evictChunk(far[i].first, far[i].second);
+            // v20: no per-chunk entities.dat write — the snapshot is
+            // global, so it is written once below for the whole sweep.
+            evictChunk(far[i].first, far[i].second, false);
             if (chunks.size() < before) evicted++;
         }
+        // v20 (v18 debt): one entities.dat snapshot for the whole
+        // sweep instead of one per evicted chunk. Safe: the snapshot
+        // is written AFTER all despawns/detaches, so it contains the
+        // same post-eviction state the per-chunk writes had, and
+        // saveEntities() ignores its chunk argument anyway.
+        if (evicted > 0) saveEntities(NULL);
 
         // v18: pre-generate the ring around the player chunk (see
         // pregenerateNearChunks). Runs on the same 10-tick sweep as

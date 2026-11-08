@@ -185,6 +185,8 @@ public:
     static Tile* furnace_lit;
 	// v10: enchanting table (id 116).
     static Tile* enchantTable;
+	// v20: brewing stand (id 117, modern MC).
+	static Tile* brewingStand;
     static Tile* sign;
     static Tile* door_wood;
     static Tile* ladder;

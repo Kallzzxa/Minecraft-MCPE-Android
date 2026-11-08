@@ -34,5 +34,7 @@
 #include "PlantableFoodItem.h"
 #include "HangingEntityItem.h"
 #include "SignItem.h"
+#include "PotionItem.h"
+#include "GlassBottleItem.h"
 
 #endif /*NET_MINECRAFT_WORLD_ITEM__ItemInclude_H__*/

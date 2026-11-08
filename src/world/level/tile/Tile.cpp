@@ -125,6 +125,7 @@ Tile* Tile::potatoes	= NULL;
 Tile* Tile::furnace     = NULL;
 Tile* Tile::furnace_lit = NULL;
 Tile* Tile::enchantTable = NULL;
+Tile* Tile::brewingStand = NULL;
 Tile* Tile::chest		= NULL;
 Tile* Tile::lightGem    = NULL;
 Tile* Tile::stairs_wood = NULL;
@@ -230,6 +231,9 @@ void Tile::initTiles() {
 	// (tile.enchantmentTable.name=Enchantment Table). Top face shows
 	// books, sides are obsidian; see EnchantTableTile.
 	enchantTable = (new EnchantTableTile(116))->init()->setDestroyTime(3.5f)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("enchantmentTable");
+	// v20: brewing stand, id 117 (modern MC). Cube with the drawn
+	// stand texture — see BrewingStandTile.h for the shape caveat.
+	brewingStand = (new BrewingStandTile(117))->init()->setDestroyTime(0.5f)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("brewingStand");
     sign        = (new SignTile(63, TileEntityType::Sign, true))->init()->setDestroyTime(1.0f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Decorations)->setDescriptionId("sign");//->sendTileData();
 	door_wood   = (new DoorTile(64, Material::wood))->init()->setDestroyTime(3.0f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Structures)->setDescriptionId("doorWood");
 	ladder      = (new LadderTile(65, 3 + 5 * 16))->init()->setDestroyTime(0.4f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Structures)->setDescriptionId("ladder");

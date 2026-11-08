@@ -110,13 +110,16 @@ int Spider::getDeathLoot() {
 	return Item::string->id;
 }
 
-//void dropDeathLoot(/*bool wasKilledByPlayer, int playerBonusLevel*/) {
-//    super::dropDeathLoot(/*wasKilledByPlayer, playerBonusLevel*/);
+// v20: spider eye drop — 1/3 chance of 1 eye (modern MC). The
+// string 0-2 from Mob::dropDeathLoot stays (getDeathLoot returns the
+// string item id).
+void Spider::dropDeathLoot() {
+	super::dropDeathLoot();
 
-////    if (wasKilledByPlayer && (random.nextInt(3) == 0 || random.nextInt(1 + playerBonusLevel) > 0)) {
-////        spawnAtLocation(Item::spiderEye->id, 1);
-////    }
-//}
+	if (random.nextInt(3) == 0) {
+		spawnAtLocation(Item::spiderEye->id, 1);
+	}
+}
 
 //float getRideHeight() {
 //    return bbHeight * .75f - 0.5f;

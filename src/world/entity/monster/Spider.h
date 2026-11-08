@@ -55,8 +55,10 @@ protected:
     void checkHurtTarget(Entity* target, float d);
 	int fireCheckTick;
     int getDeathLoot();
-    /*@Override*/
-    //void dropDeathLoot();
+    // v20: spider eye drop (was commented out since the original
+    // tree): 1/3 chance of 1 spider eye, like modern MC. The eye is a
+    // brewing ingredient (poison) and crafts into fermented spider eye.
+    void dropDeathLoot();
 };
 
 #endif /*NET_MINECRAFT_WORLD_ENTITY_MONSTER__Spider_H__*/

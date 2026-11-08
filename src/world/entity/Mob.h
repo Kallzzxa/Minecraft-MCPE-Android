@@ -77,6 +77,12 @@ public:
 	virtual void baseTick();
     virtual void superTick();
 
+	// v20: fire resistance — a fire-resistant mob takes no fire/lava
+	// damage and never stays on fire (Entity::burn / lavaHurt are
+	// virtual; the overrides check fireResistanceEffectTicks).
+	virtual void burn(int dmg);
+	virtual void lavaHurt();
+
     virtual void heal(int heal);
     virtual int  getMaxHealth() { return 10; }
 	virtual bool hurt(Entity* source, int dmg);
@@ -176,6 +182,19 @@ public:
 
 	int health;
 	int lastHealth;
+
+	// v20: potion effects — ticks remaining, 0 = inactive. Set by
+	// drinking a potion (PotionItem), ticked down in Mob::tick.
+	// Speed/slowness scale LocalPlayer movement, strength/weakness
+	// adjust Player::attack damage, fire resistance blocks burn/lava
+	// damage, regeneration heals and poison hurts over time.
+	int speedEffectTicks;
+	int slownessEffectTicks;
+	int strengthEffectTicks;
+	int weaknessEffectTicks;
+	int fireResistanceEffectTicks;
+	int regenerationEffectTicks;
+	int poisonEffectTicks;
 
 	int hurtTime;
 	int hurtDuration;

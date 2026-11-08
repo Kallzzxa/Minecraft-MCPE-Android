@@ -698,6 +698,11 @@ void Player::startStonecutting(int x, int y, int z) {
 void Player::openFurnace(FurnaceTileEntity* e) {
 }
 
+// v20: default does nothing (server side); LocalPlayer opens the
+// brewing screen, ServerPlayer sends the ContainerOpenPacket.
+void Player::openBrewingStand(BrewingStandTileEntity* e) {
+}
+
 void Player::openEnchantTable() {
 	// Do nothing on the server, this is a client thing :)
 }
@@ -774,6 +779,10 @@ void Player::interact(Entity* entity) {
 
 void Player::attack(Entity* entity) {
 	int dmg = inventory->getAttackDamage(entity);
+	// v20: strength (+3 damage, modern MC strength I) / weakness
+	// (-1 damage) from potions.
+	if (strengthEffectTicks > 0) dmg += 3;
+	if (weaknessEffectTicks > 0) dmg = Mth::Max(0, dmg - 1);
     if (dmg > 0) {
         entity->hurt(this, dmg);
         ItemInstance* item = inventory->getSelected();

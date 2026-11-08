@@ -22,6 +22,7 @@
 #ifndef STANDALONE_SERVER
 #include "../gui/Screen.h"
 #include "../gui/screens/FurnaceScreen.h"
+#include "../gui/screens/BrewingScreen.h"
 #include "../gui/screens/EnchantScreen.h"
 #include "../gui/screens/ChestScreen.h"
 #include "../gui/screens/crafting/WorkbenchScreen.h"
@@ -320,9 +321,14 @@ void LocalPlayer::updateAi() {
 float LocalPlayer::getWalkingSpeedModifier() {
 	// Sprint (v6): double-tap forward on the D-pad = 1.4x walk speed.
 	// Not while flying (fly speed is separate).
+	// v20: speed potion x1.2 / slowness potion x0.85 stack on top
+	// (modern MC: swiftness I +20%, slowness I -15%).
+	float mod = 1.0f;
 	if (input && input->sprinting && !abilities.flying)
-		return 1.4f;
-	return 1.0f;
+		mod = 1.4f;
+	if (speedEffectTicks > 0) mod *= 1.2f;
+	if (slownessEffectTicks > 0) mod *= 0.85f;
+	return mod;
 }
 
 void LocalPlayer::take( Entity* e, int orgCount )
@@ -479,6 +485,15 @@ void LocalPlayer::openFurnace( FurnaceTileEntity* e ) {
 #ifndef STANDALONE_SERVER
 	if (!minecraft->isCreativeMode())
 		minecraft->setScreen( new FurnaceScreen(this, e) );
+#endif
+}
+
+// v20: brewing stand — opens the brewing screen (same pattern as the
+// furnace; creative mode has no container screens in this build).
+void LocalPlayer::openBrewingStand( BrewingStandTileEntity* e ) {
+#ifndef STANDALONE_SERVER
+	if (!minecraft->isCreativeMode())
+		minecraft->setScreen( new BrewingScreen(this, e) );
 #endif
 }
 

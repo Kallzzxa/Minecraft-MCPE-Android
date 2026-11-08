@@ -19,7 +19,11 @@ class Item
 {
     static const int MAX_STACK_SIZE = 64;//Container::LARGE_MAX_STACK_SIZE;
 public:
-	static const int MAX_ITEMS = 512;//32000;
+	// v20: was 512, but v12's ender pearl (ctor id 368 -> full id 624)
+	// already writes past it — Item::items[624] is an out-of-bounds
+	// write that only "works" because the same slot is read back.
+	// 1024 covers it with room for future items; no ids change.
+	static const int MAX_ITEMS = 1024;//32000;
     static const int ICON_COLUMNS = 16;
     static const std::string ICON_DESCRIPTION_PREFIX;
 
@@ -207,6 +211,24 @@ public:
 
 	static Item* netherbrick;
 	static Item* netherQuartz;
+
+	// v20: brewing. Ctor ids 113-122 + 126 -> full ids 369-378 + 382
+	// (modern MC ids; the Item ctor adds 256). Icons in gui/items.png:
+	// blaze rod (0,9), blaze powder (1,9), nether wart (2,9), ghast
+	// tear (3,9), spider eye (4,9), fermented spider eye (0,10),
+	// magma cream (1,10), gold nugget (2,10), glistering melon (3,10),
+	// glass bottle (4,10); potion bottles are row 12, one per aux.
+	static Item* blazeRod;
+	static Item* ghastTear;
+	static Item* goldNugget;
+	static Item* netherWart;
+	static Item* potion;
+	static Item* glassBottle;
+	static Item* spiderEye;
+	static Item* fermentedSpiderEye;
+	static Item* blazePowder;
+	static Item* magmaCream;
+	static Item* glisteringMelon;
 
     static Item* record_01;
     static Item* record_02;

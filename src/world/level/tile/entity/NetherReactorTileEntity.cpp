@@ -149,7 +149,14 @@ void NetherReactorTileEntity::spawnItem() {
 }
 
 ItemInstance NetherReactorTileEntity::getSpawnItem() {
-	int itemType = level->random.nextInt(8);
+	// v20: the reactor is now the Nether-ingredient source that makes
+	// brewing possible without a Nether dimension (v21). Nether wart
+	// (the base of every brew), blaze powder (fuel + strength) and
+	// blaze rods (brewing-stand crafting + powder) join the loot, plus
+	// ghast tears (regeneration) — nothing else about the reactor
+	// changes (same levels, counts, pig zombies, dome). A full run
+	// spawns ~200 items, so ~1/12 per slot is ~16 of each new item.
+	int itemType = level->random.nextInt(12);
 	switch(itemType) {
 	    case 0: return ItemInstance(Item::yellowDust, 3);
 		case 1: return ItemInstance(Item::seeds_melon);
@@ -158,6 +165,10 @@ ItemInstance NetherReactorTileEntity::getSpawnItem() {
 		case 4: return ItemInstance(Item::reeds);
 		case 5: return ItemInstance(Tile::cactus);
 		case 6: return ItemInstance(Item::netherQuartz, 4);
+		case 7: return ItemInstance(Item::netherWart, 3);
+		case 8: return ItemInstance(Item::blazePowder, 2);
+		case 9: return ItemInstance(Item::blazeRod, 1);
+		case 10: return ItemInstance(Item::ghastTear, 1);
 		default: return GetLowOddsSpawnItem();
 	}
 }

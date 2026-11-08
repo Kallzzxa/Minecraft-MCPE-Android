@@ -861,7 +861,114 @@ Each version is ONE coherent batch of features, shipped as a new APK
     track ~10 s in, day chirps vs night crickets, old sounds still
     audible, no crash/loop).
 
-## Next (v19)
+- **v20 — Brewing (SHIPPED, build-only).**
+  ### Audit (read from code before writing anything)
+  - NO brewing existed: no BrewingStand tile/tile entity, no potion
+    items, no brewing UI, no recipe table. Residue only: commented-out
+    brewing-stand + cauldron recipes in `Recipes.cpp`, `ContainerType::
+    BREWING_STAND = 5` in `Container.h`, and a commented-out
+    `setId(BrewingStandTileEntity.class, "Cauldron")` in
+    `TileEntity.cpp`.
+  - NO status-effect system existed (FoodItem::setEatEffect is
+    commented out; v7/v9 noted the same gap for rotten flesh / golden
+    carrot). Potion effects needed a small new system (see below).
+  - Nether Reactor existed with a 8-way loot table
+    (`NetherReactorTileEntity::getSpawnItem`): glowstone dust x3,
+    melon seeds, brown/red mushroom, reeds, cactus, nether quartz x4,
+    low-odds junk. No nether wart / blaze rod / blaze powder / ghast
+    tear anywhere in the tree. No soul sand tile either (so nether
+    wart is an item, not a farmable crop — see caveats).
+  - Everything brewing needed already existed as a pattern: the
+    furnace tile entity + screen + menu (container, tick, save/load,
+    touch UX), DyePowderItem's per-aux icon/name, FoodItem's
+    hold-to-drink flow (`use` -> `startUsingItem` -> `useTimeDepleted`,
+    `UseAnim::drink` already handled in `Player.cpp:274`), the
+    `random.drink` sound (mapped in v19), and lang strings for every
+    brewing item + every potion name (`item.potion.*.name`,
+    `potion.*.postfix`) already in `en_US.lang`.
+  ### What shipped
+  - Potion effects (new, on `Mob`): 7 tick-down timers
+    (`speed/slowness/strength/weakness/fireResistance/regeneration/
+    poisonEffectTicks`, decremented at the top of `Mob::tick` before
+    the fire damage in `Entity::baseTick`). Speed x1.2 / slowness
+    x0.85 multiply `LocalPlayer::getWalkingSpeedModifier` (stacks with
+    the v6/v14 sprint 1.4x); strength +3 / weakness -1 damage in
+    `Player::attack`; fire resistance overrides `Mob::burn` /
+    `Mob::lavaHurt` and extinguishes `onFire`; regeneration heals 1 HP
+    / 50 ticks, poison hurts 1 HP / 25 ticks never below 1 HP (modern
+    MC cadences).
+  - `PotionItem` (id 373, one item, 11 aux types): water, awkward,
+    healing (+4 HP), swiftness, strength, fire resistance (all 3:00),
+    regeneration / poison (0:45), weakness / slowness (1:30),
+    harming (6 HP). Drink = 32-tick hold, `UseAnim::drink`, becomes
+    an empty glass bottle after drinking. Per-aux bottle icon
+    (items.png row 12) + per-aux name (`item.potion.<type>.name`).
+  - `GlassBottleItem` (id 374): crafted from 3 glass; fill from a
+    water block (tap it) or while standing in water (tap with no block
+    hit) — both paths, because either tap path may not hit water on
+    this old client. Water is not consumed (modern MC).
+  - Brewing stand (tile 117, modern MC id): `BrewingStandTile`
+    (EntityTile, cube + drawn stand texture in terrain.png cell
+    (4,11)) + `BrewingStandTileEntity` (5 slots: 3 bottles, ingredient,
+    fuel; 400-tick brew, 1 blaze powder = 20 brews, saves/loads like
+    the furnace) + `BrewingMenu` + `BrewingScreen` (furnace touch UX:
+    ingredient top-left, fuel below it, 3 bottle slots in a column on
+    the right, brew arrow + fuel flame from the furnace spritesheet,
+    ghost-icon + name preview of what the first brewable bottle
+    becomes). `Player::openBrewingStand` virtual + LocalPlayer screen
+    + ServerPlayer packet + `ClientSideNetworkHandler` BREWING_STAND
+    case, mirroring the furnace exactly.
+  - `BrewingRecipes`: water + nether wart -> awkward; awkward +
+    glistering melon / sugar / blaze powder / magma cream / ghast tear
+    / spider eye / fermented spider eye -> healing / swiftness /
+    strength / fire resistance / regeneration / poison / weakness;
+    fermented spider eye corrupts healing/poison -> harming,
+    swiftness -> slowness.
+  - Crafting (Recipes.cpp): brewing stand (blaze rod + stone — no
+    cobblestone tile exists in this tree; the original commented
+    recipe used stoneBrick), glass bottle (3 glass -> 3), gold nugget
+    (1 ingot -> 9), glistering melon (melon + 8 nuggets), fermented
+    spider eye (eye + sugar + brown mushroom, shapeless), magma cream
+    (blaze powder + slimeball, shapeless), blaze powder (1 rod -> 2,
+    shapeless).
+  - Nether-ingredient source (the ROADMAP's "Nether-reactor loot
+    change" alternative to waiting for v21): the reactor loot table is
+    now 12-way — the old 7 items plus nether wart x3, blaze powder x2,
+    blaze rod x1, ghast tear x1 per spawn slot (~200 items per full
+    run, so ~16 of each). Nothing else about the reactor changed.
+  - Spider eye drop enabled (was commented out in `Spider.cpp`):
+    1/3 chance of 1 eye, string 0-2 unchanged.
+  - v18 debt PAID (safe): `evictChunk()` no longer rewrites the whole
+    `entities.dat` per evicted chunk — the sweep writes the snapshot
+    once afterwards. Safe because the snapshot is global
+    (`ExternalFileLevelStorage::saveEntities` ignores its chunk
+    argument) and it is already only written once per 60 s by the
+    storage tick anyway; the post-sweep write holds the same
+    post-eviction state the per-chunk writes had.
+  - Drive-by fix: `MAX_ITEMS` 512 -> 1024. v12's ender pearl (ctor id
+    368 -> full id 624) already writes/reads past the 512-entry
+    `Item::items` array — an out-of-bounds access that only "works"
+    because the same slot is read back. No ids change; the array just
+    covers it now.
+  ### Known limits / debts
+  - The brewing stand renders as a full cube with the drawn stand
+    texture, not the modern 3D stand model (no custom non-cube tile
+    renderer exists in this tree — same precedent as the v10
+    enchanting table).
+  - No nether wart farming: no soul sand tile exists, so wart only
+    comes from the reactor (and is consumed on brew). No redstone
+    (extend) / glowstone (level II) brewing — no potion-level system
+    to upgrade yet. No splash / lingering potions (no throwable use
+    for the item yet), no cauldron, no witch yet (witch stays queued
+    after brewing, as planned).
+  - Brewing-stand base is stone, not cobblestone (no cobblestone tile
+    in this tree). Weakness is -1 damage (approximation, not the exact
+    modern value).
+  - All of it is build-only until a live test on device (craft the
+    stand, run the reactor, brew awkward -> healing/swiftness, drink,
+    check the effects, check the stand UI).
+
+## Next (v20)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
   walk session on the realme 8, memory flat, FPS within ~10% of v14
@@ -876,14 +983,12 @@ Each version is ONE coherent batch of features, shipped as a new APK
   instead of freezing forever (v18 net). The v17 APK stays the
   fallback until this stage passes.
   Also queued: the v18 debt — save `entities.dat` once per
-  eviction sweep instead of once per evicted chunk.
-- **v20 — Brewing** (first item in "Queued" below).
+  eviction sweep instead of once per evicted chunk. (PAID in v20.)
+- **v21 — Nether dimension** (next version after the device
+  verification above).
 
 ## Queued (priority order — re-evaluate after each version)
 
-- **v20 — Brewing.** Brewing stand + potions. Blocked on Nether
-  ingredients (nether wart, blaze powder) — needs a Nether source first,
-  so this waits behind v21 or a Nether-reactor loot change.
 - **Witch — AFTER brewing.** Re-prioritised 2026-11-08: a
   witch without potions (brewing does not exist yet) would just be
   another melee mob, so its value is small; graphics polish (v13)

@@ -29,6 +29,8 @@ public:
 
 	void openContainer(ChestTileEntity* furnace);
 	void openFurnace(FurnaceTileEntity* furnace);
+	// v20: brewing stand.
+	void openBrewingStand(BrewingStandTileEntity* stand);
 	void closeContainer();
 	void doCloseContainer();
 
