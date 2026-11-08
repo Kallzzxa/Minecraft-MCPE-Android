@@ -286,12 +286,17 @@ Recipes::Recipes()
 
 	//	definition('#', Item::ironIngot));
 
-	//addShapedRecipe(ItemInstance(Item::cauldron, 1), //
-	//	"# #", //
-	//	"# #", //
-	//	"###", //
+	// v25: cauldron (7 iron ingots, modern MC shape). The original
+	// tree had this recipe commented out against Item::cauldron,
+	// which never existed as an item — the live form uses the tile
+	// (TileItems are auto-created for registered tiles, so the
+	// cauldron is placeable + in the creative inventory).
+	addShapedRecipe(ItemInstance(Tile::cauldron, 1),
+		"# #",
+		"# #",
+		"###",
 
-	//	'#', Item::ironIngot);
+		definition('#', Item::ironIngot));
 
 	//addShapedRecipe(ItemInstance(Item::brewingStand, 1), //
 	//	" B ", //

@@ -6,6 +6,9 @@
 // this tree: water bottle + nether wart -> awkward, awkward + secondary
 // ingredient -> effect potion. No redstone (extend) / glowstone
 // (level II) recipes: there is no potion-level system to upgrade yet.
+// v25: gunpowder + any potion -> its splash variant (aux + 16, see
+// PotionItem::SPLASH_FLAG); gunpowder is the only ingredient that
+// accepts a splash input (it refuses it — already splash).
 // The brewing stand (BrewingStandTileEntity) calls getResult() per
 // bottle slot; the screen (BrewingScreen) calls isIngredient() to
 // decide what the player may put in the ingredient slot.

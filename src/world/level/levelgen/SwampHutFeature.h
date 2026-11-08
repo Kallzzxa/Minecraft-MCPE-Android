@@ -10,9 +10,9 @@
 // terrain). Swampland only, on ground at height >= 62 (swamp
 // lowlands; the hut stands on log stilts over the wet ground).
 // The hut is 7x5 planks on stilts with a log frame, plank roof
-// with overhang, a doorway, a glass window and a workbench inside.
-// NO cauldron: no cauldron tile exists in this tree (v20 debt), so
-// the hut has no cauldron yet. One witch lives in each hut
+// with overhang, a doorway, a glass window, a workbench and a full
+// cauldron inside (v25 — the v20 cauldron debt is paid). One witch
+// lives in each hut
 // (ensureWitch, same top-up pattern as VillageFeature::
 // ensureVillagers — entities are not chunk data, so the hut's witch
 // is topped back up to 1 whenever the hut chunk (re-)enters the

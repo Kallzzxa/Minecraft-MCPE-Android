@@ -1375,6 +1375,116 @@ Each version is ONE coherent batch of features, shipped as a new APK
     its self-heal; swamp: find a hut, check stilts/floor/roof/
     workbench and the witch inside; no crash).
 
+- **v25 — Player splash potions + cauldron (SHIPPED, build-only).**
+  Pays the v20 cauldron debt and the v24 player-throw debt.
+  ### Audit (read from code before writing anything)
+  - `ThrownPotion` (v24) was directly reusable: the (Level, Mob)
+    `Throwable` ctor already shoots along the player's aim (the
+    EggItem/SnowballItem precedent — `new ThrownEgg(level, player)`
+    with no shoot call), the splash radius-3 `onHit` already
+    existed, and `PotionItem::applyEffect` already took a `Mob*`.
+    The ONLY witch-specific behaviour was the thrower skip
+    (`ownerId`), which modern MC does NOT do for the player (a
+    splash healing potion at your own feet heals you).
+  - `PotionItem` (v20) needed a splash encoding: aux is saved as a
+    short "Damage" tag (`ItemInstance.cpp:281`), so a flag bit fits
+    with room to spare. Gunpowder existed since v7 (`Item::sulphur`,
+    id 33, creeper drop 0–2) and `BrewingRecipes::getResult` /
+    `isIngredient` were the only two brewing entry points (the
+    tile entity + the screen preview both call them).
+  - NO cauldron tile existed (v20/v24 debt, confirmed by grep —
+    only a commented-out recipe + a commented-out TileEntity
+    registration). NO buckets exist either (`Item::bucket_*` all
+    commented out), so bottle-only in/out is the honest scope.
+  - `GameMode::useItemOn` calls the tile's `use()` BEFORE the held
+    item's `useOn`, so the cauldron's bottle logic lives in the
+    tile, not in `GlassBottleItem` (which stays untouched).
+  - Textures: NO uniform-magenta cells were left in terrain.png.
+    Cell 250 (10,15) was verified unused (not a tile tex, not in
+    the ItemRenderer item->tex mapper, not a destroy stage
+    240..249, not a dynamic-texture target — only Water/WaterSide
+    are dynamic, both on the water tex) and was ~92% transparent.
+    `gui/items.png` row 14 was fully blank (row 13 col 2 is the
+    v23 emerald, so row 14 avoids it).
+  - Tile id 118 was FREE (modern MC cauldron id); lang
+    `tile.cauldron.name=Cauldron` already existed. The cauldron
+    recipe was commented out against `Item::cauldron`, which never
+    existed as an item — the live form uses the tile.
+  ### What shipped
+  - **Splash potions, player-throwable.** A splash potion is the
+    same item id 373 with aux = base type + 16 (`SPLASH_FLAG`,
+    `PotionItem::isSplash` / `baseAux`). Brewing: any potion +
+    gunpowder in the brewing stand -> its splash variant
+    (water and awkward included — splash water bottle / splash
+    awkward potion are real in modern MC; an already-splash
+    potion refuses gunpowder AND every other ingredient, since no
+    redstone/glowstone level system exists yet). Throwing:
+    `PotionItem::use` throws a `ThrownPotion` on tap (EggItem
+    pattern: count-- unless creative, `random.bow` sound, server
+    side only) — splash potions are never drunk. The thrown
+    potion's aux is normalised to its base type in the ctor, so
+    `onHit` applies the base effect in the v24 radius-3 splash,
+    and the renderer shows the right bottle. A player-thrown
+    potion CAN splash its thrower (new `splashOwner=true` ctor +
+    `SplashOwner` save byte; the witch keeps `false` = v24
+    behaviour). All 9 effect potions (healing, swiftness,
+    strength, fire resistance, regeneration, poison, weakness,
+    harming, slowness) can be splashed; water/awkward splash too
+    (no effect, like modern MC). Splash icons are tinted copies
+    of the row-12 icons on `gui/items.png` row 14 + a droplet
+    mark, and names are `item.splashPotion.<type>.name`
+    ("Splash Potion of Healing", etc.), so splash vs drinkable is
+    visible in the hotbar and in the name. `applyEffect` /
+    `getTypeDesc` / `useTimeDepleted` all mask the flag, so no
+    call site can drink or apply a wrong effect from a splash aux.
+  - **Cauldron** (tile 118, modern MC id; `CauldronTile`, plain
+    `Tile` — no tile entity, the water level 0..3 lives in the
+    data nibble, so it survives save/load and eviction like any
+    tile data). Cube + drawn iron-pot texture (terrain.png cell
+    250); the top face shows the water texture (cell 205) while
+    any water is held. Interactions: empty glass bottle + level
+    > 0 -> take one level out (bottle becomes a water bottle);
+    water bottle (drinkable or splash) + level < 3 -> pour one
+    level in (bottle becomes empty); anything else / empty hand /
+    full / empty -> falls through (no-op). `random.splash` sound
+    on both. Crafting: 7 iron ingots (the v20 commented recipe,
+    now live against the tile); TileItems are auto-created for
+    registered tiles, so it is placeable + in the creative
+    inventory. Breaking it drops itself (base `getResource`
+    returns the id).
+  - **Swamp hut now has a cauldron** (v24 debt paid): a full
+    cauldron (data 3) against the east wall, opposite the
+    workbench (`SwampHutFeature::placeHut` + new `setHD` helper
+    for tile+data placement). Existing huts in old worlds do NOT
+    gain one retroactively (generation only runs on new chunks).
+  - Version bump 24 -> 25 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,158,920 B / armv7 8,748,932 B, new symbols confirmed
+    (`CauldronTile`, `ThrownPotion(Level,Mob,int,bool)` ctor,
+    `Tile::cauldron`, `SplashOwner` tag string).
+  ### Known limits / debts
+  - No buckets (none exist in this tree), so bottles are the only
+    way to fill/empty a cauldron. No dyeing / washing in the
+    cauldron, no lingering potions, no redstone-extend /
+    glowstone-level-II brewing (no potion-level system yet).
+  - Splash potions are not in the creative inventory (only the
+    drinkable aux-0 bottle shows there) — brew them in survival,
+    or in creative via the brewing stand like everything else.
+  - The cauldron is a full cube with one drawn texture, not the
+    modern 3D pot model (same precedent as the brewing stand /
+    enchanting table). Its water top is the flat water texture,
+    not a level-scaled surface (the level is only visible as
+    water/no-water, not 1/3 vs 2/3 vs full).
+  - A splash potion thrown at a block is used like an egg/snowball
+    (tap with no block hit); tapping a block with one does nothing
+    (same as eggs — `use()` is not called on a block hit).
+  - All of it is build-only until a live test on device (brew a
+    splash potion with gunpowder, throw it at a mob — the radius-3
+    effect must be felt — throw a splash healing at your own feet
+    and check YOU heal, fill/empty the cauldron with bottles,
+    check the swamp hut now has a full cauldron, no crash).
+
 ## Next (v24)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
@@ -1401,20 +1511,17 @@ Each version is ONE coherent batch of features, shipped as a new APK
 - **Device verification for the witch + swamp hut (v24's open item).**
   See the v24 test list above. The v23 APK stays the fallback
   until this stage passes.
-- **v24 — Witch + splash potions + swamp hut.** SHIPPED (see "Done").
+- **Device verification for player splash potions + cauldron (v25's
+  open item).** See the v25 test list above. The v24 APK stays the
+  fallback until this stage passes.
+- **v25 — Player splash potions + cauldron.** SHIPPED (see "Done").
 
 ## Queued (priority order — re-evaluate after each version)
 
 - **Witch — AFTER brewing.** SHIPPED as v24 (see "Done").
-- **Player-throwable splash potions (new, v24 follow-up).** The
-  witch throws them, but the player still cannot: give
-  `PotionItem` a throwable use (tap to throw a `ThrownPotion`
-  with the held potion's aux, consuming the bottle) — the whole
-  splash path already exists, this is only the throw action +
-  inventory handling.
-- **Cauldron tile (v20/v24 debt).** The swamp hut has no cauldron
-  because no cauldron tile exists; add one (water-level block the
-  player can fill bottles from) and put it in the hut.
+- **Player-throwable splash potions (new, v24 follow-up).** SHIPPED
+  as v25 (see "Done").
+- **Cauldron tile (v20/v24 debt).** SHIPPED as v25 (see "Done").
 - **v22 — The End.** SHIPPED (see "Done").
 - **v23 — Villages + trading.** SHIPPED (see "Done").
 - **Night spawning live test (from old v8 scope).** Drops are done (v7);

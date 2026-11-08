@@ -6,6 +6,18 @@
 // ids); potion sides are PotionItem aux values.
 
 int BrewingRecipes::getResult(int inputAux, int ingredientId) {
+	// v25: gunpowder turns ANY potion into its splash variant
+	// (modern MC) — water and awkward included (splash water
+	// bottle / splash awkward potion are real). A potion that is
+	// already splash cannot be splashed again.
+	if (ingredientId == Item::sulphur->id) {
+		if (PotionItem::isSplash(inputAux)) return -1;
+		return PotionItem::baseAux(inputAux) + PotionItem::SPLASH_FLAG;
+	}
+	// Splash potions cannot be brewed further (no redstone /
+	// glowstone level system exists in this tree yet), so every
+	// other ingredient refuses a splash input.
+	if (PotionItem::isSplash(inputAux)) return -1;
 	if (ingredientId == Item::netherWart->id) {
 		// Base of every brew: water bottle -> awkward potion.
 		if (inputAux == PotionItem::WATER) return PotionItem::AWKWARD;
@@ -32,7 +44,8 @@ int BrewingRecipes::getResult(int inputAux, int ingredientId) {
 }
 
 bool BrewingRecipes::isIngredient(int itemId) {
-	return itemId == Item::netherWart->id
+	return itemId == Item::sulphur->id // v25: gunpowder -> splash
+		|| itemId == Item::netherWart->id
 		|| itemId == Item::glisteringMelon->id
 		|| itemId == Item::sugar->id
 		|| itemId == Item::blazePowder->id

@@ -251,6 +251,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/level/tile/EntityTile.cpp \
 ../../../../src/world/level/tile/FurnaceTile.cpp \
 ../../../../src/world/level/tile/BrewingStandTile.cpp \
+../../../../src/world/level/tile/CauldronTile.cpp \
 ../../../../src/world/level/tile/GrassTile.cpp \
 ../../../../src/world/level/tile/HeavyTile.cpp \
 ../../../../src/world/level/tile/LightGemTile.cpp \

@@ -10,7 +10,8 @@
 
 ThrownPotion::ThrownPotion(Level* level)
 :	super(level),
-	potionAux(PotionItem::POISON)
+	potionAux(PotionItem::POISON),
+	splashOwner(false)
 {
 	entityRendererId = ER_THROWN_POTION_RENDERER;
 	setSize(0.25f, 0.25f);
@@ -18,7 +19,8 @@ ThrownPotion::ThrownPotion(Level* level)
 
 ThrownPotion::ThrownPotion(Level* level, Mob* mob)
 :	super(level, mob),
-	potionAux(PotionItem::POISON)
+	potionAux(PotionItem::POISON),
+	splashOwner(false)
 {
 	entityRendererId = ER_THROWN_POTION_RENDERER;
 	setSize(0.25f, 0.25f);
@@ -26,7 +28,17 @@ ThrownPotion::ThrownPotion(Level* level, Mob* mob)
 
 ThrownPotion::ThrownPotion(Level* level, Mob* mob, int potionAux)
 :	super(level, mob),
-	potionAux(potionAux)
+	potionAux(PotionItem::baseAux(potionAux)),
+	splashOwner(false)
+{
+	entityRendererId = ER_THROWN_POTION_RENDERER;
+	setSize(0.25f, 0.25f);
+}
+
+ThrownPotion::ThrownPotion(Level* level, Mob* mob, int potionAux, bool splashOwner)
+:	super(level, mob),
+	potionAux(PotionItem::baseAux(potionAux)),
+	splashOwner(splashOwner)
 {
 	entityRendererId = ER_THROWN_POTION_RENDERER;
 	setSize(0.25f, 0.25f);
@@ -39,13 +51,14 @@ void ThrownPotion::onHit(const HitResult& res)
 		// Real splash: every mob within 3 blocks of the impact
 		// gets the effect — a potion landing at the player's feet
 		// still works, and nearby mobs can be caught in it too.
-		// (The thrower is skipped: a witch never splashes itself.)
+		// (The thrower is skipped, UNLESS this is a player throw
+		// — v25: a player CAN splash themselves, modern MC.)
 		AABB box(x - 3.0f, y - 3.0f, z - 3.0f, x + 3.0f, y + 3.0f, z + 3.0f);
 		EntityList& entities = level->getEntities(this, box);
 		for (unsigned int i = 0; i < entities.size(); i++) {
 			Entity* e = entities[i];
 			if (!e->isMob()) continue;
-			if (e->entityId == ownerId) continue;
+			if (e->entityId == ownerId && !splashOwner) continue;
 			PotionItem::applyEffect(potionAux, (Mob*)e);
 		}
 	}
@@ -65,10 +78,12 @@ void ThrownPotion::addAdditonalSaveData(CompoundTag* tag)
 {
 	super::addAdditonalSaveData(tag);
 	tag->putByte("PotionAux", (char) potionAux);
+	tag->putByte("SplashOwner", (char) (splashOwner ? 1 : 0));
 }
 
 void ThrownPotion::readAdditionalSaveData(CompoundTag* tag)
 {
 	super::readAdditionalSaveData(tag);
 	if (tag->contains("PotionAux")) potionAux = tag->getByte("PotionAux") & 0xff;
+	if (tag->contains("SplashOwner")) splashOwner = tag->getByte("SplashOwner") != 0;
 }

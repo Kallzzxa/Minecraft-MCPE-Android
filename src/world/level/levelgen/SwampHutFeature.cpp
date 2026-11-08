@@ -4,6 +4,7 @@
 #include "../chunk/LevelChunk.h"
 #include "../biome/Biome.h"
 #include "../tile/Tile.h"
+#include "../tile/CauldronTile.h"
 #include "../dimension/Dimension.h"
 #include "../../entity/monster/Witch.h"
 #include "../../entity/EntityTypes.h"
@@ -72,6 +73,15 @@ static void setH(Level* level, int cx, int cz, int x, int y, int z, int id)
 	level->setTile(x, y, z, id);
 }
 
+// Like setH, but also sets the tile data (used for the cauldron's
+// water level — v25: the hut cauldron starts full, data 3).
+static void setHD(Level* level, int cx, int cz, int x, int y, int z, int id, int data)
+{
+	if (y < 1 || y >= 127) return;
+	if (!inChunk(cx, cz, x, z)) return;
+	level->setTileAndData(x, y, z, id, data);
+}
+
 // ---------------------------------------------------------------------------
 // The hut itself
 // ---------------------------------------------------------------------------
@@ -83,8 +93,8 @@ static void setH(Level* level, int cx, int cz, int x, int y, int z, int id)
 //           doorway (1 wide, 2 high) on the south wall, one glass
 //           window on the north wall
 //   roof:   planks at floorY+4 with a 1-block overhang (9x7)
-//   inside: a workbench on the floor (no cauldron exists in this
-//           tree yet — v20 debt, see the header).
+//   inside: a workbench on the floor + a full cauldron (v25 —
+//           the v20 debt is paid, the hut finally has one).
 
 static void placeHut(Level* level, int chunkX, int chunkZ, int hx, int hz, int groundY)
 {
@@ -139,8 +149,10 @@ static void placeHut(Level* level, int chunkX, int chunkZ, int hx, int hz, int g
 		}
 	}
 
-	// Workbench inside, against the west wall.
+	// Workbench inside, against the west wall; cauldron (v25, full
+	// of water) against the east wall.
 	setH(level, chunkX, chunkZ, hx - 2, floorY + 1, hz - 1, Tile::workBench->id);
+	setHD(level, chunkX, chunkZ, hx + 2, floorY + 1, hz - 1, Tile::cauldron->id, CauldronTile::MAX_LEVEL);
 }
 
 void SwampHutFeature::tryPlaceSwampHut(Level* level, int chunkX, int chunkZ)

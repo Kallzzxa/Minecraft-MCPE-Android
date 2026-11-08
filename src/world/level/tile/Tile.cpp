@@ -126,6 +126,7 @@ Tile* Tile::furnace     = NULL;
 Tile* Tile::furnace_lit = NULL;
 Tile* Tile::enchantTable = NULL;
 Tile* Tile::brewingStand = NULL;
+Tile* Tile::cauldron = NULL;
 Tile* Tile::chest		= NULL;
 Tile* Tile::lightGem    = NULL;
 Tile* Tile::portalTile   = NULL;
@@ -244,6 +245,10 @@ void Tile::initTiles() {
 	// v20: brewing stand, id 117 (modern MC). Cube with the drawn
 	// stand texture — see BrewingStandTile.h for the shape caveat.
 	brewingStand = (new BrewingStandTile(117))->init()->setDestroyTime(0.5f)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("brewingStand");
+	// v25: cauldron, id 118 (modern MC). Water level 0..3 lives in
+	// the data nibble (see CauldronTile); texture 250 is a verified
+	// unused terrain.png cell, top face shows water when filled.
+	cauldron = (new CauldronTile(118))->init()->setDestroyTime(2.0f)->setSoundType(SOUND_METAL)->setCategory(ItemCategory::Structures)->setDescriptionId("cauldron");
     sign        = (new SignTile(63, TileEntityType::Sign, true))->init()->setDestroyTime(1.0f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Decorations)->setDescriptionId("sign");//->sendTileData();
 	door_wood   = (new DoorTile(64, Material::wood))->init()->setDestroyTime(3.0f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Structures)->setDescriptionId("doorWood");
 	ladder      = (new LadderTile(65, 3 + 5 * 16))->init()->setDestroyTime(0.4f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Structures)->setDescriptionId("ladder");
