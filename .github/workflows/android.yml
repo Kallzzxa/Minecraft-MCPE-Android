@@ -72,6 +72,11 @@ jobs:
 
     - name: Install Android SDK pieces
       run: |
+        # cmdline-tools/latest needs Java 11+ (class file 55) — sdkmanager
+        # crashes with UnsupportedClassVersionError under JDK 8, so use
+        # JDK 21 for this step only (JAVA_HOME stays JDK 8 afterwards).
+        export JAVA_HOME="$JAVA21"
+        export PATH="$JAVA21/bin:$PATH"
         yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
         "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
           "build-tools;30.0.3" "platforms;android-30" \
@@ -139,6 +144,10 @@ jobs:
 
     - name: Verify APK
       run: |
+        # apksigner (build-tools 36) needs Java 11+; aapt2, unzip and
+        # sha256sum are native binaries.
+        export JAVA_HOME="$JAVA21"
+        export PATH="$JAVA21/bin:$PATH"
         APK=app/build/outputs/apk/debug/app-debug.apk
         ls -la "$APK"
         BT36="$ANDROID_HOME/build-tools/36.0.0"
