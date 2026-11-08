@@ -2076,7 +2076,7 @@ Each version is ONE coherent batch of features, shipped as a new APK
     check perch + heal-beam + respawn v27-v29 still work, no
     crash, old features intact).
 
-- **v32 — Wither skeleton (IN PROGRESS).**
+- **v32 — Wither skeleton (SHIPPED, build-only).**
   Pays the v31 debt "no wither skeleton".
   ### Audit (read from code before writing anything)
   - `Skeleton` (`Skeleton.cpp`): a bow mob — `checkHurtTarget`
@@ -2122,9 +2122,82 @@ Each version is ONE coherent batch of features, shipped as a new APK
     explicitly — the new `.cpp` must be added there or the link
     fails (caught before CI).
   ### What shipped
-  - (to fill after CI: wither skeleton, wither effect, skull, HUD)
+  - **Wither skeleton** (`WitherSkeleton`, `MobTypes` 45,
+    `MobFactory` case, save/load via `EntityFactory`): a
+    `Skeleton` subclass, but melee — `checkHurtTarget` is
+    `Monster`'s melee version (hit within 2 blocks, never sets
+    `holdGround`, so the old AI keeps walking it to the target),
+    `aiStep` is `Monster::aiStep` (no sunlight burn), stone
+    sword carried (`getCarriedItem`, modern MC), 20 HP, 5 melee
+    damage, fire-immune, black skeleton texture
+    (`mob/witherskeleton.png`, the skeleton darkened ×0.22 with
+    pale eyes — same tint precedent as the v31 magma cube).
+    The plain skeleton is untouched (still shoots arrows).
+    `Android.mk` needed the new `.cpp` added (explicit source
+    list — caught by the local build before CI).
+  - **Wither effect** (timer #8 on `Mob`, same pattern as v20
+    poison): `witherEffectTicks`, 1 HP / 40 ticks (modern MC
+    Wither I), applied for 10 s by `WitherSkeleton::doHurtTarget`
+    on any mob it hits — with the one deliberate difference
+    from poison: NO `health > 1` guard, so wither CAN kill.
+    Session-only like all v20 timers (never saved). Visuals: a
+    black smoke puff on the afflicted mob every 20 ticks, and
+    black hearts in the HUD (`Gui::renderHearts` switches to
+    the black sprites at u 88 full / 97 half in `icons.png`
+    row 0, drawn from the red hearts) while the player is
+    withered.
+  - **Wither skull item** (modern MC id 397 = ctor 141 + 256;
+    icon drawn into the blank `gui/items.png` cell (3, 11);
+    lang `item.skullWither.name=Wither Skeleton Skull`; in the
+    creative inventory). Drop: 2.5% from a wither skeleton
+    (modern MC rate), alongside 0–2 bones and 0–1 coal (1/3).
+  - **Fortress spawn** (`ensureWitherSkeletons`, same top-up
+    pattern as `ensureBlazes`, hooked in `ChunkCache::getChunk`
+    + `postProcess`): 2 per fortress, on the corridor
+    (wx, wz−7) and the bridge (wx+8, wz) — the blaze room stays
+    the blazes'. Nether-only, centre-chunk, terrain-populated
+    guards, same as the blazes.
+  - Version bump 31 → 32 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,212,168 B / armv7 8,769,412 B, new symbols confirmed
+    (`WitherSkeleton` ctor / `doHurtTarget` / `checkHurtTarget`
+    / `dropDeathLoot`, `NetherFortressFeature::
+    ensureWitherSkeletons`, `skullWither`, texture string). CI
+    `./gradlew assembleDebug` SUCCESS (run 42537306964, ~4m50s,
+    23:53:12–23:58:02 UTC 2026-11-08); APK
+    `minecraft-mcpe-android-0.6.1-debug-v32.apk`
+    12,927,400 B, sha256
+    bfe1c76bc078f00eef65475856f9afe67d00a04bbdcd9e2147d479816d40c3bd,
+    versionCode 32, `apksigner verify` v1+v2 true, `unzip -t`
+    clean; the APK itself was re-checked to contain the new
+    symbols in its `libminecraftpe.so` (arm64 10,216,264 B /
+    armv7 8,769,412 B) and the new `mob/witherskeleton.png`
+    texture (64×32, dark bones + pale eyes), the black-heart
+    sprites in `icons.png` and the skull icon in `items.png`.
   ### Known limits / debts
-  - (to fill after CI)
+  - No wither boss: the skull is a drop/creative item only.
+    Summoning the boss (3 skulls + 4 soul sand in a T, boss
+    entity + health bar + AI) is a multi-version project of its
+    own — the next big Nether boss candidate, not a v-batch.
+  - No fortress loot chest (the v23 village-chest debt stands —
+    placing a tile entity during postProcess still has no
+    precedent); no blaze spawner tile (v31 debt stands).
+  - The wither skeleton has no ranged attack at all (modern MC
+    neither — melee only) and no skull-helmet rendering (it
+    carries the sword; no head-slot item exists in this tree).
+    Wither skeletons spawn ONLY in fortresses (top-up), never
+    from the general Nether spawn list — modern MC also ties
+    them to fortresses. A wither skeleton killed by another
+    mob's damage still drops loot (v8 rule: XP only for player
+    kills, loot always).
+  - All of it is build-only until a live test on device (enter
+    the Nether, find a fortress, check 2 black sword-carrying
+    skeletons in/near the corridor/bridge, check they walk up
+    and swing melee — never shoot arrows — check the wither
+    effect drains HP, turns the hearts black and can kill if
+    left alone, check a skull drops rarely, check the plain
+    skeleton still shoots, no crash, old features intact).
 - **v31 — Nether fortress + magma cube (SHIPPED, build-only).**
   Pays the v21 debt "no Nether fortress / nether brick structures,
   no magma cube, no wither skeleton" — the fortress and the magma
@@ -2352,16 +2425,26 @@ Each version is ONE coherent batch of features, shipped as a new APK
   passes.
 - **v30 — Dragon fireball targeting.** SHIPPED (see "Done").
 - **v31 — Nether fortress.** SHIPPED (see "Done").
-- **Next version (v32 candidate): Wither skeleton.** v31 shipped
-  the fortress structure, its blazes, its wart room and the magma
-  cube — the fortress's other signature mob is the one named
-  Nether mob still missing. It needs a melee skeleton variant
-  (Skeleton is a bow mob), a wither effect added to the v20 effect
-  system, and a wither-skull item — a mob-sized batch, not a
-  structure-sized one. Village chest loot stays queued behind it:
-  it only moves the first emerald earlier in a loop trading
-  already serves, and it still needs a tile-entity loot placement
-  precedent first (the v23 debt).
+- **Device verification for the wither skeleton (v32's open
+  item).** Enter the Nether, find a fortress, check 2 black
+  sword-carrying skeletons in/near the corridor/bridge (they walk
+  up and swing melee — never shoot arrows), check the wither
+  effect drains HP, turns the hearts black and can kill if left
+  alone, check a skull drops rarely (2.5% — kill several), check
+  the plain skeleton still shoots arrows, no crash. The v31 APK
+  stays the fallback until this stage passes.
+- **v32 — Wither skeleton.** SHIPPED (see "Done").
+- **Next version (v33 candidate): village chest loot.** v32
+  closed the fortress's last signature mob, so the oldest
+  standing structure debt is next: village houses (v23) still
+  have no loot chests, and the fortress has none either — both
+  wait on the same missing precedent (placing a tile entity
+  with loot during postProcess). It is a small, bounded batch
+  (one chest-placement precedent + a loot table reusing the
+  reactor/village trade items), and it pays off two structures
+  at once. The wither boss stays queued behind it: it needs a
+  boss entity + health bar + summon ritual, a multi-version
+  project, not a v-batch.
 
 ## Queued (priority order — re-evaluate after each version)
 
