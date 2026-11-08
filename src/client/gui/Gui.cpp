@@ -594,6 +594,10 @@ void Gui::renderHearts() {
 	if (minecraft->player->invulnerableTime < 10) blink = false;
 	int h = minecraft->player->health;
 	int oh = minecraft->player->lastHealth;
+	// v32: while withered the hearts render black (modern MC) —
+	// the sprites live at u 88 (full) / 97 (half) in icons.png
+	// row 0, drawn from the red hearts.
+	bool withered = minecraft->player->witherEffectTicks > 0;
 	random.setSeed(tickCount * 312871);
 
 	// v14: hearts sit left-aligned with the hotbar, one row above the
@@ -631,8 +635,8 @@ void Gui::renderHearts() {
 			if (ip2 < oh) blit(xo, yo, 16 + 6 * 9, 9 * 0, 9, 9);
 			else if (ip2 == oh) blit(xo, yo, 16 + 7 * 9, 9 * 0, 9, 9);
 		}
-		if (ip2 < h) blit(xo, yo, 16 + 4 * 9, 9 * 0, 9, 9);
-		else if (ip2 == h) blit(xo, yo, 16 + 5 * 9, 9 * 0, 9, 9);
+		if (ip2 < h) blit(xo, yo, 16 + (withered ? 8 : 4) * 9, 9 * 0, 9, 9);
+		else if (ip2 == h) blit(xo, yo, 16 + (withered ? 9 : 5) * 9, 9 * 0, 9, 9);
 	}
 }
 

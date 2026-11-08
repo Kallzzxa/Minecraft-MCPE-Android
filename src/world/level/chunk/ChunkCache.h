@@ -176,6 +176,8 @@ public:
             SwampHutFeature::ensureWitch(level, x, z);
             // v31: same top-up for a Nether fortress's blazes.
             NetherFortressFeature::ensureBlazes(level, x, z);
+            // v32: same top-up for a Nether fortress's wither skeletons.
+            NetherFortressFeature::ensureWitherSkeletons(level, x, z);
 
             xLast = x;
             zLast = z;
@@ -211,6 +213,8 @@ public:
                 SwampHutFeature::ensureWitch(level, x, z);
                 // v31: same top-up for a Nether fortress's blazes.
                 NetherFortressFeature::ensureBlazes(level, x, z);
+                // v32: same top-up for a Nether fortress's wither skeletons.
+                NetherFortressFeature::ensureWitherSkeletons(level, x, z);
             }
         }
     }

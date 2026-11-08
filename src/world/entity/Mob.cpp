@@ -298,6 +298,22 @@ void Mob::tick()
 		if (poisonEffectTicks % (poisonEffectLevel >= 2 ? 12 : 25) == 0 && health > 1) hurt(NULL, 1);
 		poisonEffectTicks--;
 	}
+	if (witherEffectTicks > 0) {
+		// v32: wither, 1 HP / 40 ticks (modern MC Wither I
+		// cadence). Unlike poison above there is NO health > 1
+		// guard — wither kills, which is its whole point. A
+		// black smoke puff every 20 ticks makes the effect
+		// visible on the afflicted mob in the world (the HUD
+		// black hearts cover the player side).
+		if (witherEffectTicks % 40 == 0) hurt(NULL, 1);
+		if (witherEffectTicks % 20 == 0) {
+			level->addParticle(PARTICLETYPE(smoke),
+				x + (random.nextFloat() - 0.5f) * bbWidth,
+				y + random.nextFloat() * bbHeight,
+				z + (random.nextFloat() - 0.5f) * bbWidth, 0, 0.02f, 0);
+		}
+		witherEffectTicks--;
+	}
 
 	super::tick();
 
@@ -612,6 +628,7 @@ void Mob::_init() {
 	fireResistanceEffectTicks = 0;
 	regenerationEffectTicks = 0;
 	poisonEffectTicks = 0;
+	witherEffectTicks = 0; // v32: no wither active on spawn.
 	// v26: no level II effect active on spawn either.
 	speedEffectLevel = 0;
 	strengthEffectLevel = 0;

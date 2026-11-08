@@ -162,6 +162,8 @@ void Inventory::setupDefault() {
 		addItem(new ItemInstance(Item::endCrystal));
 		// v23: real emerald (trading currency) in the creative inventory.
 		addItem(new ItemInstance(Item::emeraldGem));
+		// v32: wither skull in the creative inventory.
+		addItem(new ItemInstance(Item::witherSkull));
 		addItem(new ItemInstance(Tile::stairs_stone));
 		addItem(new ItemInstance(Tile::stairs_wood));
 		Sel[6] = addItem(new ItemInstance(Tile::stairs_brick));

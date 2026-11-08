@@ -51,6 +51,9 @@ public:
 			case MobTypes::MagmaCube:
 				mob = new MagmaCube(level);
 				break;
+			case MobTypes::WitherSkeleton:
+				mob = new WitherSkeleton(level);
+				break;
 			case MobTypes::Enderman:
 				mob = new Enderman(level);
 				break;

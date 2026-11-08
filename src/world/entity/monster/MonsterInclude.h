@@ -11,6 +11,7 @@
 #include "Skeleton.h"
 #include "Slime.h"
 #include "MagmaCube.h"
+#include "WitherSkeleton.h"
 #include "Spider.h"
 #include "Zombie.h"
 #include "PigZombie.h"

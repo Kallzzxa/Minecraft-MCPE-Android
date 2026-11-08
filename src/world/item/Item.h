@@ -242,6 +242,9 @@ public:
 	static Item* chorusFruit;
 	// v27: end crystal (modern MC id 426).
 	static Item* endCrystal;
+	// v32: wither skull (modern MC id 397, the wither skeleton's
+	// rare drop; the wither boss itself is a separate project).
+	static Item* witherSkull;
 
     static Item* record_01;
     static Item* record_02;

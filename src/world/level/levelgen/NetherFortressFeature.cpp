@@ -6,6 +6,7 @@
 #include "../dimension/Dimension.h"
 #include "../tile/Tile.h"
 #include "../../entity/monster/Blaze.h"
+#include "../../entity/monster/WitherSkeleton.h"
 #include "../../entity/EntityTypes.h"
 #include "../../phys/AABB.h"
 #include "../../../util/Mth.h"
@@ -288,5 +289,50 @@ void NetherFortressFeature::ensureBlazes(Level* level, int chunkX, int chunkZ)
 			(float)spots[i][1] + 0.5f,
 			level->random.nextFloat() * 360.0f, 0.0f);
 		level->addEntity(b);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Wither skeletons (v32)
+// ---------------------------------------------------------------------------
+
+void NetherFortressFeature::ensureWitherSkeletons(Level* level, int chunkX, int chunkZ)
+{
+	// Same guards as ensureBlazes (single-player Nether only,
+	// centre chunk only, deck above the lava sea, terrain
+	// populated) — the two top-ups share one fortress, so the
+	// checks are identical by design.
+	if (level == NULL) return;
+	if (level->isClientSide) return;
+	if (level->dimension == NULL || level->dimension->id != Dimension::NETHER) return;
+
+	long seed = level->getSeed();
+	int wx, wz;
+	if (!isFortressCenterChunk(seed, chunkX, chunkZ, wx, wz)) return;
+	int deckY = getDeckY(seed, wx, wz);
+	if (deckY < 36) return;
+	LevelChunk* chunk = level->getChunk(chunkX, chunkZ);
+	if (chunk == NULL || !chunk->terrainPopulated) return;
+
+	// Count wither skeletons already near this fortress and top up
+	// to 2. Same box as the blazes (the whole fortress footprint).
+	AABB box((float)(wx - 26), (float)deckY, (float)(wz - 18),
+		(float)(wx + 26), (float)(deckY + 9), (float)(wz + 18));
+	EntityList list;
+	int have = level->getEntitiesOfType(MobTypes::WitherSkeleton, box, list);
+	if (have >= WITHER_SKELETONS_PER_FORTRESS) return;
+
+	// Spawn spots on the walkable fortress, away from the blaze
+	// room: one in the corridor south of the centre, one on the
+	// bridge east of the centre (both deck + 1 standing level).
+	const int spots[2][2] = {
+		{ wx, wz - 7 }, { wx + 8, wz },
+	};
+	for (int i = have; i < WITHER_SKELETONS_PER_FORTRESS; ++i) {
+		WitherSkeleton* w = new WitherSkeleton(level);
+		w->moveTo((float)spots[i][0] + 0.5f, (float)(deckY + 1),
+			(float)spots[i][1] + 0.5f,
+			level->random.nextFloat() * 360.0f, 0.0f);
+		level->addEntity(w);
 	}
 }

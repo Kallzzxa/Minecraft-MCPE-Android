@@ -2076,6 +2076,55 @@ Each version is ONE coherent batch of features, shipped as a new APK
     check perch + heal-beam + respawn v27-v29 still work, no
     crash, old features intact).
 
+- **v32 — Wither skeleton (IN PROGRESS).**
+  Pays the v31 debt "no wither skeleton".
+  ### Audit (read from code before writing anything)
+  - `Skeleton` (`Skeleton.cpp`): a bow mob — `checkHurtTarget`
+    shoots an `Arrow` every 3 s within 10 blocks and sets
+    `holdGround = true` (stands still and shoots); `aiStep` burns
+    it in daylight; `getCarriedItem` returns its bow; `getMaxHealth`
+    10 (comment says 15); drops 0–2 arrows + 0–2 bones.
+  - Melee precedent, NO new AI needed: the OLD AI in
+    `PathfinderMob::updateAi` finds the target, paths toward it
+    while `!holdGround`, and calls the virtual `checkHurtTarget`
+    when it can see it. `Monster::checkHurtTarget` is the melee
+    version (hit within 2 blocks, never sets `holdGround`), so a
+    skeleton subclass that overrides `checkHurtTarget` with
+    Monster's version walks up and swings — the witch (v24) proves
+    the same old-AI + `checkHurtTarget`-override pattern. The
+    zombie's new-AI `MeleeAttackGoal` was NOT reused (it needs a
+    goal/target selector setup the skeleton never had; the old-AI
+    path is the skeleton's own path). `PigZombie` proves the
+    carried-weapon pattern (`ItemInstance` member + `getCarriedItem`
+    override, here a stone sword, modern MC).
+  - Effect system (v20): 7 tick-down timers on `Mob`
+    (`Mob::tick`, poison 1 HP / 25 ticks with a `health > 1` guard
+    so it never kills, regeneration 1 HP / 50 ticks), all
+    session-only (never saved). Wither is timer #8 on the exact
+    same pattern, with the one deliberate difference: NO health
+    guard — modern MC wither drains 1 HP / 40 ticks (Wither I)
+    and CAN kill. No HUD effect display existed (hearts are plain
+    red); the fix is black-heart sprites + a `withered` branch in
+    `Gui::renderHearts`.
+  - No skull item existed (zero hits for "skull"/"wither" as an
+    item); modern MC id 397 = ctor 141 + 256 (ctor 141 was free),
+    icon into the fully transparent `gui/items.png` cell (3, 11),
+    lang key added (`item.skullWither.name`). No wither boss
+    exists — the skull is a drop/creative item only in v32.
+  - Fortress spawn: `ensureBlazes` (v31, `ChunkCache::getChunk` +
+    `postProcess` hooks, Nether-only + centre-chunk + terrain-
+    populated guards, count-and-top-up to 3 inside the blaze
+    room) reuses verbatim for wither skeletons (top-up to 2,
+    corridor/bridge spots — the blaze room stays the blazes').
+    `MobTypes` 45 was free (44 = magma cube); `EntityFactory`
+    loads via `MobFactory::CreateMob`, so save/load works with
+    the new case added. `Android.mk` lists monster sources
+    explicitly — the new `.cpp` must be added there or the link
+    fails (caught before CI).
+  ### What shipped
+  - (to fill after CI: wither skeleton, wither effect, skull, HUD)
+  ### Known limits / debts
+  - (to fill after CI)
 - **v31 — Nether fortress + magma cube (SHIPPED, build-only).**
   Pays the v21 debt "no Nether fortress / nether brick structures,
   no magma cube, no wither skeleton" — the fortress and the magma

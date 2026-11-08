@@ -177,6 +177,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/entity/monster/Monster.cpp \
 ../../../../src/world/entity/monster/PigZombie.cpp \
 ../../../../src/world/entity/monster/Skeleton.cpp \
+../../../../src/world/entity/monster/WitherSkeleton.cpp \
 ../../../../src/world/entity/monster/Slime.cpp \
 ../../../../src/world/entity/monster/MagmaCube.cpp \
 ../../../../src/world/entity/monster/Spider.cpp \

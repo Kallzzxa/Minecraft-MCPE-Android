@@ -195,6 +195,12 @@ public:
 	int fireResistanceEffectTicks;
 	int regenerationEffectTicks;
 	int poisonEffectTicks;
+	// v32: wither — same timer pattern as poison, but it CAN kill:
+	// modern MC wither drains 1 HP / 40 ticks with no 1-HP floor,
+	// unlike poison which stops at 1 HP. Set by a wither skeleton's
+	// melee hit (WitherSkeleton::doHurtTarget); the HUD draws black
+	// hearts while this is > 0 (Gui::renderHearts).
+	int witherEffectTicks;
 
 	// v26: potion effect amplifier (1 = normal, 2 = level II from
 	// glowstone brewing). Only meaningful while the matching timer

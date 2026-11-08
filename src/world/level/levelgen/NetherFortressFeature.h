@@ -61,6 +61,7 @@ class NetherFortressFeature
 public:
 	static const int GRID_CELLS = 20;             // chunks per grid cell
 	static const int BLAZES_PER_FORTRESS = 3;
+	static const int WITHER_SKELETONS_PER_FORTRESS = 2;
 
 	// Deterministic fortress-centre chunk for grid cell (gx, gz).
 	static void getFortressCenterChunk(long seed, int gx, int gz, int& outChunkX, int& outChunkZ);
@@ -77,6 +78,9 @@ public:
 	// Spawn/top-up blazes for the fortress centred in this chunk.
 	// Called from ChunkCache when the chunk enters the resident set.
 	static void ensureBlazes(Level* level, int chunkX, int chunkZ);
+	// v32: same top-up for wither skeletons (2 per fortress, in the
+	// corridor / on the bridge — the blaze room is the blazes').
+	static void ensureWitherSkeletons(Level* level, int chunkX, int chunkZ);
 };
 
 #endif /*NET_MINECRAFT_WORLD_LEVEL_LEVELGEN__NetherFortressFeature_H__*/

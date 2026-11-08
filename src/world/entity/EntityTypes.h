@@ -68,6 +68,8 @@ public:
 	static const int Witch		= 43;
 	// v31: magma cube (fire-immune slime; hops around the Nether).
 	static const int MagmaCube	= 44;
+	// v32: wither skeleton (melee skeleton; lives in Nether fortresses).
+	static const int WitherSkeleton	= 45;
 };
 
 struct ParticleType {

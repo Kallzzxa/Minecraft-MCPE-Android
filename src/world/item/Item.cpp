@@ -178,6 +178,8 @@ Item* Item::glisteringMelon = NULL;
 Item* Item::eyeOfEnder = NULL;
 Item* Item::chorusFruit = NULL;
 Item* Item::endCrystal = NULL;
+// v32: wither skull (modern MC id 397 = ctor 141 + 256).
+Item* Item::witherSkull = NULL;
 
 //Item* Item::record_01 = NULL;
 //Item* Item::record_02 = NULL;
@@ -369,6 +371,9 @@ void Item::initItems() {
 	// v23: real emerald, the trading currency (icon cell (2,13), drawn).
 	// Full id 689; the old Item::emerald (id 264) stays the diamond gem.
 	Item::emeraldGem = (new Item(433))->setIcon(2, 13)->setCategory(ItemCategory::Decorations)->setDescriptionId("emeraldGem");
+	// v32: wither skull (modern MC id 397; icon drawn into the blank
+	// gui/items.png cell (3, 11); lang item.skullWither.name added).
+	Item::witherSkull = (new Item(141))->setIcon(3, 11)->setCategory(ItemCategory::Tools)->setDescriptionId("skullWither");
 
 	//Item::record_01 = (new RecordingItem(2000, "13"))->setIcon(0, 15)->setCategory(ItemCategory::Decorations)->setDescriptionId("record");
 	//Item::record_02 = (new RecordingItem(2001, "cat"))->setIcon(1, 15)->setCategory(ItemCategory::Decorations)->setDescriptionId("record");
