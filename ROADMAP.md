@@ -1700,7 +1700,16 @@ Each version is ONE coherent batch of features, shipped as a new APK
     (`EndCrystal::tick/hurt/tryRespawnDragon/tryHealDragon/
     isOnRespawnSpot`, `EnderDragon::heal`,
     `EndLevelSource::isPillarTop/isExitRingCell`,
-    `EndCrystalItem::useOn`, `EndCrystalRenderer::render`).
+    `EndCrystalItem::useOn`, `EndCrystalRenderer::render`). CI
+    `./gradlew assembleDebug` SUCCESS (run 42530904633, ~5m40s);
+    APK `minecraft-mcpe-android-0.6.1-debug-v27.apk`
+    12,907,575 B, sha256 70d866a2…5e2e9, versionCode 27,
+    `apksigner verify` v1+v2 true, `unzip -t` clean; the APK
+    itself was re-checked to contain the new end-crystal icon
+    (items.png cell (2,11), 99 non-transparent px), the
+    `item.endCrystal.name` lang key, and the new symbols in its
+    `libminecraftpe.so` (arm64 10,187,592 B — byte-identical size
+    to the local build).
   ### Known limits / debts
   - No dragon perch/landing (v22 debt stands — the dragon still
     circles at y=82 through every fight, respawned or not). No
