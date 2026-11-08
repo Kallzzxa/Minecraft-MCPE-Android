@@ -707,6 +707,12 @@ void Player::openEnchantTable() {
 	// Do nothing on the server, this is a client thing :)
 }
 
+// v23: default does nothing (server side); LocalPlayer opens the
+// trading screen.
+void Player::openTrading(Villager* villager) {
+	(void) villager;
+}
+
 void Player::take(Entity* e, int orgCount) {
 }
 

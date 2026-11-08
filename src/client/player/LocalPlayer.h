@@ -50,6 +50,8 @@ public:
 	void openBrewingStand(BrewingStandTileEntity* e);
 	// v10: enchanting table.
 	void openEnchantTable();
+	// v23: villager trading.
+	void openTrading(Villager* villager);
 
     bool isSneaking();
 

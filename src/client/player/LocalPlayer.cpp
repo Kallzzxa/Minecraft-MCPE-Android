@@ -25,6 +25,7 @@
 #include "../gui/screens/FurnaceScreen.h"
 #include "../gui/screens/BrewingScreen.h"
 #include "../gui/screens/EnchantScreen.h"
+#include "../gui/screens/TradingScreen.h"
 #include "../gui/screens/ChestScreen.h"
 #include "../gui/screens/crafting/WorkbenchScreen.h"
 #include "../gui/screens/crafting/StonecutterScreen.h"
@@ -554,6 +555,16 @@ void LocalPlayer::openEnchantTable() {
 #ifndef STANDALONE_SERVER
 	if (!minecraft->isCreativeMode())
 		minecraft->setScreen( new EnchantScreen(this) );
+#endif
+}
+
+// v23: villager trading — opens the trading screen (no container; see
+// TradingScreen). Creative mode is skipped like enchanting: trading is
+// a survival inventory exchange.
+void LocalPlayer::openTrading(Villager* villager) {
+#ifndef STANDALONE_SERVER
+	if (!minecraft->isCreativeMode())
+		minecraft->setScreen( new TradingScreen(this, villager) );
 #endif
 }
 

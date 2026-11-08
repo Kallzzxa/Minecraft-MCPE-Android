@@ -16,6 +16,7 @@ class Inventory;
 class FillingContainer;
 class FurnaceTileEntity;
 class BrewingStandTileEntity;
+class Villager;
 class CompoundTag;
 class ChestTileEntity;
 class BaseContainerMenu;
@@ -143,6 +144,8 @@ public:
 	virtual void openBrewingStand(BrewingStandTileEntity* e);
 	// v10: opens the enchanting-table screen (LocalPlayer only).
 	virtual void openEnchantTable();
+	// v23: opens the villager trading screen (LocalPlayer only).
+	virtual void openTrading(Villager* villager);
 	void tileEntityDestroyed( int tileEntityId );
 
 	virtual void displayClientMessage(const std::string& messageId);

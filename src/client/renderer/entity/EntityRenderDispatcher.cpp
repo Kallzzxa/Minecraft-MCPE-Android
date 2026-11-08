@@ -61,6 +61,9 @@ EntityRenderDispatcher::EntityRenderDispatcher()
 	assign(	ER_GHAST_RENDERER,		new GhastRenderer());
 	assign(	ER_BLAZE_RENDERER,		new BlazeRenderer());
 	assign(	ER_ENDER_DRAGON_RENDERER,	new DragonRenderer());
+	// v23: villager reuses the plain humanoid model + mob/villager.png
+	// (same precedent as the zombie/skeleton renderers above).
+	assign(	ER_VILLAGER_RENDERER,	new HumanoidMobRenderer(new HumanoidModel(), 0.5f));
 	assign(	ER_FIREBALL_RENDERER,	new FireballRenderer());
 	assign(	ER_TNT_RENDERER,		new TntRenderer());
 	assign(	ER_ARROW_RENDERER,		new ArrowRenderer());

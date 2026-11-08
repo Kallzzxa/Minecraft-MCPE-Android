@@ -25,6 +25,9 @@ public:
 			case MobTypes::Sheep:
 				mob = new Sheep(level);
 				break;
+			case MobTypes::Villager:
+				mob = new Villager(level);
+				break;
 
 			// Monsters
 			case MobTypes::Creeper:

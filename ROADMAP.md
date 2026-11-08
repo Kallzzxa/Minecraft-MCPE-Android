@@ -1153,7 +1153,128 @@ Each version is ONE coherent batch of features, shipped as a new APK
     to the overworld, quit while in the End and reload — inventory
     + overworld world intact, no crash).
 
-## Next (v22)
+- **v23 — Villages + trading (SHIPPED, build-only).**
+  ### Audit (read from code before writing anything)
+  - NO village/villager/trading existed: zero hits for "villag" in the
+    whole tree. The only residue was `TownFeature.h` — an uncompilable
+    Java-style stub (`extends LargeFeature`, `byte[]`, empty body,
+    included nowhere) — and `DungeonFeature.h`, entirely `#if 0`'d
+    out. No structure generation beyond dungeons (disabled) + trees /
+    ores / flowers in `RandomLevelSource::postProcess`, so the village
+    generator was written from scratch on the `Feature::place`
+    pattern (per-chunk, deterministic, clipped to the chunk).
+  - NO real emerald existed: `Item::emerald` (id 264) IS the diamond
+    gem in this tree's old naming (`item.emerald.name=Diamond`, dropped
+    by the diamond ore tile `Tile::emeraldOre`, smelted by the furnace
+    into the same gem, used for diamond tools + the v10 enchanting
+    recipe). A new item was needed for the currency — see below. The
+    ore drop was deliberately NOT changed (re-splitting diamond vs
+    emerald would break diamond tools + enchanting).
+  - Everything else needed already existed: passive-animal AI
+    (`PathfinderMob::updateAi` strolls on its own — pigs/cows set no
+    goals, so a villager gets wandering for free), tap-to-interact
+    (`GameMode::interact` -> `Player::interact` -> `Entity::interact`,
+    the Cow/Pig pattern), the EnchantScreen pattern (a screen with
+    buttons, no container — the trading UI copies it), all house
+    materials (cobblestone `Tile::stoneBrick`, planks, logs, glass,
+    doors, fence, glowstone `Tile::lightGem`, farmland, wheat/carrot
+    crops), `MobTypes` 42 + a renderer id free, `Item` ctor id 433
+    free (full id 689 < `MAX_ITEMS` 1024), and a fully blank
+    `gui/items.png` row 13 for the emerald icon.
+  ### What shipped
+  - **Village generation** (`VillageFeature`, new): the world is
+    divided into a grid of 24x24-chunk cells; each cell holds exactly
+    one village at a jittered chunk inside it (splitmix64 hash of
+    world seed + grid cell — pure function of seed + chunk, so every
+    chunk overlapping a village computes the SAME layout and places
+    only the parts inside its own 16x16 area: no cross-chunk writes,
+    no generation recursion, saved with the chunks like any other
+    terrain). ~1 village per 384 blocks, plains/desert only, dry land
+    (centre heightmap >= 65). Each village: a well (centre, 3x3 water
+    + cobblestone rim + corner pillars), gravel paths (cross + plaza
+    ring), 5 houses (cobblestone or plank walls, log corners, plank
+    roof, open doorway facing the centre, glass windows, glowstone
+    floor lamp; one has a workbench), 2 farm plots (wheat + carrots,
+    mature, with a water channel), 4 lamp posts (fence + glowstone).
+    Ground inside radius 26 is flattened to the centre height first.
+    Placement runs LAST in `RandomLevelSource::postProcess`, so houses
+    overwrite any trees/flowers inside the footprint.
+  - **Villager** (`MobTypes` 42, `ER_VILLAGER_RENDERER`): passive
+    `Animal` (10 HP, never self-despawns, strolls with the built-in
+    old-AI wander), humanoid model + drawn `mob/villager.png`
+    (robe + face, same precedent as the slime/enderman textures).
+    No death loot, no XP on kill. Sounds are `mob.villager` —
+    unregistered, so silent, same as the enderman precedent.
+    Registered in `MobFactory` (save/load works via
+    `EntityFactory::loadEntity`, type id 42 < 64) and in
+    `EntityRenderDispatcher`.
+  - **Villager persistence** (`VillageFeature::ensureVillagers`,
+    hooked in `ChunkCache::getChunk` + `ChunkCache::postProcess`):
+    entities are NOT chunk data (global `entities.dat`), and chunk
+    eviction despawns them like every other mob — so a village's
+    villagers are topped back up to 4 whenever the centre chunk
+    (re-)enters the resident set (generation, disk load, or deferred
+    postProcess). Overworld single-player only (`dimension == NORMAL`,
+    `!isClientSide`). Spawning refuses until the chunk's terrain is
+    populated, so a villager can never be buried by the flattening
+    that runs later. Safe to call from `getChunk`: `Level::addEntity`
+    only touches the resident chunk, and `Level::tickEntities`
+    iterates by index, so the append cannot invalidate an iterator
+    (same as mob spawning during chunk generation).
+  - **Emerald currency** (new `Item::emeraldGem`, ctor id 433, full
+    id 689): icon drawn into blank `items.png` cell (2,13),
+    `item.emeraldGem.name=Emerald` in `en_US.lang`, in the creative
+    inventory. Sources: trading only (see below) — mining the
+    diamond ore still gives the diamond gem, unchanged.
+  - **Trading UI** (`TradingScreen`, EnchantScreen pattern, opened
+    by tapping a villager -> `Player::openTrading` ->
+    `LocalPlayer::openTrading`): 6 fixed trades, same for every
+    villager, no stock limits, no trade XP: 20 wheat -> 1 emerald,
+    16 coal -> 1 emerald, 1 emerald -> 3 bread, 1 emerald -> 2 cooked
+    beef, 2 emeralds -> 1 iron pickaxe, 3 emeralds -> 1 diamond
+    sword. Cost is removed from the inventory, the result is added,
+    and the cost is refunded if the inventory has no room. Labels
+    use the items' real names; the screen shows the emerald balance.
+    Multiplayer: `Player::openTrading` is a no-op on the server
+    (same as enchanting) — single-player only in this batch.
+  - Version bump 22 -> 23 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64 10,146,632 B
+    / armv7 8,732,548 B, new symbols confirmed
+    (`mob/villager.png`, `TradingScreen`, `emeraldGem`,
+    `VillageFeature`). One real bug caught by the local build:
+    `Inventory::removeItem(const ItemInstance*)` hides the
+    `FillingContainer::removeItem(slot, count)` overload, so the
+    trade-removal call is qualified
+    (`FillingContainer::removeItem`).
+  ### Known limits / debts
+  - No village chest with loot (skipped deliberately: placing a
+    tile entity during postProcess has no precedent in this tree —
+    the dungeon spawner/chest feature is `#if 0`'d out — so the
+    first emerald comes from selling wheat/coal, and the village
+    farms grow mature wheat/carrots for exactly that loop).
+  - No per-villager professions or randomised offers (all villagers
+    share the 6 fixed trades); no trade XP, no restocking limits.
+  - Villagers do NOT go home at night (no such goal exists in this
+    tree) and wander the village by random stroll — they can drift
+    away from the houses over time. Killed villagers are replaced
+    when the village chunk reloads (deliberate top-up, not modern
+    MC behaviour). No "go home" / door AI.
+  - Houses have open doorways, not door blocks (door data is fiddly
+    and villagers have no door AI); flat plank roofs, not gabled;
+    no church / blacksmith variants, no village paths beyond the
+    cross + plaza ring.
+  - Trading does not open in creative mode (same guard as the
+    enchanting screen) and does not work in multiplayer.
+  - Villager ambient/hurt/death sounds are silent (no audio files;
+    same call as the enderman in v19).
+  - All of it is build-only until a live test on device (find a
+    village in plains/desert, check well/houses/paths/farms/lamps,
+    villagers wandering, tap one -> trading UI, trade wheat/coal
+    for emeralds and back for bread/tools, quit/reload — village
+    and villagers still there, no crash).
+
+## Next (v23)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
   walk session on the realme 8, memory flat, FPS within ~10% of v14
@@ -1169,14 +1290,14 @@ Each version is ONE coherent batch of features, shipped as a new APK
   fallback until this stage passes.
   Also queued: the v18 debt — save `entities.dat` once per
   eviction sweep instead of once per evicted chunk. (PAID in v20.)
-- **v23 — Villages + trading** (next version after the device
-  verification above). Village generation + villagers + trading
-  UI. Big; last among gameplay features.
 - **Device verification for the End (v22's open item).** See the
   v22 test list above (portal ring, island, dragon fight, exit
   portal, quit-in-End reload). The v21 APK stays the fallback
   until this stage passes.
-- **v22 — The End.** SHIPPED (see "Done").
+- **Device verification for villages + trading (v23's open item).**
+  See the v23 test list above. The v22 APK stays the fallback
+  until this stage passes.
+- **v23 — Villages + trading.** SHIPPED (see "Done").
 
 ## Queued (priority order — re-evaluate after each version)
 
@@ -1187,8 +1308,7 @@ Each version is ONE coherent batch of features, shipped as a new APK
   it shipped first. The witch fits the AI framework (GoalSelector
   exists) and ships once brewing gives it potions to throw.
 - **v22 — The End.** SHIPPED (see "Done").
-- **v23 — Villages + trading.** Village generation + villagers + trading
-  UI. Big; last among gameplay features.
+- **v23 — Villages + trading.** SHIPPED (see "Done").
 - **Night spawning live test (from old v8 scope).** Drops are done (v7);
   code chain verified intact in v8, but hostile mobs spawning at night
   still needs a live night test on device. Optional: spider eye drop

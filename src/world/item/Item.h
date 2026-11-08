@@ -76,6 +76,11 @@ public:
     static Item* arrow;
     static Item* coal;
     static Item* emerald;
+    // v23: the REAL emerald (trading currency). NOT the same as
+    // Item::emerald above, which is the diamond gem in this tree's old
+    // naming (lang item.emerald.name = "Diamond", dropped by the
+    // diamond ore tile). This one is a new item, full id 256+433 = 689.
+    static Item* emeraldGem;
     static Item* ironIngot;
     static Item* goldIngot;
     static Item* sword_iron;

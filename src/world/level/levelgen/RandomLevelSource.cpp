@@ -1,6 +1,7 @@
 #include "RandomLevelSource.h"
 
 #include "feature/FeatureInclude.h"
+#include "VillageFeature.h"
 #include "../Level.h"
 #include "../ChunkPos.h"
 #include "../MobSpawner.h"
@@ -475,6 +476,10 @@ void RandomLevelSource::postProcess(ChunkSource* parent, int xt, int zt) {
 	totalTime += (et-st);
 
 	//printf("Time to place features: %f. Total %f\n", et - st, totalTime);
+
+	// v23: villages, LAST so houses overwrite any trees/flowers inside
+	// the village footprint (flattening + houses + well + farms).
+	VillageFeature::tryPlaceVillage(level, xt, zt);
 
     HeavyTile::instaFall = false;
 

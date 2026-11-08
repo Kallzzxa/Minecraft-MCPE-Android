@@ -158,6 +158,8 @@ void Inventory::setupDefault() {
 		addItem(new ItemInstance(Tile::dragonEgg));
 		addItem(new ItemInstance(Item::eyeOfEnder));
 		addItem(new ItemInstance(Item::chorusFruit));
+		// v23: real emerald (trading currency) in the creative inventory.
+		addItem(new ItemInstance(Item::emeraldGem));
 		addItem(new ItemInstance(Tile::stairs_stone));
 		addItem(new ItemInstance(Tile::stairs_wood));
 		Sel[6] = addItem(new ItemInstance(Tile::stairs_brick));

@@ -52,6 +52,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/client/gui/screens/ChestScreen.cpp \
 ../../../../src/client/gui/screens/DeathScreen.cpp \
 ../../../../src/client/gui/screens/EnchantScreen.cpp \
+../../../../src/client/gui/screens/TradingScreen.cpp \
 ../../../../src/client/gui/screens/FurnaceScreen.cpp \
 ../../../../src/client/gui/screens/BrewingScreen.cpp \
 ../../../../src/client/gui/screens/InBedScreen.cpp \
@@ -158,6 +159,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/entity/animal/Chicken.cpp \
 ../../../../src/world/entity/animal/Cow.cpp \
 ../../../../src/world/entity/animal/Pig.cpp \
+../../../../src/world/entity/animal/Villager.cpp \
 ../../../../src/world/entity/animal/Sheep.cpp \
 ../../../../src/world/entity/animal/WaterAnimal.cpp \
 ../../../../src/world/entity/item/FallingTile.cpp \
@@ -223,6 +225,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/level/levelgen/LargeCaveFeature.cpp \
 ../../../../src/world/level/levelgen/LargeFeature.cpp \
 ../../../../src/world/level/levelgen/RandomLevelSource.cpp \
+../../../../src/world/level/levelgen/VillageFeature.cpp \
 ../../../../src/world/level/levelgen/NetherLevelSource.cpp \
 ../../../../src/world/level/levelgen/EndLevelSource.cpp \
 ../../../../src/world/level/levelgen/feature/Feature.cpp \

@@ -58,6 +58,8 @@ public:
 	static const int Ghast		= 39;
 	static const int Blaze		= 40;
 	static const int EnderDragon	= 41;
+	// v23: villager (passive, lives in villages, opens trading).
+	static const int Villager	= 42;
 };
 
 struct ParticleType {

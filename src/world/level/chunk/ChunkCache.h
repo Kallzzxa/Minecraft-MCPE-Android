@@ -25,6 +25,7 @@
 #include "../Level.h"
 #include "../LevelConstants.h"
 #include "../ChunkPos.h"
+#include "../levelgen/VillageFeature.h"
 #include "../tile/entity/TileEntity.h"
 
 class ChunkCache: public ChunkSource {
@@ -162,6 +163,14 @@ public:
             if (hasChunk(x, z - 1) && !getChunk(x, z - 1)->terrainPopulated && hasChunk(x + 1, z - 1) && hasChunk(x, z - 1) && hasChunk(x + 1, z)) postProcess(this, x, z - 1);
             if (hasChunk(x - 1, z - 1) && !getChunk(x - 1, z - 1)->terrainPopulated && hasChunk(x - 1, z - 1) && hasChunk(x, z - 1) && hasChunk(x - 1, z)) postProcess(this, x - 1, z - 1);
 
+            // v23: a village centre chunk (re-)entering the resident
+            // set gets its villagers topped up (entities are not chunk
+            // data, so generation alone cannot keep them; this also
+            // covers disk-loaded chunks, whose postProcess never
+            // re-runs). ensureVillagers itself refuses to spawn until
+            // this chunk's terrain is populated.
+            VillageFeature::ensureVillagers(level, x, z);
+
             xLast = x;
             zLast = z;
             last = newChunk;
@@ -188,6 +197,10 @@ public:
             if (source != NULL) {
                 source->postProcess(parent, x, z);
 				chunk->clearUpdateMap();
+                // v23: deferred postProcess (chunk generated earlier
+                // without neighbours) — top up this chunk's villagers
+                // now that its terrain (and village) exists.
+                VillageFeature::ensureVillagers(level, x, z);
             }
         }
     }

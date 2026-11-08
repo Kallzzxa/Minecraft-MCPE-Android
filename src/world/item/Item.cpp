@@ -24,6 +24,7 @@ Item* Item::bow = NULL;
 Item* Item::arrow = NULL;
 Item* Item::coal = NULL;
 Item* Item::emerald = NULL;
+Item* Item::emeraldGem = NULL;
 Item* Item::ironIngot = NULL;
 Item* Item::goldIngot = NULL;
 Item* Item::sword_iron = NULL;
@@ -360,6 +361,9 @@ void Item::initItems() {
 	// gui/items.png cells (0, 11) and (1, 11).
 	Item::eyeOfEnder = (new EyeOfEnderItem(381))->setIcon(0, 11)->setCategory(ItemCategory::Tools)->setDescriptionId("eyeOfEnder");
 	Item::chorusFruit = (new ChorusFruitItem(432))->setIcon(1, 11)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("chorusFruit");
+	// v23: real emerald, the trading currency (icon cell (2,13), drawn).
+	// Full id 689; the old Item::emerald (id 264) stays the diamond gem.
+	Item::emeraldGem = (new Item(433))->setIcon(2, 13)->setCategory(ItemCategory::Decorations)->setDescriptionId("emeraldGem");
 
 	//Item::record_01 = (new RecordingItem(2000, "13"))->setIcon(0, 15)->setCategory(ItemCategory::Decorations)->setDescriptionId("record");
 	//Item::record_02 = (new RecordingItem(2001, "cat"))->setIcon(1, 15)->setCategory(ItemCategory::Decorations)->setDescriptionId("record");

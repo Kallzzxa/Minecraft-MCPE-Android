@@ -360,6 +360,8 @@ item.arrow.name=Arrow
 item.coal.name=Coal
 item.charcoal.name=Charcoal
 item.emerald.name=Diamond
+# v23: real emerald (trading currency). The old item.emerald is the diamond gem.
+item.emeraldGem.name=Emerald
 item.ingotIron.name=Iron Ingot
 item.ingotGold.name=Gold Ingot
 item.swordIron.name=Iron Sword
