@@ -1739,6 +1739,126 @@ Each version is ONE coherent batch of features, shipped as a new APK
     check the exit portal + egg are right after the second death,
     no crash, old features intact).
 
+- **v28 — Dragon perch + initial end crystals (SHIPPED, build-only).**
+  Pays the v22 debt "no dragon perch/landing" and the v27 debt
+  "no initial crystals on the pillars at world gen".
+  ### Audit (read from code before writing anything)
+  - `EnderDragon` (v22, `EnderDragon.h/.cpp`): NO state machine, NO
+    phases — `tick()` steers toward a moving orbit point every tick
+    (radius 22, y=82, angle = tickCount * 0.012 ≈ 0.7°/tick, a full
+    orbit in ~30 s; ease 0.06, speed capped 0.35/tick, velocity
+    smoothed 0.2). `travel()` is Ghast-style: NO gravity in air, so
+    the dragon holds whatever altitude it is steered to. It faces
+    its travel direction. That is the whole movement system — and
+    it is exactly what a perch needs: steering to a FIXED point
+    instead of a moving one makes the dragon descend, sit, and take
+    off again with no new physics.
+  - Attack (`PathfinderMob::updateAi` -> `checkHurtTarget`, reached
+    through the virtual `updateAi()` inside `Mob::tick`, which the
+    dragon calls directly to dodge `Monster::tick`'s peaceful
+    despawn): target acquisition is `Monster::findAttackTarget` —
+    nearest player within **16 blocks**. At orbit y=82 vs a player
+    at y~66 the dragon usually has NO target at all, so its
+    fireballs (d<40, one per 3 s) rarely fire in practice — a
+    pre-existing v22 limitation, NOT fixed here. Perch fixes it
+    incidentally: on the portal the player is within a few blocks,
+    so the dragon finally acquires a target and its melee (d<4,
+    6 damage via `Monster::checkHurtTarget`) engages. Melee reach
+    for the PLAYER: survival entity pick ray is capped at 3 blocks
+    (`GameRenderer::pick`), `Mob::isPickable` is true, and the
+    perched dragon (4 wide, 2 tall, feet y=66) sits right on the
+    ring the player stands on — sword hits land.
+  - Exit portal geometry (`EndLevelSource`): 5x5 obsidian platform
+    y=64, 8-cell bedrock ring y=65 (top surface y=66), centre
+    (0,65,0) air until the dragon dies. The perch point (0.5, 66,
+    0.5) puts the dragon's feet exactly on the ring top. The
+    descend/ascend diagonal (orbit r22/y82 <-> centre/y66) clears
+    every pillar top by 3+ blocks (closest tops near the path are
+    y=77 at r=20; the path is at y~80.5 there), and the ring is the
+    only thing below the perch point — so the dragon cannot get
+    stuck on a pillar or fall to the void. Knockback
+    (`Mob::hurt` -> `knockback`, 0.4 + yd +0.4) can shove it off
+    the ring, but the perch steering pulls it straight back.
+  - No "sit still at a fixed point" pattern existed in any mob —
+    the closest reusable pieces are the orbit steering itself and
+    the crystal's static float. The perch reuses the steering, so
+    no new movement code was needed.
+  - Crystal trap found by the audit (would have been a real
+    regression): v27 `tryRespawnDragon` counts pillar-top crystals
+    toward the 4 needed for a respawn. If initial crystals simply
+    spawned on the pillars, 4+ survivors would resummon the dragon
+    ~1 s after the FIRST death and clear the exit portal before the
+    player can use it. The fix is a flag, not a rule change (below).
+  ### What shipped
+  - **Dragon perch** (`EnderDragon`, state machine ORBIT ->
+    DESCEND -> PERCHED -> ASCEND -> ORBIT): orbits ~20 s (400
+    ticks), descends to (0.5, 66, 0.5), sits ~8 s (160 ticks),
+    takes off back to the orbit point. All steering is the old
+    orbit ease via a factored-out `steerTo()` — same cap, same
+    smoothing. Safety, all in code: every non-orbit state has a
+    timeout that forces takeoff (descend 300 ticks, perch is
+    fixed-length, ascend 300 ticks — it can never wedge in a
+    perch state); a y<50 watchdog abandons the perch and climbs
+    to orbit; the steer targets are fixed safe points, so the
+    dragon is never steered toward the void. While landing or
+    perched it does NOT shoot fireballs (modern MC does not
+    either, and a point-blank fireball would hit the ring); its
+    melee bite still works up close, and `PathfinderMob`'s
+    `lookAt()` faces the player while perched. Perch state is
+    transient (not saved): a reloaded or respawned dragon starts
+    in orbit. No animation change — the dragon sits with its
+    normal wing-flap model (a perched pose would need a new model
+    state; the sit itself is the behaviour, honestly noted).
+  - **Initial end crystals** (`Minecraft::ensureEndDragon`): one
+    crystal on each of the 10 pillar tops when the FIRST dragon
+    spawns (new public `EndLevelSource::getPillarTop` accessor).
+    Only on the very first spawn — re-entry mid-fight (dragon
+    alive) and post-death (portal exists) both return before it,
+    so they are never re-added and a destroyed crystal stays
+    destroyed. Worlds whose first fight already started in
+    v22–v27 get no retroactive crystals (deliberate, not a bug).
+  - **Initial-crystal respawn exclusion** (`EndCrystal::initial`,
+    saved as the "Initial" boolean; old v27 crystals load as
+    non-initial): initial crystals heal the dragon and explode
+    exactly like player-placed ones, but never count toward the
+    v27 respawn — so the first death leaves the exit portal
+    standing. Player-placed crystals still count as in v27, and
+    the respawned dragon perches too (same class, same state
+    machine).
+  - Version bump 27 -> 28 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,191,688 B / armv7 8,757,124 B, new symbols confirmed
+    (`EnderDragon::steerTo`, `EndLevelSource::getPillarTop`,
+    "Initial" tag string). CI `./gradlew assembleDebug` (see run
+    in the v28 report).
+  ### Known limits / debts
+  - No heal BEAM visual (v27 debt stands — the heal is still a
+    silent +1 HP/10 ticks; no beam renderer exists in this tree).
+  - No perched-pose animation: the dragon sits with its normal
+    flying model/wing flap, not a folded-wing landing pose.
+  - The dragon still rarely acquires a target while orbiting
+    (16-block acquisition vs the y=82 orbit — the v22 limitation
+    above); it only fights properly once it perches or the player
+    climbs a pillar. Widening the acquisition range was out of
+    scope for this batch.
+  - `PathfinderMob::updateAi` can set `jumping` while the dragon
+    follows a path; `Mob::tick` would then call `jumpFromGround`
+    (yd 0.42) if the dragon is onGround on the ring. In practice
+    the path target is the player at the same height (yd = 0) and
+    a perched dragon has ~0 horizontal velocity, so no jump is
+    expected — but a small hop while perched is possible if a
+    path ever targets above it; steering re-lands it immediately.
+  - All of it is build-only until a live test on device (enter
+    the End, check 10 crystals on the pillar tops, watch a full
+    cycle orbit -> descend -> sit ~8 s -> takeoff, hit the
+    dragon with a sword while perched and check damage lands,
+    check it never wedges on a perch or falls to the void, kill
+    it and check the exit portal STAYS (no instant auto-respawn
+    from the surviving pillar crystals), then place 4 fresh
+    crystals and check the v27 respawn still works and the new
+    dragon perches too, no crash, old features intact).
+
 ## Next (v24)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
@@ -1790,17 +1910,32 @@ Each version is ONE coherent batch of features, shipped as a new APK
 - **v25 — Player splash potions + cauldron.** SHIPPED (see "Done").
 - **v26 — Brewing upgrades: redstone + glowstone.** SHIPPED (see "Done").
 - **v27 — End crystals + dragon respawn.** SHIPPED (see "Done").
-- **Next version (v28 candidate): dragon perch (v22 debt).** The
-  last remaining End boss debt: the dragon still only circles at
-  y=82 and never lands, so the fight has no melee phase and no
-  perch behaviour at all. A perch (descend to the exit portal,
-  sit, breathe, take off) reuses the orbit steering + the
-  `dropDeathLoot` portal geometry already in the tree, so it
-  completes the dimension instead of starting a new one. (The
-  other named debts — Nether fortress, village chest loot — stay
-  queued behind it: a fortress is a new structure system, and
-  village chests only move the first emerald earlier in a loop
-  trading already serves.)
+- **Device verification for dragon perch + initial crystals (v28's
+  open item).** Enter the End, check 10 crystals on the pillar
+  tops; watch a full cycle orbit -> descend -> sit ~8 s -> takeoff;
+  hit the dragon with a sword while perched and check damage lands;
+  check it never wedges on a perch or falls to the void; kill it
+  and check the exit portal STAYS (no instant auto-respawn from
+  the surviving pillar crystals); then place 4 fresh crystals and
+  check the v27 respawn still works and the new dragon perches
+  too; no crash. The v27 APK stays the fallback until this stage
+  passes.
+- **v28 — Dragon perch + initial end crystals.** SHIPPED (see "Done").
+- **Next version (v29 candidate): heal-beam visual (v27 debt).**
+  The last remaining End boss-feedback debt: the dragon's heal is
+  still invisible (+1 HP/10 ticks, silent), so the player cannot
+  tell WHICH crystal is healing it or that healing is happening at
+  all — the perch + initial crystals in v28 make the crystals
+  central to the fight, which makes the missing beam more visible,
+  not less. It is the smallest of the named debts (a line/quad
+  renderer from crystal to dragon, reusing the XP-orb billboard
+  precedent — no new structure system like the Nether fortress,
+  no tile-entity placement precedent like village chest loot),
+  and it completes the End boss loop instead of starting a new
+  dimension. (Nether fortress and village chest loot stay queued
+  behind it: a fortress is a new structure system, and village
+  chests only move the first emerald earlier in a loop trading
+  already serves.)
 
 ## Queued (priority order — re-evaluate after each version)
 

@@ -9,7 +9,9 @@
 #include "../projectile/Fireball.h"
 
 EnderDragon::EnderDragon(Level* level)
-:	super(level)
+:	super(level),
+	perchState(PERCH_ORBIT),
+	perchTimer(0)
 {
 	entityRendererId = ER_ENDER_DRAGON_RENDERER;
 	textureName = "mob/dragon.png";
@@ -28,34 +30,110 @@ void EnderDragon::heal(int amount)
 	invulnerableTime = invulnerableDuration / 2;
 }
 
+void EnderDragon::steerTo(float tx, float ty, float tz)
+{
+	// The old orbit steering, factored out: ease toward a fixed
+	// point (capped speed 0.35/tick), velocity smoothed 0.2.
+	float dx = tx - x;
+	float dy = ty - y;
+	float dz = tz - z;
+	float wantX = dx * 0.06f;
+	float wantY = dy * 0.06f;
+	float wantZ = dz * 0.06f;
+	float sp = Mth::sqrt(wantX * wantX + wantY * wantY + wantZ * wantZ);
+	if (sp > 0.35f) {
+		wantX *= 0.35f / sp;
+		wantY *= 0.35f / sp;
+		wantZ *= 0.35f / sp;
+	}
+	xd += (wantX - xd) * 0.2f;
+	yd += (wantY - yd) * 0.2f;
+	zd += (wantZ - zd) * 0.2f;
+}
+
 void EnderDragon::tick()
 {
-	// Orbit steering, BEFORE the base tick: the base tick's travel()
-	// (copied from Ghast) moves the dragon by (xd, yd, zd) with
-	// friction, so setting the velocity here is the steering input.
-	// The orbit point creeps around the island at ~0.7 deg/tick.
+	// v28: perch state machine, BEFORE the base tick: the base
+	// tick's travel() (copied from Ghast) moves the dragon by
+	// (xd, yd, zd) with friction, so setting the velocity here is
+	// the steering input.
+	//
+	// The perch point is the exit-portal centre (0.5, 66, 0.5):
+	// the bedrock ring top is y=66 (ring blocks at y=65), so feet
+	// at 66.0 sit the 4-wide dragon on the ring, overhanging the
+	// centre air cell. The descend/ascend diagonal from the orbit
+	// (r22/y82) to the centre clears every pillar top by 3+
+	// blocks (closest pillar tops near the path are y=77 at r=20,
+	// while the path is at y~80.5 there), so the dragon cannot get
+	// stuck on a pillar; the ring is the only thing below the
+	// perch point, so it cannot fall to the void either.
 	if (!level->isClientSide) {
-		float angle = tickCount * 0.012f;
-		float tx = Mth::cos(angle) * ORBIT_RADIUS;
-		float tz = Mth::sin(angle) * ORBIT_RADIUS;
-		float ty = (float)ORBIT_HEIGHT;
-		float dx = tx - x;
-		float dy = ty - y;
-		float dz = tz - z;
-		// Ease toward the orbit point (capped speed 0.35/tick).
-		float wantX = dx * 0.06f;
-		float wantY = dy * 0.06f;
-		float wantZ = dz * 0.06f;
-		float sp = Mth::sqrt(wantX * wantX + wantY * wantY + wantZ * wantZ);
-		if (sp > 0.35f) {
-			wantX *= 0.35f / sp;
-			wantY *= 0.35f / sp;
-			wantZ *= 0.35f / sp;
+		perchTimer++;
+		// Watchdog: below the island top the dragon has been knocked
+		// off its path — abandon the perch and climb back to orbit.
+		// (In ORBIT/ASCEND the steer target is already y=82, so
+		// this only ever fires out of DESCEND/PERCHED.)
+		if (y < 50.0f && perchState != PERCH_ASCEND) {
+			perchState = PERCH_ASCEND;
+			perchTimer = 0;
 		}
-		xd += (wantX - xd) * 0.2f;
-		yd += (wantY - yd) * 0.2f;
-		zd += (wantZ - zd) * 0.2f;
-		// Face the direction of travel.
+		// The moving orbit point creeps around the island at
+		// ~0.7 deg/tick (same formula as the old orbit-only code).
+		float angle = tickCount * 0.012f;
+		float ox = Mth::cos(angle) * ORBIT_RADIUS;
+		float oz = Mth::sin(angle) * ORBIT_RADIUS;
+		switch (perchState) {
+		case PERCH_ORBIT:
+			steerTo(ox, (float)ORBIT_HEIGHT, oz);
+			if (perchTimer >= PERCH_ORBIT_TICKS) {
+				perchState = PERCH_DESCEND;
+				perchTimer = 0;
+			}
+			break;
+		case PERCH_DESCEND: {
+			steerTo(0.5f, 66.0f, 0.5f);
+			float dx = 0.5f - x;
+			float dy = 66.0f - y;
+			float dz = 0.5f - z;
+			if (dx * dx + dy * dy + dz * dz < 1.0f) {
+				// Landed on the portal: sit still (steering holds
+				// the point while perched, so a sword knockback
+				// shoves it off the ring and it slides back).
+				perchState = PERCH_PERCHED;
+				perchTimer = 0;
+			} else if (perchTimer >= PERCH_DESCEND_TIMEOUT) {
+				// Never arrived (knocked away, or the platform is
+				// built over) — give up and take off instead of
+				// circling the portal forever.
+				perchState = PERCH_ASCEND;
+				perchTimer = 0;
+			}
+			break;
+		}
+		case PERCH_PERCHED:
+			steerTo(0.5f, 66.0f, 0.5f);
+			if (perchTimer >= PERCH_TIME_TICKS) {
+				perchState = PERCH_ASCEND;
+				perchTimer = 0;
+			}
+			break;
+		case PERCH_ASCEND:
+		default: {
+			steerTo(ox, (float)ORBIT_HEIGHT, oz);
+			float dx = ox - x;
+			float dy = (float)ORBIT_HEIGHT - y;
+			float dz = oz - z;
+			if (dx * dx + dy * dy + dz * dz < 4.0f
+				|| perchTimer >= PERCH_ASCEND_TIMEOUT) {
+				perchState = PERCH_ORBIT;
+				perchTimer = 0;
+			}
+			break;
+		}
+		}
+		// Face the direction of travel. (While perched the velocity
+		// is ~0, so this leaves yRot alone and PathfinderMob's
+		// lookAt() in the base tick faces the player instead.)
 		if (xd * xd + zd * zd > 0.001f) {
 			yRot = (float)(std::atan2(zd, xd) * Mth::RADDEG) - 90;
 		}
@@ -128,6 +206,11 @@ void EnderDragon::checkHurtTarget(Entity* target, float d)
 		super::checkHurtTarget(target, d);
 		return;
 	}
+	// v28: no fireballs while landing or perched — the modern dragon
+	// does not shoot while it sits on the portal, and a point-blank
+	// fireball would hit the portal ring itself. The melee bite
+	// above still works while perched.
+	if (perchState == PERCH_DESCEND || perchState == PERCH_PERCHED) return;
 	// Ranged attack, ghast-style: one aimed fireball every 3 s
 	// while the target is within 40 blocks.
 	if (d < 40) {

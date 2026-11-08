@@ -22,6 +22,8 @@
 #include "../world/level/dimension/NetherDimension.h"
 #include "../world/level/dimension/EndDimension.h"
 #include "../world/entity/monster/EnderDragon.h"
+#include "../world/entity/item/EndCrystal.h"
+#include "../world/level/levelgen/EndLevelSource.h"
 #include "../world/level/tile/FireTile.h"
 #include "player/input/KeyboardInput.h"
 #ifndef STANDALONE_SERVER
@@ -589,6 +591,23 @@ void Minecraft::ensureEndDragon() {
 	EnderDragon* dragon = new EnderDragon(level);
 	dragon->setPos(0.5f, 82.0f, 0.5f);
 	level->addEntity(dragon);
+	// v28: one initial end crystal on each pillar top, so the first
+	// fight has crystals to shoot down (modern MC). Only here — on
+	// the very first spawn: re-entry mid-fight (dragon alive) and
+	// post-death (portal exists) both return above, so these are
+	// never re-added, and a crystal the player destroys stays
+	// destroyed. Initial crystals do NOT count toward the v27
+	// respawn (EndCrystal::initial), or the survivors would resummon
+	// the dragon ~1 s after the first death and clear the exit
+	// portal before the player can use it. Worlds whose first fight
+	// already started in v22–v27 get no retroactive crystals (the
+	// dragon is alive there, so this branch never runs) — that is
+	// deliberate, not a bug.
+	for (int i = 0; i < EndLevelSource::getNumPillars(); i++) {
+		int px, py, pz;
+		if (!EndLevelSource::getPillarTop(i, px, py, pz)) continue;
+		level->addEntity(new EndCrystal(level, px + 0.5f, (float)(py + 1), pz + 0.5f, true));
+	}
 }
 
 void Minecraft::persistPlayerToOverworld() {

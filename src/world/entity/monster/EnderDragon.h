@@ -7,9 +7,23 @@
 // around the island centre (radius 22, y=82 — above every pillar
 // top inside that radius) and shoots fireballs at the player from
 // up to 40 blocks away, skeleton-style, with a melee fallback up
-// close. 200 HP, 6 melee damage, fire-immune. It never lands or
-// perches (no perch AI exists in this tree — the dragon circles
-// until it is shot or hit out of the sky).
+// close. 200 HP, 6 melee damage, fire-immune.
+//
+// v28: PERCH. The dragon no longer only circles: every ~20 s of
+// orbiting it descends onto the exit portal, sits there ~8 s
+// (melee-vulnerable — the modern fight's sword phase, and the only
+// time the dragon is reliably in sword range), then takes off and
+// resumes its orbit. The perch is a small state machine on top of
+// the existing steer-to-point orbit code (see tick()): every
+// non-orbit state has a timeout that forces takeoff, the steer
+// targets are fixed safe points (orbit r22/y82, portal (0.5,66,
+// 0.5)), and a y<50 watchdog climbs back to orbit, so the dragon
+// can never wedge in a perch state, get steered into the void, or
+// get stuck on a pillar (the descend/ascend diagonal clears every
+// pillar top by 3+ blocks — see the v28 ROADMAP note). While
+// landing or perched it does not shoot fireballs (modern MC does
+// not either); its melee bite still works up close. Perch state is
+// transient (not saved): a reloaded dragon starts in orbit.
 //
 // Spawning: NOT in any spawn list. Minecraft::ensureEndDragon
 // spawns exactly one when the player first enters the End, and
@@ -57,6 +71,21 @@ private:
 	// steers toward the moving orbit point every tick.
 	static const int ORBIT_RADIUS = 22;
 	static const int ORBIT_HEIGHT = 82;
+
+	// v28: perch state machine. ORBIT -> DESCEND -> PERCHED ->
+	// ASCEND -> ORBIT. All steering is steerTo() (the old orbit
+	// ease, capped 0.35/tick); only the target point changes.
+	enum PerchState { PERCH_ORBIT = 0, PERCH_DESCEND, PERCH_PERCHED, PERCH_ASCEND };
+	int perchState;
+	int perchTimer; // ticks spent in the current perch state
+	static const int PERCH_ORBIT_TICKS = 400;     // ~20 s orbiting between perches
+	static const int PERCH_DESCEND_TIMEOUT = 300; // 15 s watchdog: give up, take off
+	static const int PERCH_TIME_TICKS = 160;      // ~8 s sitting on the portal
+	static const int PERCH_ASCEND_TIMEOUT = 300;  // 15 s watchdog: back to orbit
+
+	// Steer the velocity toward a fixed point (the old orbit
+	// steering, factored out so the perch reuses it exactly).
+	void steerTo(float tx, float ty, float tz);
 };
 
 #endif /*NET_MINECRAFT_WORLD_ENTITY_MONSTER__EnderDragon_H__*/

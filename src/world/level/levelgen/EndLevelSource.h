@@ -68,6 +68,13 @@ public:
 	static bool isPillarTop(int x, int y, int z);
 	static bool isExitRingCell(int x, int y, int z);
 
+	// v28: pillar-top coordinates for the initial end crystals
+	// (Minecraft::ensureEndDragon). Pillar i's bedrock cap is at
+	// (PILLARS[i].x, 64 + PILLARS[i].h, PILLARS[i].z); returns false
+	// for an out-of-range index.
+	static int getNumPillars() { return 10; }
+	static bool getPillarTop(int i, int& x, int& y, int& z);
+
 private:
 	// Deterministic 0..1 hashes of integer coords (no RNG state, so a
 	// chunk generates identically whenever it is (re)generated).

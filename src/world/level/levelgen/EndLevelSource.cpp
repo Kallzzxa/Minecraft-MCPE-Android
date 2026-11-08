@@ -78,6 +78,16 @@ bool EndLevelSource::isPillarTop(int x, int y, int z)
 }
 
 /*static*/
+bool EndLevelSource::getPillarTop(int i, int& x, int& y, int& z)
+{
+	if (i < 0 || i >= 10) return false;
+	x = PILLARS[i].x;
+	y = 64 + PILLARS[i].h;
+	z = PILLARS[i].z;
+	return true;
+}
+
+/*static*/
 bool EndLevelSource::isExitRingCell(int x, int y, int z)
 {
 	if (y != EXIT_PORTAL_Y) return false;

@@ -9,7 +9,8 @@
 
 EndCrystal::EndCrystal(Level* level)
 :	super(level),
-	exploding(false)
+	exploding(false),
+	initial(false)
 {
 	entityRendererId = ER_END_CRYSTAL_RENDERER;
 	setSize(2.0f, 2.0f);
@@ -18,9 +19,22 @@ EndCrystal::EndCrystal(Level* level)
 
 EndCrystal::EndCrystal(Level* level, float x, float y, float z)
 :	super(level),
-	exploding(false)
+	exploding(false),
+	initial(false)
 {
 	// Same init as the 1-arg ctor (no delegating ctors in C++98).
+	entityRendererId = ER_END_CRYSTAL_RENDERER;
+	setSize(2.0f, 2.0f);
+	fireImmune = true;
+	setPos(x, y, z);
+}
+
+EndCrystal::EndCrystal(Level* level, float x, float y, float z, bool isInitial)
+:	super(level),
+	exploding(false),
+	initial(isInitial)
+{
+	// Same init as the 3-arg ctor (no delegating ctors in C++98).
 	entityRendererId = ER_END_CRYSTAL_RENDERER;
 	setSize(2.0f, 2.0f);
 	fireImmune = true;
@@ -64,12 +78,13 @@ bool EndCrystal::isPickable()
 
 void EndCrystal::addAdditonalSaveData(CompoundTag* tag)
 {
-	(void) tag; // no extra state — Pos/Motion/Rotation suffice
+	// v28: only the "Initial" flag is extra state.
+	tag->putBoolean("Initial", initial);
 }
 
 void EndCrystal::readAdditionalSaveData(CompoundTag* tag)
 {
-	(void) tag; // no extra state
+	initial = tag->getBoolean("Initial");
 }
 
 bool EndCrystal::hurt(Entity* source, int damage)
@@ -140,13 +155,18 @@ void EndCrystal::tryRespawnDragon()
 			&& e->getEntityTypeId() == MobTypes::EnderDragon) return;
 	}
 	// Count the crystals standing on respawn spots (pillar caps +
-	// exit-portal ring). Four or more resummon the dragon.
+	// exit-portal ring). Four or more resummon the dragon. v28:
+	// INITIAL crystals never count — they are the first fight's
+	// pillar crystals, and counting them would resummon the dragon
+	// ~1 s after the first death (clearing the exit portal before
+	// the player can use it). Player-placed crystals count as in v27.
 	EndCrystal* spots[16];
 	int n = 0;
 	for (unsigned int i = 0; i < level->entities.size() && n < 16; i++) {
 		Entity* e = level->entities[i];
 		if (e == NULL || e->removed
 			|| e->getEntityTypeId() != EntityTypes::IdEndCrystal) continue;
+		if (((EndCrystal*) e)->isInitial()) continue;
 		if (isOnRespawnSpot(level, e->x, e->y, e->z)) {
 			spots[n++] = (EndCrystal*) e;
 		}

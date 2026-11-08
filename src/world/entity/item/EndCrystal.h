@@ -32,9 +32,21 @@
 // portal reactivates and the egg is placed on the rim again (same
 // spot, so still at most one egg unless the player took the first).
 //
+// v28: INITIAL crystals. Minecraft::ensureEndDragon puts one on
+// every pillar top when the first dragon spawns (modern MC: the
+// first fight has crystals to shoot down). An initial crystal is
+// identical in play — it heals the dragon and explodes when broken
+// — EXCEPT it never counts toward the respawn above: without that
+// exclusion, 4+ surviving pillar crystals would resummon the dragon
+// ~1 s after the first death and clear the exit portal before the
+// player can use it. The flag is saved ("Initial" boolean), so an
+// initial crystal stays initial across quit/reload; a
+// player-placed crystal is never initial, so the v27 respawn rule
+// for player-placed crystals is unchanged.
+//
 // Save/load: the base Entity save writes Pos/Motion/Rotation + the
-// type id, and EntityFactory::CreateEntity rebuilds it — no extra
-// state, so no save-data override is needed.
+// type id, and EntityFactory::CreateEntity rebuilds it; the
+// "Initial" flag is the only extra state (v28).
 
 #include "../../entity/Entity.h"
 #include "../../entity/EntityTypes.h"
@@ -47,19 +59,27 @@ class EndCrystal: public Entity
 public:
 	EndCrystal(Level* level);
 	EndCrystal(Level* level, float x, float y, float z);
+	// v28: initial (world-gen) crystal — see the header comment.
+	EndCrystal(Level* level, float x, float y, float z, bool isInitial);
 
 	void tick();
 	bool hurt(Entity* source, int damage);
 	bool isPickable();
 	int getEntityTypeId() const { return EntityTypes::IdEndCrystal; }
 
+	// v28: true for the crystals ensureEndDragon puts on the pillar
+	// tops at first spawn. Initial crystals heal and explode like
+	// any other, but never count toward the dragon respawn.
+	bool isInitial() const { return initial; }
+
 	// Support-block helpers. A crystal floats 1 block above its
 	// support, so the support is (floor(x), floor(y)-1, floor(z)).
 	static bool isOnRespawnSpot(Level* level, float x, float y, float z);
 
 protected:
-	// No extra state beyond the base Entity save (Pos/Motion/
-	// Rotation) — both are empty by design.
+	// v28: the only extra state is the "Initial" flag (see the
+	// header comment). Old v27 crystals have no such tag and load
+	// as non-initial (getBoolean returns false when absent).
 	void addAdditonalSaveData(CompoundTag* tag);
 	void readAdditionalSaveData(CompoundTag* tag);
 
@@ -68,6 +88,7 @@ private:
 	void tryRespawnDragon();
 
 	bool exploding;
+	bool initial;
 };
 
 #endif /*NET_MINECRAFT_WORLD_ENTITY_ITEM__EndCrystal_H__*/
