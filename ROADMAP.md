@@ -1865,6 +1865,125 @@ Each version is ONE coherent batch of features, shipped as a new APK
     crystals and check the v27 respawn still works and the new
     dragon perches too, no crash, old features intact).
 
+- **v29 — Heal-beam visual + perch-hop fix (SHIPPED, build-only).**
+  Pays the v27 debt "no heal BEAM visual" and the v28 cosmetic
+  risk "the dragon can hop while perched".
+  ### Audit (read from code before writing anything)
+  - Heal today: `EndCrystal::tick` (server-side only — it returns
+    early when `level->isClientSide`) calls `tryHealDragon()` every
+    10 ticks: the nearest live dragon within 32 blocks, +1 HP via
+    `Mob::heal` → `EnderDragon::heal` (cap 200, not `Mob`'s 20).
+    There is NO "currently healing" state anywhere — the heal is a
+    silent, stateless +1/10 ticks, and the nearest-dragon scan is
+    the only definition of "healing". The crystal knows which
+    dragon it heals only for the instant of that scan.
+  - Rendering: `LevelRenderer::renderEntities`
+    (`LevelRenderer.cpp:924`) → `EntityRenderDispatcher::render`
+    interpolates the entity position and subtracts the camera
+    offsets (`xOff`/`yOff`/`zOff`, `LevelRenderer.cpp:939-941`),
+    then `EndCrystalRenderer::render` draws the spinning crossed
+    pink quads + near-white core with plain Tesselator colours
+    (the v8 XP-orb precedent). NO line/beam renderer exists in
+    this tree. Nearest precedents: the selection box
+    (`LevelRenderer.cpp:527`, `t.begin(GL_LINES)`); translucency
+    (`TntRenderer`, enable `GL_BLEND`, draw, disable it again);
+    camera-facing quads (`ExperienceOrbRenderer`, rotate by
+    `playerRotY`/`playerRotX`). The beam belongs in the CRYSTAL
+    renderer, not the dragon renderer or `LevelRenderer`: the
+    crystal is the per-beam owner (up to 10 beams, one per healing
+    crystal), its render call already runs exactly when the crystal
+    is visible, and a removed crystal stops being rendered — so
+    the beam dies with the crystal for free.
+  - Client-side trap (found by the audit, shaped the design): the
+    client crystal never runs `tryHealDragon`, so no server heal
+    state exists for the renderer to read — and syncing one would
+    need a new network field. The renderer instead RE-DERIVES the
+    same in-range condition from `crystal->level->entities` (the
+    same `Level` object in single-player; in MP the client level
+    carries the same entity list), so the beam needs no sync and
+    works in both. A 1-frame beam on the exact heal tick was
+    rejected: the heal fires once per 10 ticks, a single-frame
+    flash would be invisible — the beam is continuous while the
+    in-range condition holds.
+  - Perch hop (v28 risk, re-checked): `PathfinderMob::updateAi`
+    sets `jumping = true` when the next path node is above the
+    feet (`yd > 0`) or on horizontal collision, and `Mob::tick`
+    then calls `jumpFromGround()` (yd 0.42) if the dragon is
+    `onGround` on the ring. The dragon uses the OLD AI
+    (`Mob::useNewAi()` returns false by default; only
+    Zombie/PigZombie override it), and `updateAi()` is virtual
+    (`Mob.h:146`), so a dragon-only override is possible with
+    zero effect on any other mob — and the clear lands inside
+    `updateAi()`, which `Mob::tick` calls BEFORE its jumping
+    check in the same tick, so it takes effect immediately.
+  ### What shipped
+  - **Heal beam** (`EndCrystalRenderer`, new static
+    `findHealedDragon()` + beam drawing in `render()`): when a
+    live dragon (`health > 0`, not removed) is within 32 blocks,
+    a thin ribbon runs from the crystal centre (feet y + 1 +
+    bob) to the dragon's body centre (feet y + 1 — the dragon is
+    2 tall, `setSize(4, 2)`), interpolated with `a` exactly like
+    the dispatcher does for the crystal itself. No new render
+    pipeline: two crossed quads along the beam axis (the crystal's
+    own crossed-quad precedent, stretched into a line) — outer
+    ribbon pink (1.0, 0.45, 0.85, the crystal's hue), half-width
+    0.16, alpha 0.55; core ribbon near-white (1.0, 0.9, 1.0),
+    half-width 0.06, alpha 0.85, crossed against the outer one so
+    the beam reads from every angle even with face culling on.
+    Translucency via `GL_BLEND` (`SRC_ALPHA`,
+    `ONE_MINUS_SRC_ALPHA` — the `TntRenderer` enable/draw/disable
+    pattern, so no other renderer inherits the state); vertex
+    alpha reaches the shader (Tesselator packs 4-component
+    colours, `Tesselator.cpp:229`). Depth testing stays ON, so
+    pillars and the island occlude the beam like any other
+    geometry. Gentle alpha pulse (0.75 + 0.25·sin(tick·0.3)) so
+    the beam reads as an active heal, not a static decoration.
+    Guards: beam skipped when the beam is degenerate (< 0.5
+    blocks, dragon on top of the crystal); the side vector
+    (axis × up) falls back to the X axis when the beam is
+    near-vertical. The beam vanishes when the dragon dies
+    (`health <= 0`), flies out of range, or the crystal is
+    destroyed — no explicit cleanup needed.
+  - **Perch-hop fix** (`EnderDragon::updateAi()` override, new):
+    calls `super::updateAi()` (resolves to
+    `PathfinderMob::updateAi` — `Monster` does not override it),
+    then clears `jumping` while `perchState == PERCH_PERCHED`.
+    Dragon-only, perch-only: orbit/descent/ascent are untouched
+    (the dragon is airborne there, so `jumpFromGround` could not
+    fire anyway), and the dragon never needs to jump — it flies
+    by steering (Ghast-style travel, no gravity).
+  - Version bump 28 -> 29 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,183,496 B / armv7 8,757,124 B. The `.so` is stripped, so
+    symbols were confirmed in the fresh object files instead:
+    `EnderDragon::updateAi()` defined (T) in both ABIs, calling
+    `PathfinderMob::updateAi()` (U); `EndCrystalRenderer.o`
+    references `EntityRenderDispatcher::xOff`, `glBlendFunc` and
+    `Mth::sqrt` — all three only exist in the new beam code.
+    CI `./gradlew assembleDebug` SUCCESS (run TBD, ~XmXXs); APK
+    `minecraft-mcpe-android-0.6.1-debug-v29.apk` TBD B, sha256
+    TBD, versionCode 29, `apksigner verify` v1+v2 true,
+    `unzip -t` clean.
+  ### Known limits / debts
+  - The beam is continuous while the dragon is in range, NOT
+    one flash per heal tick (a single-frame beam would be
+    invisible — see the audit). At full HP `heal()` is a no-op
+    but the beam still shows: the link is live, and this matches
+    `tryHealDragon`, which heals unconditionally in range.
+  - The beam is a flat ribbon pair, not modern MC's textured,
+    scrolling beam; constant width (no taper with distance), no
+    impact particles where it meets the dragon.
+  - A crystal whose bounding box is frustum-culled draws no beam
+    even if the dragon is on screen — the beam is owned by the
+    crystal's render call (same culling as the crystal itself).
+  - All of it is build-only until a live test on device (enter
+    the End, let the dragon fly near a crystal and check the
+    pink/white beam is visible crystal -> dragon, check it
+    vanishes when the dragon flies away / dies or the crystal is
+    destroyed, check the perched dragon never hops, no render
+    glitch or crash, old features intact).
+
 ## Next (v24)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
@@ -1927,21 +2046,30 @@ Each version is ONE coherent batch of features, shipped as a new APK
   too; no crash. The v27 APK stays the fallback until this stage
   passes.
 - **v28 — Dragon perch + initial end crystals.** SHIPPED (see "Done").
-- **Next version (v29 candidate): heal-beam visual (v27 debt).**
-  The last remaining End boss-feedback debt: the dragon's heal is
-  still invisible (+1 HP/10 ticks, silent), so the player cannot
-  tell WHICH crystal is healing it or that healing is happening at
-  all — the perch + initial crystals in v28 make the crystals
-  central to the fight, which makes the missing beam more visible,
-  not less. It is the smallest of the named debts (a line/quad
-  renderer from crystal to dragon, reusing the XP-orb billboard
-  precedent — no new structure system like the Nether fortress,
-  no tile-entity placement precedent like village chest loot),
-  and it completes the End boss loop instead of starting a new
-  dimension. (Nether fortress and village chest loot stay queued
-  behind it: a fortress is a new structure system, and village
-  chests only move the first emerald earlier in a loop trading
-  already serves.)
+- **Device verification for the heal beam + perch-hop fix (v29's
+  open item).** Enter the End, let the dragon fly near a crystal
+  and check the pink/white beam is visible from the crystal to
+  the dragon; check it vanishes when the dragon flies out of
+  range / dies or the crystal is destroyed; check the beam does
+  not cover the screen or glitch when several crystals heal at
+  once; watch a full perch cycle and check the dragon never hops
+  on the ring; no crash. The v28 APK stays the fallback until
+  this stage passes.
+- **v29 — Heal-beam visual + perch-hop fix.** SHIPPED (see "Done").
+- **Next version (v30 candidate): dragon fireball targeting.**
+  The last End boss-fight gap: the dragon rarely acquires a
+  target while orbiting (16-block acquisition in
+  `Monster::findAttackTarget` vs the y=82 orbit — the v22/v28
+  limitation; it only fights properly once it perches or the
+  player climbs a pillar), so its fireballs almost never fire
+  in the air. Widening acquisition / letting it shoot while
+  orbiting is the smallest remaining named debt and completes
+  the End boss loop the same way v29 completed its heal
+  feedback. (Nether fortress stays queued behind it: a fortress
+  is a new structure system, not one batch; village chest loot
+  stays queued too — it only moves the first emerald earlier in
+  a loop trading already serves, and it needs a tile-entity loot
+  placement precedent first.)
 
 ## Queued (priority order — re-evaluate after each version)
 

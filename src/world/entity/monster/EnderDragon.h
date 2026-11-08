@@ -56,6 +56,11 @@ public:
 	void tick();
 	void travel(float xa, float ya);
 
+	// v29: suppress the perch hop (see the .cpp note). Dragon-only
+	// override of the virtual Mob::updateAi — no other mob is
+	// touched.
+	void updateAi();
+
 	const char* getAmbientSound() { return NULL; }
 	std::string getHurtSound() { return "random.pop"; }
 	std::string getDeathSound() { return "random.explode"; }

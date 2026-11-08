@@ -149,6 +149,25 @@ void EnderDragon::tick()
 	Mob::tick();
 }
 
+// v29: perch-hop fix (the v28 ROADMAP cosmetic risk, PAID).
+// PathfinderMob::updateAi sets jumping=true when the next path node
+// is above the dragon's feet (yd > 0) or on horizontal collision,
+// and Mob::tick then calls jumpFromGround() (yd 0.42) if the dragon
+// is onGround on the ring — a small hop while perched. The dragon
+// never needs to jump: it flies by steering (Ghast-style travel,
+// no gravity), so while PERCHED its jump flag is simply cleared
+// after the base AI runs. The clear happens inside updateAi(),
+// which Mob::tick calls BEFORE its jumping check in the same tick,
+// so the suppression takes effect immediately. Dragon-only (this
+// override lives on EnderDragon, not on PathfinderMob/Mob), and
+// only in PERCHED — orbit/descent/ascent are untouched (the dragon
+// is airborne there anyway, so jumpFromGround could not fire).
+void EnderDragon::updateAi()
+{
+	super::updateAi();
+	if (perchState == PERCH_PERCHED) jumping = false;
+}
+
 // FlyingMob-style travel, copied from Ghast::travel: no yd -= 0.08
 // gravity in air, so the dragon holds its orbit altitude instead
 // of falling to the island.
