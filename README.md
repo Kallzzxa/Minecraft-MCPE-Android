@@ -49,11 +49,11 @@ Changes vs the upstream tree (all already proven in the old repo):
 
 ### Note on the Gradle download
 
-The wrapper downloads Gradle 4.10.1 from the CDN
-(`downloads.gradle-dn.com`) instead of `services.gradle.org`, whose
-downloads time out from GitHub runners (SocketTimeout, seen repeatedly).
-CI retries the wrapper against three mirrors in turn (CDN, GitHub
-Releases `gradle/gradle-distributions`, Aliyun). If `./gradlew` still
+The wrapper downloads Gradle 4.10.1 from the GitHub Releases mirror
+(`github.com/gradle/gradle-distributions`) — `services.gradle.org`
+times out from GitHub runners, and `downloads.gradle-dn.com` does not
+even resolve there. CI retries the wrapper against three mirrors in
+turn (GitHub Releases, Aliyun, services.gradle.org). If `./gradlew` still
 cannot run, CI falls back to the proven direct pipeline:
 
 ```sh
