@@ -46,6 +46,8 @@ Biome::Biome()
     // Slime clusters of 1-3, enderman always alone — modern MC behaviour.
     _enemies.insert(_enemies.end(), MobSpawnerData(MobTypes::Slime, 10, 1, 3));
     _enemies.insert(_enemies.end(), MobSpawnerData(MobTypes::Enderman, 1, 1, 1));
+    // v24: witch — rare night spawn, always alone (modern MC).
+    _enemies.insert(_enemies.end(), MobSpawnerData(MobTypes::Witch, 1, 1, 1));
 
     // wolves are added to forests and taigas
     // _friendlies.insert(_friendlies.end(), new MobSpawnerData(Wolf.class, 2));

@@ -27,6 +27,7 @@
 #include "BlazeRenderer.h"
 #include "DragonRenderer.h"
 #include "FireballRenderer.h"
+#include "ThrownPotionRenderer.h"
 
 #include "ChickenRenderer.h"
 #include "SheepRenderer.h"
@@ -64,6 +65,9 @@ EntityRenderDispatcher::EntityRenderDispatcher()
 	// v23: villager reuses the plain humanoid model + mob/villager.png
 	// (same precedent as the zombie/skeleton renderers above).
 	assign(	ER_VILLAGER_RENDERER,	new HumanoidMobRenderer(new HumanoidModel(), 0.5f));
+	// v24: witch reuses the plain humanoid model + mob/witch.png.
+	assign(	ER_WITCH_RENDERER,	new HumanoidMobRenderer(new HumanoidModel(), 0.5f));
+	assign(	ER_THROWN_POTION_RENDERER,	new ThrownPotionRenderer());
 	assign(	ER_FIREBALL_RENDERER,	new FireballRenderer());
 	assign(	ER_TNT_RENDERER,		new TntRenderer());
 	assign(	ER_ARROW_RENDERER,		new ArrowRenderer());

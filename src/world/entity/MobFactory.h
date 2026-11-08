@@ -60,6 +60,9 @@ public:
 			case MobTypes::EnderDragon:
 				mob = new EnderDragon(level);
 				break;
+			case MobTypes::Witch:
+				mob = new Witch(level);
+				break;
 			default:
                 LOGE("Unknown mob type requested: %d\n", mobType);
                 break;

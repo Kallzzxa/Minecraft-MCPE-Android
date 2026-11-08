@@ -1274,7 +1274,108 @@ Each version is ONE coherent batch of features, shipped as a new APK
     for emeralds and back for bread/tools, quit/reload — village
     and villagers still there, no crash).
 
-## Next (v23)
+- **v24 — Witch + splash potions + swamp hut (SHIPPED, build-only).**
+  ### Audit (read from code before writing anything)
+  - NO witch existed: zero hits for "witch" in the whole tree. NO
+    splash potion existed either: v20 shipped drinkable potions only
+    (no throwable use for the item, no splash/area effect).
+  - Everything the witch needed already existed: the v20 potion
+    effects on `Mob` (poison/slowness/weakness/harming timers,
+    `PotionItem::applyEffect` — but it took a `Player*`, so the
+    splash path needed a `Mob*` version, see below); the v21
+    ghast/blaze ranged pattern (old-AI `checkHurtTarget`, one aimed
+    projectile every 3 s — the skeleton's arrow pattern is the same
+    shape); `Throwable` (block + entity hit detection, gravity,
+    save/load hooks — `Fireball` is the precedent); the v23
+    `VillageFeature` structure pattern (deterministic grid-cell
+    placement + clipped per-chunk writes + `ensureVillagers` top-up
+    from `ChunkCache`, reused for the hut); a swamp biome
+    (`Biome::swampland` exists and is reachable from the biome map);
+    the `MobTypes` 43 + `EntityTypes` 86 ids free; `random.glass`
+    registered (splash sound); `Level::getEntitiesOfType` for the
+    hut-witch top-up.
+  - Two audit findings that shaped the design: (1) the witch's
+    "keep your distance" AI cannot touch `PathfinderMob::path`
+    (private) — the public `isPathFinding()` / `setPath()` pair is
+    the way in (caught by the local build, not by review); (2) there
+    is NO cauldron tile in this tree (v20 debt), so the hut ships
+    without a cauldron.
+  ### What shipped
+  - **Witch** (`MobTypes` 43, `ER_WITCH_RENDERER`): `Monster`,
+    0.6x1.95, 26 HP (modern MC), no melee (attackDamage 0), does
+    NOT burn in daylight (modern MC), humanoid model + drawn
+    `mob/witch.png` (64x32, purple robe / green skin / dark hat,
+    recolored from the villager texture). Night spawn via `Biome`
+    enemies (weight 1, always alone, like the enderman). Drops
+    0-2 sticks + 1/3 spider eye, 1/4 sugar, 1/4 glowstone dust,
+    1/8 glass bottle; 5 XP on kill. Sounds are `mob.witch` —
+    unregistered, so silent, same as the villager/enderman
+    precedent. Registered in `MobFactory` (save/load works via
+    `EntityFactory::loadEntity`, type id 43 < 64) and in
+    `EntityRenderDispatcher`.
+  - **Witch AI** (`Witch::checkHurtTarget`, skeleton/ghasts
+    pattern): within 16 blocks it throws one potion every 3 s and
+    faces the target; at 6-16 blocks it holds ground and throws;
+    closer than 6 blocks it plots an away-path (only when not
+    already pathfinding) and backs off, so it keeps ~10 blocks
+    like the modern witch. Potion choice: harming if the target
+    has <= 8 HP, otherwise poison / slowness / weakness / harming
+    at random, skipping an effect the target already has.
+  - **Self-heal:** when hurt to <= 12 HP it drinks a healing
+    potion (heal 4, `random.drink` sound) with a 10 s cooldown, so
+    it cannot out-heal the player forever.
+  - **Splash potions, real** (`ThrownPotion`, `EntityTypes::
+    IdThrownPotion` 86, `ER_THROWN_POTION_RENDERER`): a `Throwable`
+    with a slight arc (gravity 0.05) that SPLASHES on hitting a
+    block or an entity — every mob within 3 blocks of the impact
+    gets the effect via `PotionItem::applyEffect` (now taking a
+    `Mob*` instead of a `Player*`; drinking is unchanged, a
+    `Player*` converts implicitly). A potion landing at the
+    player's feet still poisons them; the thrower is never
+    splashed by its own potion. Glass-break sound + splash
+    particles on impact. The potion aux is saved/loaded
+    (`PotionAux` byte), and the renderer shows the bottle icon
+    for the actual aux (poison looks like poison, harming like
+    harming — `gui/items.png` row 12, one cell per aux).
+  - **Swamp hut** (`SwampHutFeature`, new): one hut per 16x16-chunk
+    grid cell at a jittered chunk (same deterministic splitmix64
+    pattern as villages, different salt), swampland only, ground
+    height >= 62. 7x5 planks on log stilts (floor = ground + 3,
+    per-corner stilts reach the local lakebed), log corners +
+    plank walls, doorway on the south wall, glass window on the
+    north, plank roof with 1-block overhang, workbench inside.
+    Placed LAST in `RandomLevelSource::postProcess` after villages
+    (different biomes, so they never overlap). One witch lives in
+    each hut (`ensureWitch`, same top-up pattern as
+    `ensureVillagers`, hooked at both `ChunkCache` call sites).
+  - Version bump 23 -> 24 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,158,920 B / armv7 8,744,836 B, new symbols confirmed
+    (`Witch`, `ThrownPotion`, `SwampHutFeature`, `mob/witch.png`).
+    Two real bugs caught by the local build: `PathfinderMob::path`
+    is private (fixed via `isPathFinding`/`setPath`), and
+    `ThrownPotion.cpp` included `CompoundTag.h` at the wrong
+    relative depth.
+  ### Known limits / debts
+  - NO cauldron in the hut (no cauldron tile exists in this tree —
+    the v20 debt stands; the hut has a workbench instead).
+  - No player-throwable splash potions: the witch throws them, but
+    the player cannot throw a potion yet (no throwable use for
+    `PotionItem` — that is the natural follow-up, see "Next").
+  - The hut witch tops up to 1 when the hut chunk reloads
+    (deliberate, same as villagers) and can wander away from the
+    hut by day (no "stay home" goal exists in this tree).
+  - Witch sounds are silent (no audio files; same call as the
+    enderman in v19). The witch has no nose/wart model detail
+    (humanoid model only — the hat is painted into the texture).
+  - All of it is build-only until a live test on device (night:
+    find a witch, check it keeps its distance and throws potions
+    — poison/slowness/harming must be felt — check its drops and
+    its self-heal; swamp: find a hut, check stilts/floor/roof/
+    workbench and the witch inside; no crash).
+
+## Next (v24)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
   walk session on the realme 8, memory flat, FPS within ~10% of v14
@@ -1297,16 +1398,23 @@ Each version is ONE coherent batch of features, shipped as a new APK
 - **Device verification for villages + trading (v23's open item).**
   See the v23 test list above. The v22 APK stays the fallback
   until this stage passes.
-- **v23 — Villages + trading.** SHIPPED (see "Done").
+- **Device verification for the witch + swamp hut (v24's open item).**
+  See the v24 test list above. The v23 APK stays the fallback
+  until this stage passes.
+- **v24 — Witch + splash potions + swamp hut.** SHIPPED (see "Done").
 
 ## Queued (priority order — re-evaluate after each version)
 
-- **Witch — AFTER brewing.** Re-prioritised 2026-11-08: a
-  witch without potions (brewing does not exist yet) would just be
-  another melee mob, so its value is small; graphics polish (v13)
-  is visible in every screenshot the user takes and is low risk, so
-  it shipped first. The witch fits the AI framework (GoalSelector
-  exists) and ships once brewing gives it potions to throw.
+- **Witch — AFTER brewing.** SHIPPED as v24 (see "Done").
+- **Player-throwable splash potions (new, v24 follow-up).** The
+  witch throws them, but the player still cannot: give
+  `PotionItem` a throwable use (tap to throw a `ThrownPotion`
+  with the held potion's aux, consuming the bottle) — the whole
+  splash path already exists, this is only the throw action +
+  inventory handling.
+- **Cauldron tile (v20/v24 debt).** The swamp hut has no cauldron
+  because no cauldron tile exists; add one (water-level block the
+  player can fill bottles from) and put it in the hut.
 - **v22 — The End.** SHIPPED (see "Done").
 - **v23 — Villages + trading.** SHIPPED (see "Done").
 - **Night spawning live test (from old v8 scope).** Drops are done (v7);

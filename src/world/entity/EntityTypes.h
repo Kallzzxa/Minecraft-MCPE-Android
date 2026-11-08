@@ -32,6 +32,8 @@ public:
 	static const int IdPainting = 83;
 	static const int IdExperienceOrb = 84;
 	static const int IdFireball = 85;
+	// v24: thrown splash potion.
+	static const int IdThrownPotion = 86;
 };
 
 // For now; mobs 0-63
@@ -60,6 +62,8 @@ public:
 	static const int EnderDragon	= 41;
 	// v23: villager (passive, lives in villages, opens trading).
 	static const int Villager	= 42;
+	// v24: witch (ranged, throws splash potions; lives in swamp huts).
+	static const int Witch		= 43;
 };
 
 struct ParticleType {

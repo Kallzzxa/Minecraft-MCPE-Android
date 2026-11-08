@@ -555,6 +555,7 @@ entity.Blaze.name=Blaze
 entity.LavaSlime.name=Magma Cube
 entity.MushroomCow.name=Mooshroom
 entity.Villager.name=Villager
+entity.Witch.name=Witch
 entity.VillagerGolem.name=Iron Golem
 entity.SnowMan.name=Snow Golem
 entity.EnderDragon.name=Ender Dragon

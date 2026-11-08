@@ -100,34 +100,34 @@ public:
 		}
 	}
 
-	static void applyEffect(int aux, Player* player) {
+	static void applyEffect(int aux, Mob* mob) {
 		switch (aux) {
 			case HEALING: // instant health I: +4 HP
-				player->heal(4);
+				mob->heal(4);
 				break;
 			case HARMING: // instant damage I: 6 HP
-				player->hurt(NULL, 6);
+				mob->hurt(NULL, 6);
 				break;
 			case SWIFTNESS:
-				player->speedEffectTicks = DURATION_LONG;
+				mob->speedEffectTicks = DURATION_LONG;
 				break;
 			case STRENGTH:
-				player->strengthEffectTicks = DURATION_LONG;
+				mob->strengthEffectTicks = DURATION_LONG;
 				break;
 			case FIRE_RESISTANCE:
-				player->fireResistanceEffectTicks = DURATION_LONG;
+				mob->fireResistanceEffectTicks = DURATION_LONG;
 				break;
 			case REGENERATION:
-				player->regenerationEffectTicks = DURATION_SHORT;
+				mob->regenerationEffectTicks = DURATION_SHORT;
 				break;
 			case POISON:
-				player->poisonEffectTicks = DURATION_SHORT;
+				mob->poisonEffectTicks = DURATION_SHORT;
 				break;
 			case WEAKNESS:
-				player->weaknessEffectTicks = DURATION_MEDIUM;
+				mob->weaknessEffectTicks = DURATION_MEDIUM;
 				break;
 			case SLOWNESS:
-				player->slownessEffectTicks = DURATION_MEDIUM;
+				mob->slownessEffectTicks = DURATION_MEDIUM;
 				break;
 			default:
 				break; // water / awkward: no effect

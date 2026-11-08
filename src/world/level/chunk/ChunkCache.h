@@ -26,6 +26,7 @@
 #include "../LevelConstants.h"
 #include "../ChunkPos.h"
 #include "../levelgen/VillageFeature.h"
+#include "../levelgen/SwampHutFeature.h"
 #include "../tile/entity/TileEntity.h"
 
 class ChunkCache: public ChunkSource {
@@ -170,6 +171,8 @@ public:
             // re-runs). ensureVillagers itself refuses to spawn until
             // this chunk's terrain is populated.
             VillageFeature::ensureVillagers(level, x, z);
+            // v24: same top-up for a swamp hut's witch.
+            SwampHutFeature::ensureWitch(level, x, z);
 
             xLast = x;
             zLast = z;
@@ -201,6 +204,8 @@ public:
                 // without neighbours) — top up this chunk's villagers
                 // now that its terrain (and village) exists.
                 VillageFeature::ensureVillagers(level, x, z);
+                // v24: same top-up for a swamp hut's witch.
+                SwampHutFeature::ensureWitch(level, x, z);
             }
         }
     }

@@ -177,9 +177,11 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/entity/monster/Skeleton.cpp \
 ../../../../src/world/entity/monster/Slime.cpp \
 ../../../../src/world/entity/monster/Spider.cpp \
+../../../../src/world/entity/monster/Witch.cpp \
 ../../../../src/world/entity/monster/Zombie.cpp \
 ../../../../src/world/entity/projectile/Arrow.cpp \
 ../../../../src/world/entity/projectile/Fireball.cpp \
+../../../../src/world/entity/projectile/ThrownPotion.cpp \
 ../../../../src/world/entity/projectile/Throwable.cpp \
 ../../../../src/world/entity/player/Inventory.cpp \
 ../../../../src/world/entity/player/Player.cpp \
@@ -226,6 +228,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/level/levelgen/LargeFeature.cpp \
 ../../../../src/world/level/levelgen/RandomLevelSource.cpp \
 ../../../../src/world/level/levelgen/VillageFeature.cpp \
+../../../../src/world/level/levelgen/SwampHutFeature.cpp \
 ../../../../src/world/level/levelgen/NetherLevelSource.cpp \
 ../../../../src/world/level/levelgen/EndLevelSource.cpp \
 ../../../../src/world/level/levelgen/feature/Feature.cpp \

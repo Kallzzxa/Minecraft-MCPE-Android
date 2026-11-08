@@ -2,6 +2,7 @@
 
 #include "feature/FeatureInclude.h"
 #include "VillageFeature.h"
+#include "SwampHutFeature.h"
 #include "../Level.h"
 #include "../ChunkPos.h"
 #include "../MobSpawner.h"
@@ -480,6 +481,10 @@ void RandomLevelSource::postProcess(ChunkSource* parent, int xt, int zt) {
 	// v23: villages, LAST so houses overwrite any trees/flowers inside
 	// the village footprint (flattening + houses + well + farms).
 	VillageFeature::tryPlaceVillage(level, xt, zt);
+
+	// v24: swamp huts, after villages (same postProcess slot; a hut
+	// never overlaps a village — different biomes).
+	SwampHutFeature::tryPlaceSwampHut(level, xt, zt);
 
     HeavyTile::instaFall = false;
 
