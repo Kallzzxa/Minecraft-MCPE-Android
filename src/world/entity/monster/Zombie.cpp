@@ -98,21 +98,11 @@ std::string Zombie::getDeathSound() {
 }
 
 int Zombie::getDeathLoot() {
-	return 0; //@todo
-	//return Item::rotten_flesh->id;
+	return Item::rotten_flesh->id;
 }
 
 bool Zombie::useNewAi() {
 	return _useNewAi;
-}
-
-void Zombie::die( Entity* source ) {
-	super::die(source);
-	if(!level->isClientSide) {
-		if(random.nextInt(4) == 0) {
-			spawnAtLocation(Item::feather->id, random.nextInt(1) + 1);
-		}
-	}	
 }
 
 int Zombie::getAttackDamage( Entity* target ) {

@@ -149,6 +149,7 @@ Item* Item::chicken_raw = NULL;
 Item* Item::chicken_cooked = NULL;
 Item* Item::mutton_raw = NULL;
 Item* Item::mutton_cooked = NULL;
+Item* Item::rotten_flesh = NULL;
 
 Item* Item::netherbrick = NULL;
 Item* Item::netherQuartz = NULL;
@@ -283,6 +284,11 @@ void Item::initItems() {
 	Item::chicken_cooked = (new FoodItem(110, 6, /*FoodConstants.FOOD_SATURATION_NORMAL,*/ true))->setIcon(10, 7)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("chickenCooked");
 	Item::mutton_raw = (new FoodItem(168, 2, true))->setIcon(7, 7)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("muttonRaw");
 	Item::mutton_cooked = (new FoodItem(169, 6, true))->setIcon(8, 7)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("muttonCooked");
+	// v7: rotten flesh (zombie drop). FoodItem(170, 4, true): +4 hunger like
+	// modern MC. No hunger status effect exists in this tree yet
+	// (FoodItem::setEatEffect is commented out), so it has no downside.
+	// Icon drawn into gui/items.png cell (6, 7); lang name already existed.
+	Item::rotten_flesh = (new FoodItem(170, 4, true))->setIcon(6, 7)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("rottenFlesh");
 
 	Item::netherbrick = (new Item(149))->setIcon(5, 9)->setDescriptionId("netherbrickItem")->setCategory(ItemCategory::Structures);
 	Item::netherQuartz = (new Item(150))->setIcon(5, 10)->setDescriptionId("netherquartz")->setCategory(ItemCategory::Mechanisms);

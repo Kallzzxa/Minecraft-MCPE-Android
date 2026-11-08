@@ -34,21 +34,29 @@ Each version is ONE coherent batch of features, shipped as a new APK
   activity-based hunger (exhaustion: walk 0.01/block, sprint 0.1/block,
   jump 0.05/jump; 4.0 = 1 hunger point); regen verified live
   (Player::tick → foodData.tick in single-player).
+- **v7 — Hostile mob drops (FALLBACK for boats, see "Skipped / blocked").**
+  Zombie drops rotten flesh (new FoodItem id 170, +4 hunger, icon drawn
+  into `gui/items.png` cell (6, 7), lang `item.rottenFlesh.name` already
+  existed); the zombie's legacy feather drop was removed. Creeper
+  gunpowder (`Item::sulphur`, id 33) and spider string (`Item::string`,
+  id 31) were ALREADY wired via `Mob::dropDeathLoot` → `getDeathLoot`
+  (0–2 each) — verified by code inspection, no change needed. Caveats:
+  no hunger status-effect system exists yet, so rotten flesh has no
+  80%-hunger downside (modern MC has one); a creeper that explodes
+  drops nothing (it `remove()`s instead of dying — matches modern MC).
 
-## Next (v7)
+## Next (v8)
 
-- **v7 — Boats.** `BoatItem` is commented out in `Item.cpp`
-  (`//Item::boat = ...`); investigate why, re-enable it, make boats
-  float/drive on water. Fallback if the boat entity is missing/broken
-  beyond reasonable repair: hostile mob drops (v8 scope) instead, and
-  record the blocker here.
+- **v7 — DONE (fallback: hostile mob drops, see "Done").** Boats were
+  investigated and blocked (see below); v8 drops shipped in their place.
 
 ## Queued (priority order — re-evaluate after each version)
 
-- **v8 — Hostile mob drops + night spawning.** Zombie/creeper drops are
-  missing (skeleton already drops arrows + bones; spider's drop is
-  commented out). New items as needed: rotten flesh, gunpowder, string.
-  Verify hostile mobs actually spawn at night (`Level::spawnMobs`).
+- **v8 — Night spawning verification + spider eye.** Drops are done (v7);
+  what remains is verifying hostile mobs actually spawn at night
+  (`Level::spawnMobs` / `MobSpawner::tick` runs when `_spawnEnemies` and
+  difficulty > peaceful — code exists, needs a live night test on device).
+  Optional: spider eye drop (its `dropDeathLoot` is commented out).
 - **v9 — XP orbs + levels + HUD.** No XP system exists yet
   (no `ExperienceOrb` in the tree). Orbs on mob kill, level bar, level
   number. Enchanting comes later.
@@ -77,6 +85,18 @@ Each version is ONE coherent batch of features, shipped as a new APK
 
 ## Skipped / blocked
 
+- **Boats (v7 scope, investigated 2026-11-08, NOT feasible in one batch).**
+  Only residue exists in the tree: commented-out `Item::boat` declaration
+  + registration (`Item.cpp`, id 77, `BoatItem` class) and a commented-out
+  crafting recipe (`Recipes.cpp`). There is NO `Boat` entity class, NO
+  `BoatItem` class, NO vehicle directory, NO boat model/renderer
+  (`EntityRendererId` has no boat entry), and NO riding system at all in
+  `Entity` — only a vestigial `Model::riding` bool that `MobRenderer`
+  hardcodes to `false` (`//mob.isRiding()`). The minecart is commented
+  out the same way. Shipping a usable boat would mean writing a vehicle
+  system from scratch (entity + water physics + model/renderer + riding
+  + player controls + item + recipe) — a multi-version effort, not a
+  v-batch. v7 shipped the v8 fallback (hostile mob drops) instead.
 - (none yet — fill in as versions prove things out)
 - **Infinite world** — not feasible: fixed `CHUNK_CACHE_WIDTH` chunk
   cache; max sane size is 512×512 today (1024 pending measurement).

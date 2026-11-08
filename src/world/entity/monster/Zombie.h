@@ -22,7 +22,6 @@ public:
     void aiStep();
 	virtual int getEntityTypeId() const;
 	void setUseNewAi(bool use);
-	virtual void die(Entity* source);
 	virtual int getAttackDamage(Entity* target);
 protected:
 	/*@Override*/
