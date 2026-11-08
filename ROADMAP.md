@@ -1961,10 +1961,13 @@ Each version is ONE coherent batch of features, shipped as a new APK
     `PathfinderMob::updateAi()` (U); `EndCrystalRenderer.o`
     references `EntityRenderDispatcher::xOff`, `glBlendFunc` and
     `Mth::sqrt` — all three only exist in the new beam code.
-    CI `./gradlew assembleDebug` SUCCESS (run TBD, ~XmXXs); APK
-    `minecraft-mcpe-android-0.6.1-debug-v29.apk` TBD B, sha256
-    TBD, versionCode 29, `apksigner verify` v1+v2 true,
-    `unzip -t` clean.
+    CI `./gradlew assembleDebug` SUCCESS (run 42533524632, ~3m20s);
+    APK `minecraft-mcpe-android-0.6.1-debug-v29.apk`
+    12,910,194 B, sha256 b77f6aea…96f7d7a3cb, versionCode 29,
+    `apksigner verify` v1+v2 true, `unzip -t` clean; the APK
+    itself was re-checked to contain the new symbols in its
+    `libminecraftpe.so` (arm64 10,183,496 B / armv7 8,757,124 B —
+    byte-identical sizes to the local build).
   ### Known limits / debts
   - The beam is continuous while the dragon is in range, NOT
     one flash per heal tick (a single-frame beam would be
