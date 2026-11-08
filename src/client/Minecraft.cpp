@@ -20,6 +20,8 @@
 #include "../world/level/storage/ExternalFileLevelStorage.h"
 #include "../world/level/storage/FolderMethods.h"
 #include "../world/level/dimension/NetherDimension.h"
+#include "../world/level/dimension/EndDimension.h"
+#include "../world/entity/monster/EnderDragon.h"
 #include "../world/level/tile/FireTile.h"
 #include "player/input/KeyboardInput.h"
 #ifndef STANDALONE_SERVER
@@ -142,12 +144,16 @@ Minecraft::Minecraft()
 	level(NULL),
 	overworldLevel(NULL),
 	netherLevel(NULL),
+	endLevel(NULL),
 	pendingDimensionSwitch(false),
 	pendingDimension(0),
 	hasReturnPos(false),
 	returnX(0), returnY(0), returnZ(0),
 	portalCooldownTicks(0),
 	pendingPortalBuild(false),
+	pendingEndDragon(false),
+	pendingRespawnAfterSwitch(false),
+	ticksSincePlayerPersist(0),
 	player(NULL),
 	cameraTargetPlayer(NULL),
 	levelRenderer(NULL),
@@ -252,6 +258,7 @@ Minecraft::~Minecraft()
 		// v21: the inactive dimension level is owned here too.
 		if (deletedLevel == overworldLevel) overworldLevel = NULL;
 		if (deletedLevel == netherLevel) netherLevel = NULL;
+		if (deletedLevel == endLevel) endLevel = NULL;
 	}
 	if (overworldLevel != NULL) {
 		delete overworldLevel->getLevelStorage();
@@ -262,6 +269,11 @@ Minecraft::~Minecraft()
 		delete netherLevel->getLevelStorage();
 		delete netherLevel;
 		netherLevel = NULL;
+	}
+	if (endLevel != NULL) {
+		delete endLevel->getLevelStorage();
+		delete endLevel;
+		endLevel = NULL;
 	}
 
 	//delete player;
@@ -296,8 +308,17 @@ void Minecraft::selectLevel( const std::string& levelId, const std::string& leve
 	setLevel(level, "Generating level");
 	// v21: this is the overworld level; the Nether level is created
 	// on first entry and tracked separately (see changeDimension).
+	// v22: same for the End level.
 	overworldLevel = level;
 	netherLevel = NULL;
+	endLevel = NULL;
+	// v22: grace period after loading: a player reloaded while
+	// standing inside a portal (e.g. quit in the End, saved at the
+	// return position inside the end portal frame) must NOT be
+	// bounced straight back through it — the enter-only detection
+	// in LocalPlayer::tick needs a few seconds to latch
+	// _wasInPortal/_wasInEndPortal first.
+	portalCooldownTicks = 100;
 	currentLevelId = levelId;
 	setIsCreativeMode(level->getLevelData()->getGameType() == GameType::Creative);
 	_running = true;
@@ -349,22 +370,25 @@ void Minecraft::setLevel(Level* level, const std::string& message /* ="" */, Loc
 }
 
 // ------------------------------------------------------------------
-// v21: Nether dimension switching.
+// v21: Nether dimension switching. v22: generalised to the End.
 //
-// Design: the world keeps TWO Level objects alive for the session —
-// the overworld (created by selectLevel) and the Nether (created on
-// first entry, storage <world>/DIM-1). The player object is reused:
-// it is detached from the old level (Level::detachEntity, which does
-// NOT set removed=true — removeEntity would freeze the player
-// forever) and re-added to the new one by setLevel. Coordinates
-// scale 1:8 like modern MC. A switch is never run inside a level
-// tick: LocalPlayer::tick only sets a pending flag, and
+// Design: the world keeps up to THREE Level objects alive for the
+// session — the overworld (created by selectLevel), the Nether
+// (created on first entry, storage <world>/DIM-1) and the End
+// (created on first entry, storage <world>/DIM1). The player object
+// is reused: it is detached from the old level (Level::
+// detachEntity, which does NOT set removed=true — removeEntity
+// would freeze the player forever) and re-added to the new one by
+// setLevel. Nether coordinates scale 1:8 like modern MC; the End
+// arrival is always the island centre. A switch is never run inside
+// a level tick: LocalPlayer::tick only sets a pending flag, and
 // Minecraft::tick() performs the switch between level ticks, when
-// isGeneratingLevel is false. The Nether storage never writes a
+// isGeneratingLevel is false. The dimension storages never write a
 // Player compound (see
 // ExternalFileLevelStorage::setOmitPlayerFromLevelDat), so the live
-// player state always belongs to the overworld tag — leaveGame()
-// merges it back when quitting from the Nether.
+// player state always belongs to the overworld tag —
+// persistPlayerToOverworld() writes it there on every entry, every
+// 60 s in-tick, and on quit (leaveGame()).
 // ------------------------------------------------------------------
 void Minecraft::toggleDimension() {
 	if (level == NULL || overworldLevel == NULL) return;
@@ -379,8 +403,13 @@ void Minecraft::requestDimensionChange(int targetDimension) {
 	if (isGeneratingLevel) return;
 	if (portalCooldownTicks > 0) return;
 	if (targetDimension == level->dimension->id) return;
-	if (targetDimension == Dimension::NETHER && overworldLevel == NULL) return;
-	if (targetDimension != Dimension::NETHER && netherLevel != level) return;
+	// v22: generalised from the v21 Nether-only guards. Going TO a
+	// dimension needs the overworld to exist; coming BACK needs the
+	// player to actually be in a non-overworld dimension.
+	if ((targetDimension == Dimension::NETHER || targetDimension == Dimension::THE_END)
+			&& overworldLevel == NULL) return;
+	if (targetDimension != Dimension::NETHER && targetDimension != Dimension::THE_END
+			&& level != netherLevel && level != endLevel) return;
 	pendingDimension = targetDimension;
 	pendingDimensionSwitch = true;
 }
@@ -410,6 +439,31 @@ void Minecraft::changeDimension(int targetDimension) {
 		player->setPos(nx + 0.5f, 70.0f, nz + 0.5f);
 		pendingPortalBuild = true;
 		setLevel(nether, "Entering the Nether", player);
+		// v22: crash safety (see the End branch below) — same
+		// one-line benefit for the Nether, pays the v21 debt.
+		persistPlayerToOverworld();
+	} else if (targetDimension == Dimension::THE_END) {
+		// v22: remember where to come back to (exact portal spot).
+		// Unlike the Nether there is NO coordinate scale: the End
+		// arrival is always the island centre, on the spawn
+		// platform (0.5, 67, 0.5). No portal is built on arrival —
+		// the platform is part of the generated terrain.
+		returnX = player->x; returnY = player->y; returnZ = player->z;
+		hasReturnPos = true;
+		Level* end = getOrCreateEndLevel();
+		if (end == NULL) return;
+		fromLevel->detachEntity(player);
+		player->setLevel(end);
+		player->dimension = Dimension::THE_END;
+		player->setPos(0.5f, 67.0f, 0.5f);
+		pendingPortalBuild = false;
+		pendingEndDragon = true;
+		setLevel(end, "Entering the End", player);
+		// v22: crash safety — the live player (with whatever it
+		// carried into the End) is now only in the End level's
+		// memory. Write it into the overworld tag at the return
+		// position right away, so a crash in the End keeps it.
+		persistPlayerToOverworld();
 	} else {
 		// Back to the overworld, at the stored return position.
 		float dx = hasReturnPos ? returnX : (float)overworldLevel->getLevelData()->getXSpawn();
@@ -419,7 +473,12 @@ void Minecraft::changeDimension(int targetDimension) {
 		player->setLevel(overworldLevel);
 		player->dimension = overworldLevel->dimension->id;
 		player->setPos(dx, dy, dz);
-		pendingPortalBuild = true;
+		// v22: only a Nether return needs a destination portal
+		// (found or built). An End return lands exactly on the
+		// stored return position — the end portal frame the player
+		// came through — and must NOT get a Nether portal built
+		// next to it.
+		pendingPortalBuild = (fromLevel == netherLevel);
 		setLevel(overworldLevel, "Leaving the Nether", player);
 	}
 	portalCooldownTicks = 100;  // 5 seconds
@@ -469,6 +528,95 @@ Level* Minecraft::getOrCreateNetherLevel(int nx, int nz) {
 	netherLevel->getLevelData()->setDimension(Dimension::NETHER);
 	netherLevel->getLevelData()->setSpawn(nx, 70, nz);
 	return netherLevel;
+}
+
+Level* Minecraft::getOrCreateEndLevel() {
+	if (endLevel != NULL) {
+		return endLevel;
+	}
+
+	ExternalFileLevelStorage* owStorage = (ExternalFileLevelStorage*)overworldLevel->getLevelStorage();
+	std::string dimPath = owStorage->getLevelPath() + "/DIM1";
+
+	// Pre-seed DIM1/level.dat so the End level is NOT new:
+	// prepareLevel then generates around the stored spawn (the
+	// island centre) instead of calling setInitialSpawn (which
+	// would wander the spawn to (256,64,256)). Same seed/gameType
+	// as the overworld. Same pattern as getOrCreateNetherLevel.
+	createFolderIfNotExists(dimPath.c_str());
+	{
+		FILE* f = fopen((dimPath + "/level.dat").c_str(), "rb");
+		if (f == NULL) {
+			LevelData data(
+				LevelSettings(overworldLevel->getSeed(), overworldLevel->getLevelData()->getGameType()),
+				overworldLevel->getLevelData()->getLevelName() + " The End",
+				SharedConstants::GeneratorVersion);
+			data.setSpawn(0, 67, 0);
+			data.setDimension(Dimension::THE_END);
+			ExternalFileLevelStorage::saveLevelData(dimPath, data, NULL);
+		} else {
+			fclose(f);
+		}
+	}
+
+	ExternalFileLevelStorage* storage = new ExternalFileLevelStorage(currentLevelId + "_end", dimPath);
+	storage->setOmitPlayerFromLevelDat(true);
+	LevelSettings settings(overworldLevel->getSeed(), overworldLevel->getLevelData()->getGameType());
+	endLevel = new ServerLevel(
+		storage,
+		overworldLevel->getLevelData()->getLevelName(),
+		settings,
+		SharedConstants::GeneratorVersion,
+		new EndDimension());
+	endLevel->getLevelData()->setDimension(Dimension::THE_END);
+	endLevel->getLevelData()->setSpawn(0, 67, 0);
+	return endLevel;
+}
+
+void Minecraft::ensureEndDragon() {
+	if (endLevel == NULL || level != endLevel || player == NULL) return;
+	// Already defeated: the exit portal exists at the platform
+	// centre. Never respawn the dragon in this world again.
+	if (level->getTile(0, EndLevelSource::EXIT_PORTAL_Y, 0) == Tile::endPortal->id) return;
+	// Already alive: don't spawn a second one (e.g. re-entering
+	// mid-fight after a quit — the live level keeps its dragon).
+	for (unsigned int i = 0; i < level->entities.size(); i++) {
+		if (level->entities[i] != NULL
+				&& level->entities[i]->getEntityTypeId() == MobTypes::EnderDragon) {
+			return;
+		}
+	}
+	EnderDragon* dragon = new EnderDragon(level);
+	dragon->setPos(0.5f, 82.0f, 0.5f);
+	level->addEntity(dragon);
+}
+
+void Minecraft::persistPlayerToOverworld() {
+	// Only meaningful while the player is in another dimension:
+	// the overworld tag is the one the next load reads.
+	if (level == NULL || level->dimension == NULL
+			|| overworldLevel == NULL || player == NULL
+			|| level->dimension->id == overworldLevel->dimension->id) {
+		return;
+	}
+	float sx = player->x, sy = player->y, sz = player->z;
+	int sdim = player->dimension;
+	if (hasReturnPos) player->setPos(returnX, returnY, returnZ);
+	player->dimension = overworldLevel->dimension->id;
+	bool inPlayers = false;
+	for (unsigned int i = 0; i < overworldLevel->players.size(); i++) {
+		if (overworldLevel->players[i] == player) { inPlayers = true; break; }
+	}
+	if (!inPlayers) overworldLevel->players.push_back(player);
+	overworldLevel->saveLevelData();
+	for (unsigned int i = 0; i < overworldLevel->players.size(); i++) {
+		if (overworldLevel->players[i] == player) {
+			overworldLevel->players.erase(overworldLevel->players.begin() + i);
+			break;
+		}
+	}
+	player->setPos(sx, sy, sz);
+	player->dimension = sdim;
 }
 
 void Minecraft::findOrCreatePortal(float px, float py, float pz) {
@@ -581,35 +729,18 @@ void Minecraft::leaveGame(bool renameLevel /*=false*/)
 	delete netCallback;
 	netCallback = NULL;
 
-	// v21: if quitting from the Nether, the live player state (pos,
-	// inventory, XP — including Nether loot) only exists in the
-	// Nether level's memory; the overworld level.dat still holds the
-	// pre-trip tag, and the Nether storage deliberately never writes
-	// a Player compound. Write the live player into the overworld
-	// tag at the return position before deleting anything, or the
-	// loot would be lost on the next load.
-	if (level != NULL && level->dimension != NULL
-		&& level->dimension->id == Dimension::NETHER
-		&& overworldLevel != NULL && player != NULL) {
-		float sx = player->x, sy = player->y, sz = player->z;
-		int sdim = player->dimension;
-		if (hasReturnPos) player->setPos(returnX, returnY, returnZ);
-		player->dimension = overworldLevel->dimension->id;
-		bool inPlayers = false;
-		for (unsigned int i = 0; i < overworldLevel->players.size(); i++) {
-			if (overworldLevel->players[i] == player) { inPlayers = true; break; }
-		}
-		if (!inPlayers) overworldLevel->players.push_back(player);
-		overworldLevel->saveLevelData();
-		for (unsigned int i = 0; i < overworldLevel->players.size(); i++) {
-			if (overworldLevel->players[i] == player) {
-				overworldLevel->players.erase(overworldLevel->players.begin() + i);
-				break;
-			}
-		}
-		player->setPos(sx, sy, sz);
-		player->dimension = sdim;
-	}
+	// v22: if quitting from the Nether OR the End, the live player
+	// state (pos, inventory, XP — including dimension loot) only
+	// exists in that level's memory; the overworld level.dat still
+	// holds the pre-trip tag, and the dimension storages
+	// deliberately never write a Player compound. Write the live
+	// player into the overworld tag at the return position before
+	// deleting anything, or the loot would be lost on the next load.
+	// (v21 had this inline for the Nether only; it is now the
+	// shared persistPlayerToOverworld, also called on every
+	// dimension entry and every 60 s in-tick, so a crash — not just
+	// a clean quit — keeps the loot.)
+	persistPlayerToOverworld();
 
 	LOGI("Erasing level\n");
 	if (level != NULL) {
@@ -620,6 +751,7 @@ void Minecraft::leaveGame(bool renameLevel /*=false*/)
 		// v21: the inactive dimension level is owned here too.
 		if (deletedLevel == overworldLevel) overworldLevel = NULL;
 		if (deletedLevel == netherLevel) netherLevel = NULL;
+		if (deletedLevel == endLevel) endLevel = NULL;
 	}
 	if (overworldLevel != NULL) {
 		delete overworldLevel->getLevelStorage();
@@ -630,6 +762,11 @@ void Minecraft::leaveGame(bool renameLevel /*=false*/)
 		delete netherLevel->getLevelStorage();
 		delete netherLevel;
 		netherLevel = NULL;
+	}
+	if (endLevel != NULL) {
+		delete endLevel->getLevelStorage();
+		delete endLevel;
+		endLevel = NULL;
 	}
 	//delete player;
 	player = NULL;
@@ -868,6 +1005,15 @@ void Minecraft::tick(int nTick, int maxTick) {
 		return;
 	}
 	if (portalCooldownTicks > 0) portalCooldownTicks--;
+
+	// v22: crash safety — while the player is in the Nether or the
+	// End, rewrite the live player into the overworld tag every 60 s
+	// (1200 ticks), so a crash loses at most a minute of dimension
+	// loot. persistPlayerToOverworld is a no-op in the overworld.
+	if (++ticksSincePlayerPersist >= 1200) {
+		ticksSincePlayerPersist = 0;
+		persistPlayerToOverworld();
+	}
 
 	//
 	// Normal game loop, run before or efter level generation
@@ -1745,6 +1891,22 @@ void Minecraft::_levelGenerated()
 		findOrCreatePortal(player->x, player->y, player->z);
 	}
 
+	// v22: after entering the End, spawn the dragon (once per world
+	// — see ensureEndDragon) once generation has finished and the
+	// island actually exists.
+	if (pendingEndDragon && player) {
+		pendingEndDragon = false;
+		ensureEndDragon();
+	}
+
+	// v22: the player died in the Nether/End and asked to respawn;
+	// the switch back to the overworld just finished generating, so
+	// the respawn itself runs now, at the overworld spawn/bed.
+	if (pendingRespawnAfterSwitch && player) {
+		pendingRespawnAfterSwitch = false;
+		resetPlayer(player);
+	}
+
 	this->cameraTargetPlayer = player;
 
 	if (raknetInstance->isServer())
@@ -1797,12 +1959,21 @@ void Minecraft::resetPlayer(Player* player) {
 }
 
 void Minecraft::respawnPlayer() {
-	// RESET THE FRACKING PLAYER HERE
-	//bool slowCheck = false;
-	//for (int i = 0; i < level->entities.size(); ++i)
-	//	if (level->entities[i] == player) slowCheck = true;
-	//
-	//LOGI("Has entity? %d, %d\n", level->getEntity(player->entityId), slowCheck);
+	// v22: dying in the Nether/End respawns the player in the
+	// OVERWORLD (modern MC), not in the dimension. The switch runs
+	// first (deferred generation); the respawn itself runs in
+	// _levelGenerated() via pendingRespawnAfterSwitch, once the
+	// overworld is live again. If the switch cannot even be
+	// requested (e.g. still generating), fall through to the old
+	// in-dimension respawn instead of stranding the player.
+	if (level != NULL && level->dimension != NULL
+			&& overworldLevel != NULL
+			&& level->dimension->id != overworldLevel->dimension->id) {
+		pendingRespawnAfterSwitch = true;
+		requestDimensionChange(overworldLevel->dimension->id);
+		if (pendingDimensionSwitch) return;
+		pendingRespawnAfterSwitch = false;
+	}
 
 	resetPlayer(player);
 

@@ -152,6 +152,12 @@ void Inventory::setupDefault() {
 		addItem(new ItemInstance(Tile::hellSand));
 		addItem(new ItemInstance(Tile::quartzOre));
 		addItem(new ItemInstance(Tile::lightGem));
+		// v22: End blocks + items.
+		addItem(new ItemInstance(Tile::endStone));
+		addItem(new ItemInstance(Tile::endPortalFrame));
+		addItem(new ItemInstance(Tile::dragonEgg));
+		addItem(new ItemInstance(Item::eyeOfEnder));
+		addItem(new ItemInstance(Item::chorusFruit));
 		addItem(new ItemInstance(Tile::stairs_stone));
 		addItem(new ItemInstance(Tile::stairs_wood));
 		Sel[6] = addItem(new ItemInstance(Tile::stairs_brick));

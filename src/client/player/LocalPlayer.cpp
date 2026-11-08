@@ -7,6 +7,7 @@
 #include "../../world/inventory/BaseContainerMenu.h"
 #include "../../world/item/BowItem.h"
 #include "../../world/level/Level.h"
+#include "../../world/level/dimension/Dimension.h"
 #include "../../world/level/tile/Tile.h"
 #include "../../world/level/tile/entity/TileEntity.h"
 #include "../../world/level/material/Material.h"
@@ -57,6 +58,7 @@ LocalPlayer::LocalPlayer(Minecraft* minecraft, Level* level, User* user, int dim
 	_prevZ(0),
 	_prevPosInit(false),
 	_wasInPortal(false),
+	_wasInEndPortal(false),
 	armorTypeHash(0)
 {
 	this->dimension = dimension;
@@ -117,6 +119,38 @@ void LocalPlayer::tick() {
 			minecraft->toggleDimension();
 		}
 		_wasInPortal = inPortal;
+
+		// v22: same for the end portal block. In the End the exit
+		// portal leads back to the overworld; in the overworld a
+		// completed end portal frame leads to the End. The
+		// overworld dimension id depends on the game type (0
+		// creative, 10 survival), so it is read off the live
+		// overworld level instead of hardcoded.
+		bool inEndPortal = level->getTile(bx, by, bz) == Tile::endPortal->id
+			|| level->getTile(bx, by + 1, bz) == Tile::endPortal->id;
+		if (inEndPortal && !_wasInEndPortal && minecraft->portalCooldownTicks <= 0) {
+			if (level->dimension->id == Dimension::THE_END) {
+				minecraft->requestDimensionChange(minecraft->overworldLevel->dimension->id);
+			} else {
+				minecraft->requestDimensionChange(Dimension::THE_END);
+			}
+		}
+		_wasInEndPortal = inEndPortal;
+
+		// v22: void damage. The End is a floating island — falling
+		// off the edge must kill the player (death screen +
+		// respawn in the overworld, see Minecraft::respawnPlayer),
+		// because Entity::baseTick just remove()s anything below
+		// y=-64, which would delete the player object with no death
+		// screen at all. -32 gives the lethal hit well before -64.
+		// In creative hurt() refuses (invulnerable): bounce the
+		// player back to the spawn platform instead of letting it
+		// fall to -64 and be remove()d.
+		if (y < -32.0f && level->dimension->id == Dimension::THE_END) {
+			if (!hurt(NULL, 1000)) {
+				setPos(0.5f, 67.0f, 0.5f);
+			}
+		}
 	}
 
 	// Hunger exhaustion from movement (v6): measure the horizontal

@@ -57,6 +57,7 @@ public:
 	static const int Enderman	= 38;
 	static const int Ghast		= 39;
 	static const int Blaze		= 40;
+	static const int EnderDragon	= 41;
 };
 
 struct ParticleType {

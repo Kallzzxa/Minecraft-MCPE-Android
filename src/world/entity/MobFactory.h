@@ -54,6 +54,9 @@ public:
 			case MobTypes::Blaze:
 				mob = new Blaze(level);
 				break;
+			case MobTypes::EnderDragon:
+				mob = new EnderDragon(level);
+				break;
 			default:
                 LOGE("Unknown mob type requested: %d\n", mobType);
                 break;

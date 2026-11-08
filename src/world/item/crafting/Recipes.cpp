@@ -531,8 +531,18 @@ Recipes::Recipes()
 	addShapelessRecipe(ItemInstance(Item::blazePowder, 2),
 		definition('B', Item::blazeRod));
 
-	//addShapelessRecipe(ItemInstance(Item::eyeOfEnder, 1), //
-	//	Item::enderPearl, Item::blazePowder);
+	// v22: eye of ender (modern MC, shapeless). The recipe was
+	// commented out in this tree since the original; the item itself
+	// never existed until now.
+	addShapelessRecipe(ItemInstance(Item::eyeOfEnder, 1),
+		definition('E', Item::ender_pearl, 'B', Item::blazePowder));
+
+	// v22: end portal frame (no stronghold in this tree, so the
+	// frame is craftable: 1 obsidian + 1 eye of ender -> 4 frames;
+	// a ring needs 12, i.e. 3 obsidian + 3 eyes).
+	addShapelessRecipe(ItemInstance(Tile::endPortalFrame, 4),
+		definition('O', Tile::obsidian, 'E', Item::eyeOfEnder));
+
 	addShapedRecipe(ItemInstance(Tile::netherReactor, 1), //
 		"X#X", //
 		"X#X", //

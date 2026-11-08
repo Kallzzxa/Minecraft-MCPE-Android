@@ -997,7 +997,163 @@ Each version is ONE coherent batch of features, shipped as a new APK
   - Multiplayer dimension switching is NOT implemented (single-player only: `requestDimensionChange` returns early on `level->isClientSide`).
   - All of it is build-only until a live test on device (build an obsidian frame, light it with flint & steel, enter, check terrain/lava/glowstone/fog, ghast/blaze spawns, return portal to the Overworld, no crash, Overworld world intact after return; quit while in the Nether and reload — loot must survive).
 
-## Next (v21)
+- **v22 — The End (SHIPPED, build-only).**
+  ### Audit (read from code before writing anything)
+  - The v21 dimension system reused cleanly: `Dimension` base +
+    `Dimension::getNew` (only NORMAL/NORMAL_DAYCYCLE/NETHER handled),
+    `Minecraft::toggleDimension` (was the Nether toggle),
+    `requestDimensionChange` / `changeDimension` (Nether-only guards),
+    `getOrCreateNetherLevel` (storage `<world>/DIM-1`, pre-seeded
+    `level.dat`, `omitPlayerFromLevelDat`), `Level::detachEntity`,
+    `findOrCreatePortal`, and the Nether `LevelSource` pattern (no
+    chunkMap, deterministic hashes). A third Level object + a third
+    storage dir was the natural extension — no new framework needed.
+  - Enderman already existed (v12: 20 HP, teleport on hurt, drops
+    0–2 ender pearls, item id 368). Ender pearl existed as an item
+    but had NO use (no throwing). Eye of ender did NOT exist as an
+    item (only a commented-out recipe in `Recipes.cpp:534`); the
+    lang string `item.eyeOfEnder.name` already existed.
+  - NO End content existed: no end stone / portal frame / portal /
+    dragon egg / chorus tile (ids 119–122 and 240 were all FREE —
+    modern MC ids, used as-is), no End dimension (id 1 free), no
+    dragon (no `MobTypes` entry, no model/renderer), no chorus.
+    `tile.dragonEgg.name` and `tile.whiteStone.name` ("End Stone")
+    already existed in `en_US.lang`.
+  - Stronghold generation does NOT exist in this tree (no structure
+    generation beyond dungeons + the Nether reactor) and is not
+    feasible in one batch. DECISION (recorded, not faked): there is
+    NO stronghold. The end portal frame is craftable instead
+    (1 obsidian + 1 eye of ender -> 4 frames); the player builds the
+    5x5 ring anywhere, taps each frame with an eye, and the 3x3
+    interior fills with the end portal tile. The eye is crafted
+    shapeless from ender pearl + blaze powder (both already in the
+    game since v12/v20).
+  - Textures: NO uniform-magenta cells were left except 30 and 153
+    (v21 used 170–173/216/217/231). Cells 14 (solid blue) and 181
+    (solid black) were verified unused as tile textures by grep
+    (no constructor / getTexture returns them) and were drawn over:
+    30 end stone, 153 frame-with-eye, 14 chorus plant (RGBA, so the
+    cross texture has a transparent background), 181 end portal
+    starfield. Empty frames reuse the end-stone texture (30);
+    the dragon egg reuses obsidian (37). Item icons: eye (0,11),
+    chorus fruit (1,11), both blank black cells before.
+  - Void: `Entity::baseTick` calls `outOfWorld()` below y=-64 and
+    that just `remove()`s the entity — for the player that would
+    delete the player object with no death screen. The End needs
+    its own void-damage path (see below).
+  - A v21 latent bug found by this audit (FIXED here, not just
+    noted): `NetherWartTile::getTexture` returned `tex + data`
+    (173, 174, 175, 176), but wart stages 1–3 were drawn into
+    cells 216/217/231 — cells 174–176 hold unrelated textures (174
+    is half magenta placeholder). Stages now map through a table
+    {173, 216, 217, 231}, the mapping the v21 comment intended.
+  ### What shipped
+  - **End dimension, real:** `EndDimension` (id 1, `foggy`, no
+    ceiling, no day cycle — `getTimeOfDay` fixed 0.75, near-black
+    purple fog) registered in `Dimension::getNew`, with
+    `EndLevelSource` as its chunk source. The world keeps THREE
+    `Level` objects alive in `Minecraft` (`overworldLevel` /
+    `netherLevel` / `endLevel`); the End storage lives at
+    `<world>/DIM1`, pre-seeded `level.dat` (same seed/gameType,
+    spawn (0,67,0)), player tag omitted like the Nether.
+  - **End terrain** (`EndLevelSource`): one floating end-stone
+    island centred (0,0), radius ~48, top y 62–66, ~14 thick, void
+    outside and below; 10 obsidian pillars (3x3, ring radius
+    20–32, heights 9–24 above y=64, bedrock caps); spawn platform
+    at the centre (5x5 obsidian y=64, 8-block bedrock ring y=65,
+    centre (0,65,0) air = the exit portal, filled on dragon death);
+    sparse chorus plants on the island top. Endermen are the only
+    spawner mob in the End.
+  - **End portal (overworld side):** `EndPortalFrameTile` (id 120,
+    data bit 0 = eye inserted; empty = end-stone look, eye = drawn
+    frame texture) + `EyeOfEnderItem` (id 381; tap a frame to set
+    its eye, consumes 1 eye; when all 12 frames of a 5x5 ring have
+    eyes the 3x3 interior fills with `EndPortalTile` id 119).
+    Standing in an end portal tile switches dimension (enter-only,
+    5 s cooldown, same deferred pattern as the Nether portal):
+    overworld -> End (arrival always the island centre, no 1:8
+    scale), End exit portal -> overworld return position. Death in
+    the End respawns in the overworld (modern MC): `respawnPlayer`
+    switches dimension first, the respawn itself runs in
+    `_levelGenerated` once the overworld is live.
+  - **Ender dragon (boss):** `EnderDragon` (`MobTypes` 41, 200 HP,
+    6 melee, fire-immune, 4x2) — Monster old-AI like the ghast,
+    flying a steady orbit (radius 22, y=82, clears every pillar
+    top inside that radius), fireballs up to 40 blocks every 3 s
+    + melee fallback, `DragonModel` (body/head/2 wings/tail, wing
+    flap) + `DragonRenderer` + drawn `mob/dragon.png`. Spawned
+    exactly once by `Minecraft::ensureEndDragon` on first End
+    entry (never by the spawner, never again once the exit portal
+    exists). Death activates the exit portal (centre becomes the
+    end portal tile) + places the dragon egg on the platform rim +
+    drops 120 XP (modern MC gives 12,000, but
+    `Mob::dropExperience` splits into 1–3 XP orbs, so 12,000 would
+    spawn ~6,000 orb entities). No perch/landing AI (none exists
+    in this tree — the dragon circles until shot down).
+  - **Chorus:** `ChorusPlantTile` (id 240, 5 stages on end stone,
+    grows in the dark like nether wart, one cross texture for all
+    stages) + `ChorusFruitItem` (id 432, +4 hunger, plants on end
+    stone, random ±8-block teleport on finishing eating — up to 8
+    tries for 2 air above solid ground). Mature plant drops 1–2
+    fruit; immature drops nothing.
+  - **Crash safety (pays the v21 debt, for the Nether too):**
+    `Minecraft::persistPlayerToOverworld()` writes the live player
+    (pos/inventory/XP) into the overworld tag at the return
+    position — on EVERY dimension entry, every 60 s while in the
+    Nether/End, and on quit (`leaveGame` reuses it; the v21
+    Nether-only inline block is replaced). A crash in the End or
+    Nether now loses at most a minute of dimension loot instead of
+    everything since entry. `requestDimensionChange` /
+    `changeDimension` are generalised from Nether-only to any
+    dimension (End returns land exactly on the stored return
+    position — no Nether portal is built next to the end portal
+    frame).
+  - **Void death:** `LocalPlayer::tick` hurts the player for 1000
+    below y=-32 in the End (normal death flow: death screen,
+    respawn in the overworld). In creative `hurt()` refuses, so the
+    player is bounced back to the spawn platform instead of falling
+    to y=-64 and being `remove()`d.
+  - Small: end stone / frame / dragon egg / eye / chorus fruit in
+    the creative inventory; eye + frame recipes; lang strings for
+    end portal / frame / chorus plant / chorus fruit (end stone and
+    dragon egg names already existed).
+  - Version bump 21 -> 22 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: (see the v22 report).
+  ### Known limits / debts
+  - No stronghold (by decision, see audit — the frame is
+    craftable instead). No eye throwing / stronghold locating.
+  - No dragon perch/landing, no end crystals, no dragon respawn
+    (the dragon spawns once per world; after its death the exit
+    portal stays and no new dragon comes). A dragon killed by a
+    fall into the void or by another mob's fireball... the dragon
+    only dies to player damage in practice; if it dies without a
+    player killing blow it drops no XP (v8 rule) but the exit
+    portal + egg still activate (dropDeathLoot always runs).
+  - Dragon XP is 120, not modern MC's 12,000 (orb-splitting limit,
+    see above). Dragon/chorus/enderman sounds are placeholders or
+    silent (no audio files exist; v19 left the enderman silent
+    rather than faking it — same call here).
+  - Breaking an end portal frame leaves a floating end portal
+    behind (no collapse logic — the exit portal's bedrock ring
+    makes a shared frame check wrong for it). The chorus plant
+    uses one texture for all 5 stages, grows flat like a crop
+    (modern MC grows it upward as a stalk with a chorus flower —
+    no vertical growth, no chorus flower in this batch).
+  - A dragon mid-fight when the player quits respawns at full HP
+    on re-entry (the live level keeps it only within a session;
+    defeat is what persists, via the exit portal tile). The
+    dragon may clip a tall pillar if it is knocked off its orbit
+    (its orbit clears the pillars; knockback is the only way in).
+  - Multiplayer dimension switching is NOT implemented
+    (single-player only, same as v21).
+  - All of it is build-only until a live test on device (craft 12
+    frames + 12 eyes, build the ring, fill it, enter, check island
+    + pillars + void + endermen, fight the dragon, exit portal back
+    to the overworld, quit while in the End and reload — inventory
+    + overworld world intact, no crash).
+
+## Next (v22)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
   walk session on the realme 8, memory flat, FPS within ~10% of v14
@@ -1013,9 +1169,14 @@ Each version is ONE coherent batch of features, shipped as a new APK
   fallback until this stage passes.
   Also queued: the v18 debt — save `entities.dat` once per
   eviction sweep instead of once per evicted chunk. (PAID in v20.)
-- **v22 — The End** (next version after the device verification
-  above). Biggest. Ender dragon, end stone, chorus — only after
-  Nether works (it does, as of v21, build-only).
+- **v23 — Villages + trading** (next version after the device
+  verification above). Village generation + villagers + trading
+  UI. Big; last among gameplay features.
+- **Device verification for the End (v22's open item).** See the
+  v22 test list above (portal ring, island, dragon fight, exit
+  portal, quit-in-End reload). The v21 APK stays the fallback
+  until this stage passes.
+- **v22 — The End.** SHIPPED (see "Done").
 
 ## Queued (priority order — re-evaluate after each version)
 
@@ -1025,8 +1186,7 @@ Each version is ONE coherent batch of features, shipped as a new APK
   is visible in every screenshot the user takes and is low risk, so
   it shipped first. The witch fits the AI framework (GoalSelector
   exists) and ships once brewing gives it potions to throw.
-- **v22 — The End.** Biggest. Ender dragon, end stone, chorus — only
-  after Nether works (it does, as of v21, build-only).
+- **v22 — The End.** SHIPPED (see "Done").
 - **v23 — Villages + trading.** Village generation + villagers + trading
   UI. Big; last among gameplay features.
 - **Night spawning live test (from old v8 scope).** Drops are done (v7);

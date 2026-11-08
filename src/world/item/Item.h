@@ -230,6 +230,12 @@ public:
 	static Item* magmaCream;
 	static Item* glisteringMelon;
 
+	// v22: End items. Eye of ender (modern MC id 381, icon (0,11))
+	// fills end portal frames; chorus fruit (id 432, icon (1,11))
+	// is food + chorus seed + random teleport on eating.
+	static Item* eyeOfEnder;
+	static Item* chorusFruit;
+
     static Item* record_01;
     static Item* record_02;
 

@@ -173,6 +173,10 @@ Item* Item::blazePowder = NULL;
 Item* Item::magmaCream = NULL;
 Item* Item::glisteringMelon = NULL;
 
+// v22: End items.
+Item* Item::eyeOfEnder = NULL;
+Item* Item::chorusFruit = NULL;
+
 //Item* Item::record_01 = NULL;
 //Item* Item::record_02 = NULL;
 
@@ -349,6 +353,13 @@ void Item::initItems() {
 	Item::blazePowder = (new Item(121))->setIcon(1, 9)->setCategory(ItemCategory::Tools)->setDescriptionId("blazePowder");
 	Item::magmaCream = (new Item(122))->setIcon(1, 10)->setCategory(ItemCategory::Tools)->setDescriptionId("magmaCream");
 	Item::glisteringMelon = (new Item(126))->setIcon(3, 10)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("speckledMelon");
+
+	// v22: End items. Eye of ender (modern MC id 381; lang
+	// item.eyeOfEnder.name already existed) and chorus fruit
+	// (id 432; lang added in en_US.lang). Icons drawn into blank
+	// gui/items.png cells (0, 11) and (1, 11).
+	Item::eyeOfEnder = (new EyeOfEnderItem(381))->setIcon(0, 11)->setCategory(ItemCategory::Tools)->setDescriptionId("eyeOfEnder");
+	Item::chorusFruit = (new ChorusFruitItem(432))->setIcon(1, 11)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("chorusFruit");
 
 	//Item::record_01 = (new RecordingItem(2000, "13"))->setIcon(0, 15)->setCategory(ItemCategory::Decorations)->setDescriptionId("record");
 	//Item::record_02 = (new RecordingItem(2001, "cat"))->setIcon(1, 15)->setCategory(ItemCategory::Decorations)->setDescriptionId("record");

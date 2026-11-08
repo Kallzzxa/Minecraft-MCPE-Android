@@ -219,6 +219,12 @@ public:
 	static Tile* portalTile;
 	static Tile* quartzOre;
 	static Tile* netherWart;
+	// v22: End tiles (ids 119-122, 240 — modern MC).
+	static Tile* endPortal;
+	static Tile* endPortalFrame;
+	static Tile* endStone;
+	static Tile* dragonEgg;
+	static Tile* chorusPlant;
     static Tile* litPumpkin;
     static Tile* cake;
     static Tile* diode_off;

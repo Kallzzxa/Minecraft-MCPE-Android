@@ -179,6 +179,10 @@ public:
 	// switching back and forth never reloads it from scratch.
 	Level* overworldLevel;
 	Level* netherLevel;
+	// v22: the End is the third Level object (storage <world>/DIM1,
+	// created on first entry, kept alive for the session like the
+	// Nether). `level` points at whichever dimension is active.
+	Level* endLevel;
 	// The level id (world folder name) the Nether storage id is
 	// derived from (<id>_nether).
 	std::string currentLevelId;
@@ -196,6 +200,16 @@ public:
 	// After a switch, the destination portal is found or built in
 	// _levelGenerated(), once generation has finished.
 	bool pendingPortalBuild;
+	// v22: after entering the End, ensure the dragon exists (once).
+	bool pendingEndDragon;
+	// v22: the player died in the Nether/End and asked to respawn:
+	// the switch back to the overworld was requested, and the
+	// respawn itself runs in _levelGenerated() once the overworld
+	// is live again.
+	bool pendingRespawnAfterSwitch;
+	// v22: ticks since the live player was last written into the
+	// overworld tag while in another dimension (crash safety).
+	int ticksSincePlayerPersist;
 
 	// v21: request a switch to the other dimension (guards: must be
 	// single-player, not generating, cooldown elapsed). The switch
@@ -207,6 +221,22 @@ public:
 	// v21: return the existing Nether level, or create it (pre-seeded
 	// level.dat at the arrival portal, own storage under DIM-1).
 	Level* getOrCreateNetherLevel(int nx, int nz);
+	// v22: return the existing End level, or create it (pre-seeded
+	// level.dat at the island centre, own storage under DIM1).
+	Level* getOrCreateEndLevel();
+	// v22: spawn the ender dragon at the island centre if none is
+	// alive in the End and the exit portal does not exist yet (i.e.
+	// the dragon has never been defeated in this world).
+	void ensureEndDragon();
+	// v22: crash safety (pays the v21 debt for the Nether too).
+	// While the player is in the Nether/End, the live player state
+	// only exists in that level's memory; the overworld level.dat
+	// still holds the pre-trip tag, and the dimension storages
+	// deliberately never write a Player compound. Write the live
+	// player (pos/inventory/XP) into the overworld tag at the return
+	// position, so a crash — not just a clean quit — keeps the loot.
+	// The player's live position is restored afterwards.
+	void persistPlayerToOverworld();
 	// v21: after generation, move the player into an existing portal
 	// near (px, py, pz), or build a fresh 4x5 obsidian frame there.
 	void findOrCreatePortal(float px, float py, float pz);

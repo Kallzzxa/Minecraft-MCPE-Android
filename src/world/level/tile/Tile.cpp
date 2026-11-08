@@ -132,6 +132,12 @@ Tile* Tile::portalTile   = NULL;
 Tile* Tile::hellSand     = NULL;
 Tile* Tile::quartzOre    = NULL;
 Tile* Tile::netherWart   = NULL;
+// v22: End tiles.
+Tile* Tile::endPortal      = NULL;
+Tile* Tile::endPortalFrame = NULL;
+Tile* Tile::endStone       = NULL;
+Tile* Tile::dragonEgg      = NULL;
+Tile* Tile::chorusPlant    = NULL;
 Tile* Tile::stairs_wood = NULL;
 Tile* Tile::stairs_stone= NULL;
 Tile* Tile::stairs_brick= NULL;
@@ -283,6 +289,17 @@ void Tile::initTiles() {
 	// nether quartz ore (id 153, texture 172).
 	netherWart = (new NetherWartTile(115, 173))->init()->setDestroyTime(0.0f)->setSoundType(SOUND_GRASS)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("netherStalk");
 	quartzOre = (new QuartzOreTile(153, 172))->init()->setDestroyTime(3.0f)->setExplodeable(5)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("quartzOre");
+	// v22: End tiles (modern MC ids). End stone is the island rock;
+	// the end portal (starfield texture 181) fills a completed
+	// frame ring; the frame shows the eye texture (153) once an eye
+	// is inserted, plain end stone (30) before that; the dragon egg
+	// reuses the obsidian texture (37) — no free terrain cell was
+	// left for it; chorus is a crop on end stone (texture 14).
+	endStone = (new Tile(121, 30, Material::stone))->init()->setDestroyTime(1.5f)->setExplodeable(10)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("whiteStone");
+	endPortal = (new EndPortalTile(119, 181))->init()->setDestroyTime(0.0f)->setLightEmission(11 / 16.0f)->setSoundType(SOUND_GLASS)->setCategory(ItemCategory::Structures)->setDescriptionId("endPortal");
+	endPortalFrame = (new EndPortalFrameTile(120, 30))->init()->setDestroyTime(3.0f)->setExplodeable(10)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("endPortalFrame");
+	dragonEgg = (new Tile(122, 37, Material::stone))->init()->setDestroyTime(1.0f)->setExplodeable(10)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("dragonEgg");
+	chorusPlant = (new ChorusPlantTile(240, 14))->init()->setDestroyTime(0.0f)->setSoundType(SOUND_GRASS)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("chorusPlant");
 	invisible_bedrock = (new InvisibleTile(95, 0, Material::stone))->init()->setDestroyTime(-1)->setExplodeable(6000000);//->setSoundType(SOUND_SILENT);
 	trapdoor = (new TrapDoorTile(96, Material::wood))->init()->setDestroyTime(3.0f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Structures)->setDescriptionId("trapdoor");//->sendTileData();
 

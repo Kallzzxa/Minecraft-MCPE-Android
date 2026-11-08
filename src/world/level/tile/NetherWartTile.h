@@ -55,18 +55,30 @@ public:
 
 	int getTexture(LevelSource* level, int x, int y, int z, int face) {
 		(void) face;
-		int data = level->getData(x, y, z);
-		if (data < 0) data = 3;
-		if (data > 3) data = 3;
-		return tex + data;
+		return stageTexture(level->getData(x, y, z));
 	}
 
 	int getTexture(int face, int data) {
 		(void) face;
-		if (data < 0) data = 3;
-		if (data > 3) data = 3;
-		return tex + data;
+		return stageTexture(data);
 	}
+
+private:
+	// v22 fix (v21 latent bug): the old code returned tex + data
+	// (173, 174, 175, 176), but stages 1-3 were drawn into cells
+	// 216/217/231 — cells 174-176 hold unrelated textures (174 is
+	// half magenta placeholder). The stage table is the mapping the
+	// v21 comment always intended. (Plain if-chain, not a static
+	// array — a static const array in a header would need an
+	// out-of-class definition to link.)
+	static int stageTexture(int data) {
+		if (data <= 0) return 173;
+		if (data == 1) return 216;
+		if (data == 2) return 217;
+		return 231;
+	}
+
+public:
 
 	void spawnResources(Level* level, int x, int y, int z, int data, float odds) {
 		// Plain Tile drops (1 wart); no wheat seeds. Mature plants

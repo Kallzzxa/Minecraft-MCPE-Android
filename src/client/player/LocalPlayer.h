@@ -110,6 +110,11 @@ private:
 	// portal once the 5 s cooldown in Minecraft has elapsed.
 	bool _wasInPortal;
 
+	// v22: same, for the end portal block (id 119). The End exit
+	// portal and the overworld end portal are the same tile, so one
+	// flag covers both directions.
+	bool _wasInEndPortal;
+
 	int sentInventoryItemId;
 	int sentInventoryItemData;
 

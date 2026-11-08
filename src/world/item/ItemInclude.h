@@ -36,5 +36,7 @@
 #include "SignItem.h"
 #include "PotionItem.h"
 #include "GlassBottleItem.h"
+#include "EyeOfEnderItem.h"
+#include "ChorusFruitItem.h"
 
 #endif /*NET_MINECRAFT_WORLD_ITEM__ItemInclude_H__*/

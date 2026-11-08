@@ -5,6 +5,7 @@
 #include "Enderman.h"
 #include "Ghast.h"
 #include "Blaze.h"
+#include "EnderDragon.h"
 #include "Monster.h"
 #include "Skeleton.h"
 #include "Slime.h"

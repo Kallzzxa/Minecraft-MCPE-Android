@@ -1,6 +1,7 @@
 #include "Dimension.h"
 #include "NormalDayCycleDimension.h"
 #include "NetherDimension.h"
+#include "EndDimension.h"
 
 //#include "../levelgen/SimpleLevelSource.h"
 #include "../levelgen/RandomLevelSource.h"
@@ -124,6 +125,7 @@ Dimension* Dimension::getNew( int id )
 	if (id == NORMAL) return new Dimension();
 	if (id == NORMAL_DAYCYCLE) return new NormalDayCycleDimension();
 	if (id == NETHER) return new NetherDimension();
+	if (id == THE_END) return new EndDimension();
 	return NULL;
 }
 

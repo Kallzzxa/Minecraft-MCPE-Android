@@ -25,6 +25,7 @@
 #include "EndermanRenderer.h"
 #include "GhastRenderer.h"
 #include "BlazeRenderer.h"
+#include "DragonRenderer.h"
 #include "FireballRenderer.h"
 
 #include "ChickenRenderer.h"
@@ -59,6 +60,7 @@ EntityRenderDispatcher::EntityRenderDispatcher()
 	assign(	ER_ENDERMAN_RENDERER,	new EndermanRenderer());
 	assign(	ER_GHAST_RENDERER,		new GhastRenderer());
 	assign(	ER_BLAZE_RENDERER,		new BlazeRenderer());
+	assign(	ER_ENDER_DRAGON_RENDERER,	new DragonRenderer());
 	assign(	ER_FIREBALL_RENDERER,	new FireballRenderer());
 	assign(	ER_TNT_RENDERER,		new TntRenderer());
 	assign(	ER_ARROW_RENDERER,		new ArrowRenderer());
