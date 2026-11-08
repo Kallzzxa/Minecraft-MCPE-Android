@@ -1462,7 +1462,15 @@ Each version is ONE coherent batch of features, shipped as a new APK
     (r17c, both ABIs) passes: `libminecraftpe.so` arm64
     10,158,920 B / armv7 8,748,932 B, new symbols confirmed
     (`CauldronTile`, `ThrownPotion(Level,Mob,int,bool)` ctor,
-    `Tile::cauldron`, `SplashOwner` tag string).
+    `Tile::cauldron`, `SplashOwner` tag string). CI
+    `./gradlew assembleDebug` SUCCESS (run 42526785778, ~5 min);
+    APK `minecraft-mcpe-android-0.6.1-debug-v25.apk`
+    12,897,571 B, sha256 819594df…5818f18, versionCode 25,
+    `apksigner verify` v1+v2 true, `unzip -t` clean; the APK
+    itself was re-checked to contain the new cauldron texture
+    (terrain.png cell 250), the row-14 splash icons, all 11
+    `item.splashPotion.*` lang keys, and the new symbols in its
+    `libminecraftpe.so`.
   ### Known limits / debts
   - No buckets (none exist in this tree), so bottles are the only
     way to fill/empty a cauldron. No dyeing / washing in the
