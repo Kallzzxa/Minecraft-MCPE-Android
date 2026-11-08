@@ -71,11 +71,26 @@ protected:
 	void checkHurtTarget(Entity* target, float d);
 	void dropDeathLoot();
 
+	// v30: dragon-only wide target acquisition (see the .cpp note).
+	// Monster::findAttackTarget (16 blocks) is left untouched for
+	// every other mob.
+	Entity* findAttackTarget();
+
 private:
 	// Orbit: radius 22 around (0, 0), altitude 82. The dragon
 	// steers toward the moving orbit point every tick.
 	static const int ORBIT_RADIUS = 22;
 	static const int ORBIT_HEIGHT = 82;
+
+	// v30: target acquisition range. The orbit (r22/y82) puts the
+	// dragon typically ~27 blocks (3D) from a player standing on
+	// the island at y~66, so the 16-block Monster range almost
+	// never acquires while orbiting. 48 covers any player on the
+	// island (radius ~48) as the orbit cycles, while the fireball
+	// itself still only fires within 40 blocks (checkHurtTarget),
+	// so acquisition alone never makes the dragon shoot from
+	// across the void.
+	static const int DRAGON_TARGET_RANGE = 48;
 
 	// v28: perch state machine. ORBIT -> DESCEND -> PERCHED ->
 	// ASCEND -> ORBIT. All steering is steerTo() (the old orbit

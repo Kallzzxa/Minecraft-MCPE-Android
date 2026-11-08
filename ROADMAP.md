@@ -1847,7 +1847,8 @@ Each version is ONE coherent batch of features, shipped as a new APK
     (16-block acquisition vs the y=82 orbit — the v22 limitation
     above); it only fights properly once it perches or the player
     climbs a pillar. Widening the acquisition range was out of
-    scope for this batch.
+    scope for this batch. (PAID in v30: dragon-only 48-block
+    acquisition — see v30.)
   - `PathfinderMob::updateAi` can set `jumping` while the dragon
     follows a path; `Mob::tick` would then call `jumpFromGround`
     (yd 0.42) if the dragon is onGround on the ring. In practice
@@ -1987,6 +1988,87 @@ Each version is ONE coherent batch of features, shipped as a new APK
     destroyed, check the perched dragon never hops, no render
     glitch or crash, old features intact).
 
+- **v30 — Dragon fireball targeting (SHIPPED, build-only).**
+  Pays the v22/v28 debt "the dragon rarely acquires a target
+  while orbiting" — the last named End boss-fight gap.
+  ### Audit (read from code before writing anything)
+  - Acquisition: `Monster::findAttackTarget` (`Monster.cpp:57-63`)
+    is `level->getNearestPlayer(this, 16)` + `canSee(player)` —
+    16 blocks, 3D (`Level::getNearestPlayer` uses
+    `distanceToSqr`). The dragon orbits at r=22, y=82 while the
+    player stands on the island at y~66, so the typical 3D
+    distance is sqrt(22^2 + 16^2) ~= 27 blocks — outside 16 —
+    and the dragon almost never had a target while orbiting.
+    (At the island edge, r~40-48, the nearest orbit point is
+    ~18-26 blocks away horizontally, d ~= 24-30 — still > 16.)
+  - The fireball code itself was ALREADY orbit-capable:
+    `EnderDragon::checkHurtTarget` fires one aimed fireball
+    every 3 s for d<40 (`attackTime = 60`, `fb->shoot(xd, yd,
+    zd, 1.0f, 8)` — the v21 ghast pattern), blocked only while
+    DESCEND/PERCHED (deliberate, v28: no point-blank shots on
+    the portal ring). `Fireball` explodes radius 1 + fire
+    (`Fireball.cpp:13-16`). `attackTime` ticks down in
+    `Mob::tick` (`Mob.cpp:186`). So the ONLY blocker was
+    acquisition — the fire logic needed no change at all.
+  - Retention: `PathfinderMob::updateAi` calls
+    `findAttackTarget` only when it has no target yet; once
+    acquired it calls `checkHurtTarget` every tick while
+    `canSee` holds, dropping the target only if unseen AND
+    d>32 (`checkCantSeeTarget`). So widening acquisition alone
+    is sufficient — no per-tick re-scan, no new state.
+  - `canSee` (`Mob.cpp:105`) is a `Level::clip` from the
+    dragon's head (y+1.7) to the player's head — a pillar can
+    block it on some orbit angles, but the ~30 s orbit cycles
+    the line of sight open regularly, so no workaround was
+    needed. Ranged AI at long range already works in this tree
+    (ghast 28 blocks, blaze 16, witch 16 — all the same
+    `checkHurtTarget` shape), so no new ranged pattern was
+    invented.
+  ### What shipped
+  - **Dragon-only wide acquisition** (`EnderDragon::
+    findAttackTarget`, new override; `Monster::
+    findAttackTarget` untouched, so no other mob changes):
+    nearest player within **48 blocks** + `canSee`. 48 covers
+    any player on the island (radius ~48) as the orbit cycles
+    past them, while the existing 40-block fire gate in
+    `checkHurtTarget` still decides actual shots — acquisition
+    alone never makes the dragon shoot from across the void.
+    Cooldown (3 s), speed (1.0), inaccuracy (8) and explosion
+    (radius 1 + fire) are the existing ghast values, unchanged:
+    the shots are dodgeable and periodic, not spam — the fight
+    stays winnable (and the perch phase is still the sword
+    phase, v28). No fireballs while landing/perched (v28 rule
+    kept); melee bite up close unchanged.
+  - Version bump 29 -> 30 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,175,304 B / armv7 8,757,124 B, new symbol confirmed
+    (`EnderDragon::findAttackTarget()` defined (T) in both
+    ABIs). CI `./gradlew assembleDebug` SUCCESS (run
+    TBD, ~TBD); APK `minecraft-mcpe-android-0.6.1-debug-v30.apk`
+    TBD B, sha256 TBD, versionCode 30, `apksigner verify`
+    v1+v2 true, `unzip -t` clean.
+  ### Known limits / debts
+  - The dragon still cannot be hit by a sword while orbiting
+    (melee reach is the 3-block pick ray, v28 note) — the
+    perch is still the sword phase; v30 only makes the AIR
+    phase fight back. The player still needs a bow (or a
+    pillar climb) to damage it mid-orbit, as in modern MC.
+  - A pillar between dragon and player blocks `canSee` for a
+    few seconds of each orbit — the dragon simply holds its
+    fire until the line clears; no lead prediction (the
+    fireball aims at the player's current position, ghast
+    pattern — a strafing player can dodge it, which is the
+    intended balance).
+  - All of it is build-only until a live test on device (enter
+    the End, stand on the island while the dragon orbits — do
+    NOT climb a pillar, do NOT wait for the perch — check the
+    dragon fires fireballs toward the player every few seconds,
+    the fireballs are visible and explode near the player,
+    the rate/damage feel fair (not spam, dodgeable), then
+    check perch + heal-beam + respawn v27-v29 still work, no
+    crash, old features intact).
+
 ## Next (v24)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
@@ -2059,20 +2141,31 @@ Each version is ONE coherent batch of features, shipped as a new APK
   on the ring; no crash. The v28 APK stays the fallback until
   this stage passes.
 - **v29 — Heal-beam visual + perch-hop fix.** SHIPPED (see "Done").
-- **Next version (v30 candidate): dragon fireball targeting.**
-  The last End boss-fight gap: the dragon rarely acquires a
-  target while orbiting (16-block acquisition in
-  `Monster::findAttackTarget` vs the y=82 orbit — the v22/v28
-  limitation; it only fights properly once it perches or the
-  player climbs a pillar), so its fireballs almost never fire
-  in the air. Widening acquisition / letting it shoot while
-  orbiting is the smallest remaining named debt and completes
-  the End boss loop the same way v29 completed its heal
-  feedback. (Nether fortress stays queued behind it: a fortress
-  is a new structure system, not one batch; village chest loot
-  stays queued too — it only moves the first emerald earlier in
-  a loop trading already serves, and it needs a tile-entity loot
-  placement precedent first.)
+- **Device verification for dragon fireball targeting (v30's
+  open item).** Enter the End, stand on the island while the
+  dragon orbits — do NOT climb a pillar, do NOT wait for the
+  perch — check the dragon fires fireballs toward the player
+  every few seconds, the fireballs are visible and explode near
+  the player, the rate/damage feel fair (not spam, dodgeable);
+  then check perch + heal-beam + respawn v27-v29 still work, no
+  crash. The v29 APK stays the fallback until this stage
+  passes.
+- **v30 — Dragon fireball targeting.** SHIPPED (see "Done").
+- **Next version (v31 candidate): Nether fortress.** The End
+  boss loop is now complete (orbit fireballs v30, perch v28,
+  heal beam v29, crystals + respawn v27), so the biggest
+  remaining named structure debt is the Nether's: v21 shipped
+  the dimension with terrain, lava sea, ghasts/blazes and
+  wart farming, but no fortress — the Nether still has no
+  landmark to explore for, and no wither skeleton / magma
+  cube / fortress loot. A fortress is a new structure system
+  (the village/swamp-hut `Feature::place` pattern is the
+  reusable precedent, but the Nether needs its own generator,
+  nether-brick corridors and blaze spawners), so it is a
+  multi-part job, not one batch — v31 scopes the first part.
+  Village chest loot stays queued behind it: it only moves the
+  first emerald earlier in a loop trading already serves, and
+  it needs a tile-entity loot placement precedent first.
 
 ## Queued (priority order — re-evaluate after each version)
 

@@ -6,6 +6,7 @@
 #include "../../level/levelgen/EndLevelSource.h"
 #include "../../../util/Mth.h"
 #include "../../../SharedConstants.h"
+#include "../player/Player.h"
 #include "../projectile/Fireball.h"
 
 EnderDragon::EnderDragon(Level* level)
@@ -142,10 +143,10 @@ void EnderDragon::tick()
 	// NOTE: Mob::tick, not Monster::tick — Monster::tick removes the
 	// mob on PEACEFUL, which would delete the boss (and its exit
 	// portal with it, since the portal only appears on its death).
-	// The dragon is the End's boss: it stays in peaceful, it just
-	// never gets a target there (findAttackTarget needs a player in
-	// range and the peaceful spawner never hands it one — the
-	// orbit continues regardless).
+	// The dragon is the End's boss: it stays in peaceful. (v30:
+	// its target acquisition is the dragon-only 48-block
+	// findAttackTarget override, so it now fights while orbiting
+	// instead of only once perched — see findAttackTarget above.)
 	Mob::tick();
 }
 
@@ -218,6 +219,35 @@ void EnderDragon::travel(float xa, float ya)
 	walkAnimPos += walkAnimSpeed;
 }
 
+// v30: dragon-only wide target acquisition.
+//
+// AUDIT (why this exists): Monster::findAttackTarget
+// (Monster.cpp:57) acquires the nearest player within 16 blocks
+// (3D, via Level::getNearestPlayer + canSee). The dragon orbits at
+// r=22, y=82 while the player stands on the island at y~66, so the
+// typical 3D distance is sqrt(22^2 + 16^2) ~= 27 blocks — outside
+// 16 — and the dragon almost never had a target while orbiting.
+// Its fireball code (checkHurtTarget below, d<40, one per 3 s,
+// ghast pattern) was therefore dead in the air: it only fought
+// once it perched (player within a few blocks) or the player
+// climbed a pillar. PathfinderMob::updateAi only calls
+// findAttackTarget when it has no target yet, and once acquired
+// it keeps calling checkHurtTarget every tick while canSee holds
+// (dropping the target only if unseen AND d>32), so widening
+// acquisition alone is enough — no change to the fireball logic,
+// cooldown (3 s), speed (1.0) or inaccuracy (8) was needed.
+// DRAGON_TARGET_RANGE (48) covers any player on the island
+// (radius ~48) as the ~30 s orbit cycles past them, while the
+// 40-block fire range still gates actual shots. Dragon-only:
+// Monster::findAttackTarget is untouched, so no other mob's
+// behaviour changes.
+Entity* EnderDragon::findAttackTarget()
+{
+	Player* player = level->getNearestPlayer(this, (float)DRAGON_TARGET_RANGE);
+	if (player != NULL && canSee(player)) return player;
+	return NULL;
+}
+
 void EnderDragon::checkHurtTarget(Entity* target, float d)
 {
 	// Up close, the normal melee attack.
@@ -231,7 +261,10 @@ void EnderDragon::checkHurtTarget(Entity* target, float d)
 	// above still works while perched.
 	if (perchState == PERCH_DESCEND || perchState == PERCH_PERCHED) return;
 	// Ranged attack, ghast-style: one aimed fireball every 3 s
-	// while the target is within 40 blocks.
+	// while the target is within 40 blocks. (v30: this now also
+	// fires while ORBITING — the dragon-only findAttackTarget
+	// override acquires the player from 48 blocks, so the
+	// d<40 gate here is what actually starts the shots.)
 	if (d < 40) {
 		float xd = target->x - x;
 		float zd = target->z - z;
