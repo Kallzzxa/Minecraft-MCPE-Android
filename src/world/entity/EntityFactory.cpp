@@ -4,6 +4,7 @@
 
 #include "item/PrimedTnt.h"
 #include "item/ExperienceOrb.h"
+#include "item/EndCrystal.h"
 #include "projectile/Arrow.h"
 #include "projectile/Fireball.h"
 #include "projectile/ThrownPotion.h"
@@ -25,6 +26,7 @@ Entity* EntityFactory::CreateEntity( int typeId, Level* level )
         case EntityTypes::IdSnowball:   return new Snowball(level);
 		case EntityTypes::IdPainting:   return new Painting(level);
 		case EntityTypes::IdExperienceOrb: return new ExperienceOrb(level);
+		case EntityTypes::IdEndCrystal: return new EndCrystal(level);
 	}
 	return NULL;
 }

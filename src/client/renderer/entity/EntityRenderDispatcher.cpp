@@ -1,5 +1,6 @@
 #include "EntityRenderDispatcher.h"
 #include "ExperienceOrbRenderer.h"
+#include "EndCrystalRenderer.h"
 
 #include "../../Options.h"
 #include "../../../world/entity/player/Player.h"
@@ -77,6 +78,7 @@ EntityRenderDispatcher::EntityRenderDispatcher()
 	assign( ER_PAINTING_RENDERER,   new PaintingRenderer());
 	assign( ER_FALLINGTILE_RENDERER,new FallingTileRenderer());
 	assign( ER_EXPERIENCE_ORB_RENDERER, new ExperienceOrbRenderer());
+	assign( ER_END_CRYSTAL_RENDERER, new EndCrystalRenderer());
 
 	for (RendererIterator it = _renderers.begin(); it != _renderers.end(); ++it) {
 		it->second->init(this);

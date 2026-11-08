@@ -1594,6 +1594,142 @@ Each version is ONE coherent batch of features, shipped as a new APK
     + glowstone -> stronger effect felt, both also as splash,
     redstone + glowstone on one potion refused, no crash).
 
+- **v27 — End crystals + dragon respawn (SHIPPED, build-only).**
+  Pays the v22 debt "no end crystals, no dragon respawn (the dragon
+  spawns once per world)".
+  ### Audit (read from code before writing anything)
+  - `EnderDragon` (v22): 200 HP, orbit r22/y82, fire-immune,
+    `Minecraft::ensureEndDragon` (`Minecraft.cpp:576`) spawns it
+    exactly once on first End entry; the EXIT PORTAL tile at
+    (0,65,0) is the "already defeated" flag — `ensureEndDragon`
+    returns early once it exists, so the dragon can never come back.
+    Death runs `dropDeathLoot` (always, even without a player kill):
+    centre becomes the end portal tile + dragon egg at (2,65,0) +
+    120 XP. No perch/landing AI exists in this tree.
+  - Pillars (`EndLevelSource.cpp:77-133`): 10 obsidian 3x3 shafts,
+    ring radius 20–32, tops y=73–88, each capped with a SINGLE
+    bedrock block; the list (`PILLARS[10]`) was private to the
+    header. Spawn platform: 5x5 obsidian y=64 + 8-block bedrock
+    ring y=65, centre (0,65,0) air until the dragon dies.
+  - Ingredients: ALL present. Glass (`Tile::glass`), eye of ender
+    (v22, ctor 381), ghast tear (`Item::ghastTear`, ctor 114, ghast
+    drops 0–1 in v21). No new mob/loot needed.
+  - Entity precedent: `ExperienceOrb` (v8, `Entity` subclass, type
+    id 84, save/load via `EntityFactory`, billboard-quad renderer
+    with no texture) is the reusable static-entity pattern;
+    `Fireball` (v21) is the explosion precedent
+    (`Level::explode(NULL, x, y, z, 1.0f, true)`). `Entity::hurt`
+    returns false by default and `Entity::isPickable` returns false
+    by default — a crystal MUST override both, or neither punches
+    (`Player::attack` -> `entity->hurt`) nor arrows
+    (`Arrow.cpp:215` -> `hurt`) nor the crosshair target
+    (`GameRenderer.cpp:696` skips non-pickable) can touch it.
+    `Painting`/`HangingEntity` is the breakable-non-mob precedent.
+  - Two traps found by the audit: (1) `Mob::heal` caps health at
+    20 (`Mob.cpp:417`) — a 200 HP dragon could never be healed by
+    its crystals, so the dragon needs its own `heal` override.
+    (2) `Entity` has PURE VIRTUAL `addAdditonalSaveData` /
+    `readAdditionalSaveData` (`Entity.h:147-148`) — a crystal with
+    no extra state still needs empty overrides, or it is abstract
+    and cannot be constructed. (3) The toolchain is C++98 —
+    delegating constructors do not compile (found by the local
+    build, fixed by duplicating the 3-line init).
+  - Item ids: ctor id + 256 = full id. Modern MC end crystal is
+    426, so ctor 170 (free — nothing used it). Icon cell (2,11) in
+    `gui/items.png` was fully transparent (verified by pixel count:
+    0 non-transparent before, 99 after drawing).
+  - Explosion safety: `Explosion` respects `getExplosionResistance`
+    and obsidian is `setExplodeable(2000)`, so a power-6 crystal
+    blast cannot eat the pillars or the bedrock — verified from
+    code, not assumed.
+  ### What shipped
+  - **End crystal entity** (`EndCrystal`, type id 87, renderer id
+    `ER_END_CRYSTAL_RENDERER`): floats exactly where placed (its
+    `tick()` never calls `baseTick`, so no gravity/fire/water —
+    only the tickCount bookkeeping the renderer spins/bobs from);
+    2x2, fire-immune, `isPickable`, save/load works through the
+    base `Entity` save + a new `EntityFactory` case. Renderer:
+    spinning crossed pink quads + near-white core (no texture, the
+    XP-orb precedent), bobbing ±0.12 blocks.
+  - **Crystal explodes when destroyed.** `hurt()` (punch or arrow)
+    detonates once: `Level::explode(NULL, x, y, z, 6.0f, false)` —
+    modern MC's power-6 crystal blast — then removes itself. The
+    `exploding` flag is set BEFORE the blast, because the blast's
+    own entity scan calls `hurt()` on everything in radius
+    including the crystal; without the flag that recurses until
+    the stack dies. No item drop (modern MC drops nothing).
+  - **Dragon heal.** Every 10 ticks a crystal heals the nearest
+    live dragon within 32 blocks by 1 HP (2 HP/s), via `Mob::heal`
+    — which now routes to the new `EnderDragon::heal` override
+    (cap 200, not `Mob`'s 20). This also heals during the FIRST
+    fight if the player places crystals on the pillars early.
+  - **Dragon respawn.** Every 20 ticks a crystal checks: exit
+    portal present at (0,65,0) (a dragon was defeated before) AND
+    no live dragon AND >= 4 crystals standing on respawn spots —
+    the 10 pillar bedrock caps or the 8 exit-portal bedrock ring
+    cells (`EndLevelSource::isPillarTop` / `isExitRingCell`, new
+    public statics). Then it consumes those crystals, clears the
+    exit portal back to air, and spawns a fresh dragon at full HP
+    (same (0.5, 82, 0.5) spawn as `ensureEndDragon`). Modern MC
+    wants the 4 crystals on the exit-portal rim only; this build
+    ALSO accepts pillar tops, per the v27 brief — the rim alone
+    would strand the crystals a first fight leaves on pillars.
+    Placing 4 crystals during the FIRST fight does nothing (no
+    portal yet), so no premature second dragon; `ensureEndDragon`
+    still refuses a second dragon while one is alive.
+  - **Second death.** The respawned dragon's death runs the same
+    `dropDeathLoot`: exit portal reactivates + the egg is placed
+    on the rim again (same (2,65,0) spot, so still at most one egg
+    unless the player took the first — then a second egg appears,
+    which is generous but harmless) + 120 XP again. The respawn
+    loop is repeatable: after every death, 4 fresh crystals
+    resummon the dragon.
+  - **End crystal item** (ctor 170, full id 426 = modern MC):
+    shaped recipe 7 glass + eye of ender + ghast tear
+    (`"GGG" / "GEG" / "GTG"`), in the creative inventory, icon
+    drawn into `gui/items.png` cell (2,11), lang
+    `item.endCrystal.name=End Crystal`. Placement (useOn, End-only,
+    top face only, on bedrock or obsidian, 2 air above, one crystal
+    per spot within 1 block) — modern MC also allows obsidian, so
+    the platform obsidian accepts crystals too; only pillar caps
+    and the exit ring count toward respawn.
+  - Version bump 26 -> 27 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,187,592 B / armv7 8,753,028 B, new symbols confirmed
+    (`EndCrystal::tick/hurt/tryRespawnDragon/tryHealDragon/
+    isOnRespawnSpot`, `EnderDragon::heal`,
+    `EndLevelSource::isPillarTop/isExitRingCell`,
+    `EndCrystalItem::useOn`, `EndCrystalRenderer::render`).
+  ### Known limits / debts
+  - No dragon perch/landing (v22 debt stands — the dragon still
+    circles at y=82 through every fight, respawned or not). No
+    heal BEAM visual (the heal is a silent +1 HP/10 ticks; modern
+    MC draws a beam from crystal to dragon — no beam renderer
+    exists in this tree). No initial crystals on the pillars at
+    world gen (modern MC spawns one per pillar; here the first
+    fight has no crystals to shoot down unless the player places
+    them — the pillars are unchanged from v22).
+  - Crystals persist across quit like every other entity: the
+    global `entities.dat` snapshot (`saveEntities` writes ALL of
+    `level->entities`, and `EntityFactory` rebuilds a crystal from
+    its type id 87 on load). The only loss case is chunk-evict
+    despawn (v17 rule) — but the End island is only ~6 chunks
+    wide, so the player cannot get 16 chunks away from a placed
+    crystal while staying in the End, and the End level stops
+    ticking entirely once the player leaves the dimension.
+  - The explosion destroys nearby non-resistant blocks (modern MC
+    does the same) — a crystal detonated on the exit ring can
+    break the dragon egg sitting next to it if the egg is still
+    there; obsidian/bedrock are safe.
+  - All of it is build-only until a live test on device (kill the
+    dragon once, craft 4 end crystals, place them on 4 pillar tops
+    or the exit ring, check the dragon respawns at full HP and
+    fights again, shoot a crystal and check the power-6 blast,
+    check the respawned dragon heals near a surviving crystal,
+    check the exit portal + egg are right after the second death,
+    no crash, old features intact).
+
 ## Next (v24)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
@@ -1633,17 +1769,25 @@ Each version is ONE coherent batch of features, shipped as a new APK
   an extended potion (and redstone into a level II one) -> refused,
   the potion is unchanged; no crash. The v25 APK stays the fallback
   until this stage passes.
+- **Device verification for end crystals + dragon respawn (v27's
+  open item).** Kill the dragon once (or use a world where it is
+  already dead), craft 4 end crystals (7 glass + eye of ender +
+  ghast tear each), place them on 4 pillar tops or the exit-portal
+  ring, check the dragon respawns at full HP and fights again;
+  shoot/punch a crystal and check the power-6 blast; check the
+  respawned dragon heals near a surviving crystal; check the exit
+  portal + egg are right after the second death; no crash. The
+  v26 APK stays the fallback until this stage passes.
 - **v25 — Player splash potions + cauldron.** SHIPPED (see "Done").
 - **v26 — Brewing upgrades: redstone + glowstone.** SHIPPED (see "Done").
-- **Next version (v27 candidate): end crystals + dragon respawn
-  (v22 debt).** The End's boss loop is currently one-shot: the
-  dragon spawns once per world, and after its death the exit portal
-  stays and no new dragon ever comes. Modern MC lets the player
-  resummon it with 4 end crystals on the exit portal. Every
-  ingredient already exists in this tree (glass, eye of ender,
-  ghast tear; the dragon + exit portal + `ensureEndDragon` hooks
-  are all v22 code), so this is the highest-value remaining debt:
-  it completes a dimension instead of starting a new one. (The
+- **v27 — End crystals + dragon respawn.** SHIPPED (see "Done").
+- **Next version (v28 candidate): dragon perch (v22 debt).** The
+  last remaining End boss debt: the dragon still only circles at
+  y=82 and never lands, so the fight has no melee phase and no
+  perch behaviour at all. A perch (descend to the exit portal,
+  sit, breathe, take off) reuses the orbit steering + the
+  `dropDeathLoot` portal geometry already in the tree, so it
+  completes the dimension instead of starting a new one. (The
   other named debts — Nether fortress, village chest loot — stay
   queued behind it: a fortress is a new structure system, and
   village chests only move the first emerald earlier in a loop

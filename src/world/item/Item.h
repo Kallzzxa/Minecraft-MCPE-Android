@@ -240,6 +240,8 @@ public:
 	// is food + chorus seed + random teleport on eating.
 	static Item* eyeOfEnder;
 	static Item* chorusFruit;
+	// v27: end crystal (modern MC id 426).
+	static Item* endCrystal;
 
     static Item* record_01;
     static Item* record_02;

@@ -38,5 +38,6 @@
 #include "GlassBottleItem.h"
 #include "EyeOfEnderItem.h"
 #include "ChorusFruitItem.h"
+#include "EndCrystalItem.h"
 
 #endif /*NET_MINECRAFT_WORLD_ITEM__ItemInclude_H__*/

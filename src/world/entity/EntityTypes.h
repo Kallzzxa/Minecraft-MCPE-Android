@@ -34,6 +34,8 @@ public:
 	static const int IdFireball = 85;
 	// v24: thrown splash potion.
 	static const int IdThrownPotion = 86;
+	// v27: end crystal (static boss-heal / respawn entity).
+	static const int IdEndCrystal = 87;
 };
 
 // For now; mobs 0-63

@@ -548,6 +548,15 @@ Recipes::Recipes()
 	addShapelessRecipe(ItemInstance(Tile::endPortalFrame, 4),
 		definition('O', Tile::obsidian, 'E', Item::eyeOfEnder));
 
+	// v27: end crystal (modern MC, shaped: 7 glass + eye of ender +
+	// ghast tear). Glass is Tile::glass (the tile item); the eye and
+	// the tear already existed (v22 / v20).
+	addShapedRecipe(ItemInstance(Item::endCrystal, 1),
+		"GGG",
+		"GEG",
+		"GTG",
+		definition('G', Tile::glass, 'E', Item::eyeOfEnder, 'T', Item::ghastTear));
+
 	addShapedRecipe(ItemInstance(Tile::netherReactor, 1), //
 		"X#X", //
 		"X#X", //

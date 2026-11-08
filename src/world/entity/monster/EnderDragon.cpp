@@ -19,6 +19,15 @@ EnderDragon::EnderDragon(Level* level)
 	attackDamage = 6;
 }
 
+void EnderDragon::heal(int amount)
+{
+	// Mob::heal caps at 20 HP; the dragon's max is 200 (see header).
+	if (health <= 0) return;
+	health += amount;
+	if (health > 200) health = 200;
+	invulnerableTime = invulnerableDuration / 2;
+}
+
 void EnderDragon::tick()
 {
 	// Orbit steering, BEFORE the base tick: the base tick's travel()

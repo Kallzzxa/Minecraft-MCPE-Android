@@ -35,6 +35,10 @@ public:
 	int getEntityTypeId() const { return MobTypes::EnderDragon; }
 	int getMaxSpawnClusterSize() { return 1; }
 
+	// v27: Mob::heal caps at 20 HP (Mob.cpp) — a 200 HP dragon could
+	// never be healed by its crystals. Cap at the dragon's own max.
+	void heal(int amount);
+
 	void tick();
 	void travel(float xa, float ya);
 

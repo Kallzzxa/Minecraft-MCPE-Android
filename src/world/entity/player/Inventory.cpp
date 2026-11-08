@@ -158,6 +158,8 @@ void Inventory::setupDefault() {
 		addItem(new ItemInstance(Tile::dragonEgg));
 		addItem(new ItemInstance(Item::eyeOfEnder));
 		addItem(new ItemInstance(Item::chorusFruit));
+		// v27: end crystal in the creative inventory.
+		addItem(new ItemInstance(Item::endCrystal));
 		// v23: real emerald (trading currency) in the creative inventory.
 		addItem(new ItemInstance(Item::emeraldGem));
 		addItem(new ItemInstance(Tile::stairs_stone));

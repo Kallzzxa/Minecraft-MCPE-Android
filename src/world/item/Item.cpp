@@ -177,6 +177,7 @@ Item* Item::glisteringMelon = NULL;
 // v22: End items.
 Item* Item::eyeOfEnder = NULL;
 Item* Item::chorusFruit = NULL;
+Item* Item::endCrystal = NULL;
 
 //Item* Item::record_01 = NULL;
 //Item* Item::record_02 = NULL;
@@ -361,6 +362,10 @@ void Item::initItems() {
 	// gui/items.png cells (0, 11) and (1, 11).
 	Item::eyeOfEnder = (new EyeOfEnderItem(381))->setIcon(0, 11)->setCategory(ItemCategory::Tools)->setDescriptionId("eyeOfEnder");
 	Item::chorusFruit = (new ChorusFruitItem(432))->setIcon(1, 11)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("chorusFruit");
+	// v27: end crystal (modern MC id 426 = ctor 170 + 256; lang
+	// item.endCrystal.name in en_US.lang). Icon cell (2, 11), drawn
+	// — the cell was fully transparent before.
+	Item::endCrystal = (new EndCrystalItem(170))->setIcon(2, 11)->setCategory(ItemCategory::Tools)->setDescriptionId("endCrystal");
 	// v23: real emerald, the trading currency (icon cell (2,13), drawn).
 	// Full id 689; the old Item::emerald (id 264) stays the diamond gem.
 	Item::emeraldGem = (new Item(433))->setIcon(2, 13)->setCategory(ItemCategory::Decorations)->setDescriptionId("emeraldGem");

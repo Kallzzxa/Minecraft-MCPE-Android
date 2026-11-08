@@ -67,6 +67,26 @@ float EndLevelSource::noise2D(long seed, int x, int z)
 	return total; // ~0..1
 }
 
+/*static*/
+bool EndLevelSource::isPillarTop(int x, int y, int z)
+{
+	for (int i = 0; i < 10; i++) {
+		if (PILLARS[i].x == x && PILLARS[i].z == z
+			&& 64 + PILLARS[i].h == y) return true;
+	}
+	return false;
+}
+
+/*static*/
+bool EndLevelSource::isExitRingCell(int x, int y, int z)
+{
+	if (y != EXIT_PORTAL_Y) return false;
+	int ax = x < 0 ? -x : x;
+	int az = z < 0 ? -z : z;
+	int m = ax > az ? ax : az;
+	return m == 1;
+}
+
 LevelChunk* EndLevelSource::getChunk(int xOffs, int zOffs)
 {
 	unsigned char* blocks = new unsigned char[LevelChunk::ChunkBlockCount];

@@ -61,6 +61,13 @@ public:
 	// already defeated). Shared so the dragon and Minecraft agree.
 	static const int EXIT_PORTAL_Y = 65;
 
+	// v27: respawn-spot tests for end crystals. A pillar cap is the
+	// single bedrock block on a pillar top (y = 64 + height); an
+	// exit-ring cell is one of the 8 bedrock blocks around the exit
+	// portal centre at y = 65.
+	static bool isPillarTop(int x, int y, int z);
+	static bool isExitRingCell(int x, int y, int z);
+
 private:
 	// Deterministic 0..1 hashes of integer coords (no RNG state, so a
 	// chunk generates identically whenever it is (re)generated).
