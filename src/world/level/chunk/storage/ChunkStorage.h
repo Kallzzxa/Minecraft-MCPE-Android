@@ -19,6 +19,12 @@ public:
 	}
 	virtual void save(Level* level, LevelChunk* levelChunk) {}
 	virtual void saveEntities(Level* level, LevelChunk* levelChunk) {}
+	// v16 streaming: called by ChunkCache right BEFORE it deletes an
+	// evicted chunk, so the storage can drop any bookkeeping that points
+	// at the chunk object (ExternalFileLevelStorage keeps doomed chunk
+	// pointers in its pending-unsaved list — without this, the next
+	// savePendingUnsavedChunks() would write through a dangling pointer).
+	virtual void onChunkEvicted(LevelChunk* levelChunk) {}
 	virtual void saveAll(Level* level, std::vector<LevelChunk*>& levelChunks) {
 		for (unsigned int i = 0; i < levelChunks.size(); ++i) save(level, levelChunks[i]);
 	}

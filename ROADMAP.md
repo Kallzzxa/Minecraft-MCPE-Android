@@ -428,40 +428,103 @@ Each version is ONE coherent batch of features, shipped as a new APK
   still 512×512, all v1–v14 features untouched. The APK is identical
   to v14 in play; it is only the stage marker for this plan.
 
-## Next (v15)
+- **v16 — Infinite world, stage 2: streaming core (SHIPPED).** The
+  fixed 32×32 chunk cache is now a dynamic map + eviction; the world
+  is STILL 512×512 (border stays — `RegionFile` cannot save outside
+  0..31 yet, that is v17), but the resident window now moves with the
+  player and old worlds still load.
+  ### What shipped
+  - `ChunkCache.h`: `chunks[1024]` → `std::map<int64_t,
+    LevelChunk*>` keyed by the 64-bit `ChunkPos` hash; `fits()` is now
+    the WORLD border (0..31), not the cache size; the shared
+    `emptyChunk` is never stored in the map (the old slot array stored
+    it — a double-delete waiting to happen); `saveAll()` saves the
+    RESIDENT set instead of re-loading all 1024 chunks through
+    `getChunk()`; `gatherStats()` reports the real resident count.
+    Eviction runs from `tick()` (never on a `getChunk()` miss — the
+    centre must be the PLAYER chunk, not whatever chunk a spawner or
+    tile tick happened to request): every 10 ticks, chunks farther
+    than Chebyshev radius 16 from the player chunk are evicted, max
+    32 per sweep. Constants in `LevelConstants.h`
+    (`CHUNK_STREAM_RADIUS = 16`, `CHUNK_STREAM_SWEEP_INTERVAL_TICKS
+    = 10`, `CHUNK_STREAM_MAX_EVICT_PER_SWEEP = 32`,
+    `CHUNK_SPAWN_GEN_RADIUS = 9`).
+  - `ChunkPos.h`: hash key is now 64-bit (`(int64)x << 32 |
+    (uint32)z`); the old 15-bit/axis key collided beyond ±32767
+    chunks. This also fixes `Level::_chunksToPoll` (`std::set` ordered
+    by the hash) merging distinct chunks.
+  - `RandomLevelSource`: `chunkMap` key is `int64_t`; new
+    `evictChunk(x, z)` removes a generated chunk from `chunkMap` and
+    deletes it (`deleteBlockData()` + `delete`) — this is the ONLY
+    place a generated chunk is ever freed (the destructor cleanup is
+    still commented out), so without it RAM would grow without bound
+    as the player walks. `ChunkSource` gains a default
+    `evictChunk()` (returns false = "not mine, caller deletes") so
+    disk-loaded chunks are deleted by the cache instead.
+  - `Minecraft.cpp:prepareLevel()`: generates only the spawn area
+    (radius 9 chunks, 19×19 = 361 chunks, centred on the stored spawn
+    for old worlds / the centre for new ones) instead of all 1024 —
+    load is ~3× less generation work. The rest generates on demand.
+  - `Level.cpp:tickTiles()`: the 0..31 poll filter is dropped — the
+    poll offsets are already player-relative (±4 chunks); outside
+    coords just resolve to `emptyChunk` and tick nothing.
+  - `LevelRenderer.cpp`: VBO pool sized from the render grid
+    (33×33×8 render-chunks → 26,136 buffers) instead of
+    `LEVEL_WIDTH` (65-wide → 101,400). Exact fit at far distance.
+  - Two fixes that HAD to move forward from v17, or eviction would
+    be undone: `ExternalFileLevelStorage::tick()` now scans the
+    RESIDENT set (`ChunkSource::getResidentChunks()`) instead of
+    calling `level->getChunk(x, z)` for all 1024 chunks every 50
+    ticks (that re-loaded every evicted chunk + its light recompute);
+    `ChunkCache::saveAll()` likewise saves residents only, so saving
+    no longer re-generates the whole world for a new level.
+  ### How the unload-stub risk was handled
+  `LevelChunk::unload()` is still a stub (only `loaded = false`), so
+  eviction NEVER deletes a chunk that holds live entities or tile
+  entities: `evictChunk()` refuses (pins) any chunk with
+  `countEntities() > 0` or a non-empty tile-entity map. Entities live
+  in `Level::entities` + the chunk's `entityBlocks` index, tile
+  entities in `Level::tileEntities` + the chunk's map — deleting the
+  chunk object while either still references it would leave dangling
+  pointers, and a reloaded chunk would create a DUPLICATE tile entity
+  (empty chest/furnace) when `getTileEntity()` found an empty map.
+  Pinning is bounded in v16: the world is still 512×512 (≤ 1024
+  chunks, same as before), mob caps are tiny (monster 20 + creature
+  15 + water 10 per level), tile entities are player-placed and few.
+  Eviction saves UNCONDITIONALLY before deleting (blocks via
+  `RegionFile`, entities via the global `entities.dat` snapshot —
+  same as the old slot-reuse path): a freshly generated chunk starts
+  with `unsaved = false`, so "save only if dirty" would silently drop
+  never-saved generated terrain, and regeneration is NOT bit-identical
+  (`postProcess` uses shared `Random` state). A second dangling-pointer
+  trap was found while doing this: `ExternalFileLevelStorage` keeps raw
+  chunk pointers in its pending-unsaved list, so eviction now calls a
+  new `ChunkStorage::onChunkEvicted()` hook that drops the entry
+  BEFORE the delete (otherwise `savePendingUnsavedChunks()` would
+  write through a freed pointer). Eviction also clears the
+  single-chunk `last` cache when it evicts that chunk.
+  ### What v17 still owes this
+  Real entity despawn/relocation on evict: pinning is safe only while
+  the world is capped. Once the border lifts, the pinned trail (a
+  chunk per wandering mob / placed chest) would grow without bound —
+  v17 must despawn (or relocate) non-player entities in evicted
+  chunks and detach tile entities properly before removing the
+  border. Also still open: the per-chunk light recompute on reload
+  (unchanged from before — same `updateLights` loop, just runs less
+  often now that the tick scan no longer reloads everything).
+  ### Verification (build-only until the realme 8 test)
+  Local NDK r17c build (same toolchain as CI) compiles clean for
+  arm64-v8a + armeabi-v7a; new symbols confirmed in the built
+  `libminecraftpe.so` (`ChunkCache::evictChunk/evictFarChunks/
+  getResidentChunks`, `RandomLevelSource::evictChunk`,
+  `ExternalFileLevelStorage::onChunkEvicted`, `ChunkCache: %d`
+  format string; old `ChunkCache: 1024` string gone). CI
+  `./gradlew assembleDebug` SUCCESS (see run in the v16 report).
+  Device proof still needed: walk far from spawn, resident count
+  stays ≤ 1,089, walk back and the old area looks identical, edited
+  chunks survive save/load, no crash on evict/reload cycles.
 
-- **v16 — Infinite world, stage 2: streaming core.** Replace the fixed
-  cache with a dynamic chunk map + load/unload around the player.
-  The 512×512 world keeps working as the fallback (same resident
-  memory, ~85 MiB — the window just moves now).
-  Files: `src/world/level/chunk/ChunkCache.h` (replace
-  `chunks[1024]` with `std::map<uint64_t, LevelChunk*>` + LRU evict
-  at Chebyshev radius 16 from the player chunk; keep the
-  `ChunkSource` interface so `Level::getChunk` callers do not change),
-  `src/world/level/ChunkPos.h` (64-bit hash key),
-  `src/world/level/levelgen/RandomLevelSource.h/.cpp` (evict from
-  `chunkMap` when the cache evicts — delete block data + object —
-  otherwise RAM grows without bound; keep the per-chunk seed gen),
-  `src/world/level/LevelConstants.h` (define the stream radius;
-  keep `LEVEL_WIDTH` for now as the fallback-world size),
-  `src/client/Minecraft.cpp:prepareLevel()` (generate spawn area
-  only, radius ~9 chunks, not all 1024),
-  `src/world/level/Level.cpp:tick()` (drop the 0..31 poll filter),
-  `src/client/renderer/LevelRenderer.cpp` (size the VBO pool from
-  the 33-wide render grid → 26,136 buffers, not `LEVEL_WIDTH`).
-  Main risk: eviction deleting a chunk something still references —
-  `LevelChunk::unload()` (`LevelChunk.cpp:454`) is a STUB (only sets
-  `loaded = false`; the entity/tile-entity removal inside it is
-  commented out), so entities/tile entities in an evicted chunk must
-  be moved or removed explicitly first, or the game will hold
-  dangling pointers. Second risk: lighting recompute cost when a
-  chunk is re-loaded (the `updateLights` loop in
-  `ChunkCache::getChunk` runs per chunk). Verification: walk /
-  teleport far from spawn in a test build; resident chunk count
-  stays ≤ 1,089 and memory stays flat (logcat `gatherStats` + device
-  meminfo); walk back — the old area re-generates or re-loads and
-  looks identical; no crash on evict/reload cycles; edited chunks
-  survive a save/load round-trip.
+## Next (v16)
 - **v17 — Infinite world, stage 3: remove the border + dynamic
   save/load.** Endless terrain + chunks saved/loaded at any
   coordinate.
@@ -470,8 +533,9 @@ Each version is ONE coherent batch of features, shipped as a new APK
   table; negative region coords via floor division, not C++
   truncation; bump the storage version; migrate old `chunks.dat`
   0..31 → region (0,0)), `ExternalFileLevelStorage.cpp`
-  (`tick()` unsaved scan over the resident set, not 0..31; remove
-  the v1 player-pos clamp at :279-280),
+  (remove the v1 player-pos clamp at :279-280 — the `tick()` unsaved
+  scan over the resident set was already done in v16, it had to be,
+  or eviction would have been undone every 50 ticks),
   `src/world/entity/Entity.cpp:887-888` (remove the x/z load clamp),
   `src/world/level/Level.cpp` (`setInitialSpawn`/`validateSpawn`:
   drop the [4,508] clamps; `inRange()`: y-only, or drop the call at
@@ -482,7 +546,11 @@ Each version is ONE coherent batch of features, shipped as a new APK
   v15), `NetherReactorTileEntity.cpp:133,143` (drop the [0,512)
   re-rolls), `CommandServer.cpp:239-241,459,507` (fill clamp +
   checkpoint units), `ClientSideNetworkHandler` (dynamic chunk
-  request set for MP). Main risk: negative-coordinate bugs — C++ `%`
+  request set for MP). New in v17 (debt from v16): real entity
+  despawn/relocation on evict + proper tile-entity detach — v16 pins
+  chunks with entities/tile entities, which is only bounded while the
+  world is capped at 512; the border must NOT lift before this exists.
+  Main risk: negative-coordinate bugs — C++ `%`
   and `>>` on negatives, `ChunkPos::hashCode` sign handling, and
   region-file naming for negative regions; test negative X/Z
   explicitly. Second risk: save corruption on crash mid-write

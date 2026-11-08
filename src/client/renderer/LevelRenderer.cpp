@@ -65,8 +65,14 @@ LevelRenderer::LevelRenderer( Minecraft* mc)
 	destroyProgress(0)
 {
 #ifdef OPENGL_ES
-	int maxChunksWidth = 2 * LEVEL_WIDTH / CHUNK_SIZE + 1;
-	numListsOrBuffers = maxChunksWidth * maxChunksWidth * (128/CHUNK_SIZE) * 3;
+	// v16: size the VBO pool from the RENDER GRID, not from LEVEL_WIDTH.
+	// allChanged() builds a 33x33x8 grid (dist 512 -> 512/16+1 = 33
+	// render-chunks wide, 128/16 = 8 high) needing 33*33*8*3 = 26,136
+	// buffers. The old formula sized it from the world width
+	// (65-wide -> 101,400 buffers) — ~75k buffer objects that the grid
+	// can never use, allocated up front on every level load.
+	int renderGridWidth = 512 / CHUNK_SIZE + 1; // 33 render-chunks
+	numListsOrBuffers = renderGridWidth * renderGridWidth * (128/CHUNK_SIZE) * 3; // 26,136
 	chunkBuffers = new GLuint[numListsOrBuffers];
 	glGenBuffers2(numListsOrBuffers, chunkBuffers);
 	LOGI("numBuffers: %d\n", numListsOrBuffers);
@@ -166,8 +172,9 @@ void LevelRenderer::allChanged()
 	// wide, ~264 blocks around the player). Must extend past the fog END
 	// (256 blocks) so terrain fades out in fog instead of hitting a hard
 	// un-rendered edge; the old 400 cap left a visible cut at ~208 blocks.
-	// VBO pool is sized by LEVEL_WIDTH (65-wide, 101400 lists); this grid
-	// needs 8712 chunks x 3 lists = 26136, well within it.
+	// v16: the VBO pool is sized from this grid (8712 chunks x 3 lists
+	// = 26,136 buffers) — an exact fit at far distance, not the old
+	// 101,400 sized from LEVEL_WIDTH.
 	if (dist > 512) dist = 512;
 	/*
 	* if (Minecraft.FLYBY_MODE) { dist = 512 - CHUNK_SIZE * 2; }

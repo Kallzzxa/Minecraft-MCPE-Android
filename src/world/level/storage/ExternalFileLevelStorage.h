@@ -61,6 +61,10 @@ public:
 	//
 	virtual LevelChunk* load(Level* level, int x, int z);
 	void save(Level* level, LevelChunk* levelChunk);
+	// v16: ChunkCache calls this before deleting an evicted chunk, so
+	// the pending-unsaved list never holds a dangling chunk pointer
+	// (savePendingUnsavedChunks would otherwise write through it).
+	virtual void onChunkEvicted(LevelChunk* levelChunk);
 	// @note, loadEntities and saveEntities dont use second parameter
 	void loadEntities(Level* level, LevelChunk* levelChunk);
 	void saveEntities(Level* level, LevelChunk* levelChunk);

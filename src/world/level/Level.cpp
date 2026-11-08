@@ -278,9 +278,13 @@ void Level::tickTiles() {
 		for (int i = 0; i < pollChunkOffsetsSize; i += 2) {
 			const int xp = xx + pollChunkOffsets[i];
 			const int zp = zz + pollChunkOffsets[i+1];
-			if (xp >= 0 && xp < CHUNK_CACHE_WIDTH &&
-				zp >= 0 && zp < CHUNK_CACHE_WIDTH)
-				_chunksToPoll.insert(ChunkPos(xp, zp));
+			// v16: no 0..31 filter anymore — the poll offsets are already
+			// player-relative (+-4 chunks), and with streaming the window
+			// moves with the player. Out-of-world coords just resolve to
+			// the shared emptyChunk in ChunkCache::getChunk and tick
+			// nothing. (ChunkPos is keyed by the 64-bit hash now, so
+			// distinct poll positions can no longer collide in the set.)
+			_chunksToPoll.insert(ChunkPos(xp, zp));
 		}
     }
 	TIMER_POP();

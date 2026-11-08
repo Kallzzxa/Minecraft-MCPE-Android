@@ -405,14 +405,36 @@ void Minecraft::prepareLevel(const std::string& title) {
 	if (!level->isNew())
 		level->setUpdateLights(false);
 
-	int Max = CHUNK_CACHE_WIDTH * CHUNK_CACHE_WIDTH;
+	// v16: generate ONLY the spawn area (radius CHUNK_SPAWN_GEN_RADIUS
+	// chunks), not the whole 1024-chunk world. The rest generates on
+	// demand as the player walks (ChunkCache streams it in). For a new
+	// world the spawn is the centre (setInitialSpawn() runs below); for
+	// an old world use the stored spawn (a bed spawn can be off-centre).
+	int spawnCX, spawnCZ;
+	if (level->isNew()) {
+		spawnCX = CHUNK_CACHE_WIDTH / 2;
+		spawnCZ = CHUNK_CACHE_WIDTH / 2;
+	} else {
+		Pos spawn = level->getSharedSpawnPos();
+		spawnCX = spawn.x / 16;
+		spawnCZ = spawn.z / 16;
+	}
+	int cx0 = spawnCX - CHUNK_SPAWN_GEN_RADIUS;
+	if (cx0 < 0) cx0 = 0;
+	int cx1 = spawnCX + CHUNK_SPAWN_GEN_RADIUS;
+	if (cx1 >= CHUNK_CACHE_WIDTH) cx1 = CHUNK_CACHE_WIDTH - 1;
+	int cz0 = spawnCZ - CHUNK_SPAWN_GEN_RADIUS;
+	if (cz0 < 0) cz0 = 0;
+	int cz1 = spawnCZ + CHUNK_SPAWN_GEN_RADIUS;
+	if (cz1 >= CHUNK_CACHE_WIDTH) cz1 = CHUNK_CACHE_WIDTH - 1;
+	int Max = (cx1 - cx0 + 1) * (cz1 - cz0 + 1);
 	int pp = 0;
-	for (int x = 8; x < (CHUNK_CACHE_WIDTH * CHUNK_WIDTH); x += CHUNK_WIDTH) {
-        for (int z = 8; z < (CHUNK_CACHE_WIDTH * CHUNK_WIDTH); z += CHUNK_WIDTH) {
+	for (int cx = cx0; cx <= cx1; cx++) {
+        for (int cz = cz0; cz <= cz1; cz++) {
             progressStagePercentage = 100 * pp++ / Max;
             //printf("level generation progress %d\n", progressStagePercentage);
 			B.start();
-            level->getTile(x, 64, z);
+            level->getTile(cx * 16 + 8, 64, cz * 16 + 8);
 			B.stop();
 			L.start();
 			if (level->isNew())
@@ -425,9 +447,9 @@ void Minecraft::prepareLevel(const std::string& title) {
 	level->setUpdateLights(true);
 
 	C.start();
-	for (int x = 0; x < CHUNK_CACHE_WIDTH; x++)
+	for (int x = cx0; x <= cx1; x++)
 	{
-		for (int z = 0; z < CHUNK_CACHE_WIDTH; z++)
+		for (int z = cz0; z <= cz1; z++)
 		{
 			LevelChunk* chunk = level->getChunk(x, z);
 			if (chunk && !chunk->createdFromSave)

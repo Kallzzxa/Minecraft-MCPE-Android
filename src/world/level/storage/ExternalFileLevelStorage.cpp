@@ -5,6 +5,7 @@
 #include "ExternalFileLevelStorage.h"
 #include "FolderMethods.h"
 #include "../chunk/LevelChunk.h"
+#include "../chunk/ChunkSource.h"
 #include "../Level.h"
 #include "../LevelConstants.h"
 #include "../tile/TreeTile.h"
@@ -294,13 +295,26 @@ void ExternalFileLevelStorage::tick()
 	if ((tickCount % 50) == 0 && level)
 	{
 		// look for chunks that needs to be saved
-		for (int z = 0; z < CHUNK_CACHE_WIDTH; z++)
+		// v16 (moved forward from the v17 plan — REQUIRED for streaming:
+		// the old loop called level->getChunk(x, z) for all 1024 chunks,
+		// which re-loads every chunk ChunkCache just evicted, every 50
+		// ticks, undoing eviction entirely and paying the per-chunk
+		// light recompute each time. The resident set is the correct
+		// scan: evicted chunks were already saved when evicted, and the
+		// world is still 0..31 in v16 so the pos key is unchanged.
+		// NOTE: getResidentChunks() comes from the chunk source, not
+		// from getChunk(), so this scan loads nothing.
+		std::vector<LevelChunk*> resident;
+		if (level->getChunkSource() != NULL)
+			level->getChunkSource()->getResidentChunks(resident);
+		for (size_t i = 0; i < resident.size(); ++i)
 		{
-			for (int x = 0; x < CHUNK_CACHE_WIDTH; x++)
 			{
-				LevelChunk* chunk = level->getChunk(x, z);
+				LevelChunk* chunk = resident[i];
 				if (chunk && chunk->unsaved)
 				{
+					int x = chunk->x;
+					int z = chunk->z;
 					int pos = x + z * CHUNK_CACHE_WIDTH;
 					UnsavedChunkList::iterator prev = unsavedChunkList.begin();
 					for ( ; prev != unsavedChunkList.end(); ++prev)
@@ -329,6 +343,22 @@ void ExternalFileLevelStorage::tick()
 	}
 	if (tickCount - lastSavedEntitiesTick > (60 * SharedConstants::TicksPerSecond)) {
 		saveEntities(level, NULL);
+	}
+}
+
+void ExternalFileLevelStorage::onChunkEvicted(LevelChunk* levelChunk)
+{
+	// v16: the chunk object is about to be deleted by ChunkCache. Drop
+	// any pending-unsaved entry pointing at it — savePendingUnsavedChunks
+	// would otherwise call save() on a dangling pointer. The chunk's
+	// blocks were already written by the eviction itself (ChunkCache
+	// calls save() directly), so dropping the entry loses nothing.
+	for (UnsavedChunkList::iterator it = unsavedChunkList.begin(); it != unsavedChunkList.end(); )
+	{
+		if ((*it).chunk == levelChunk)
+			it = unsavedChunkList.erase(it);
+		else
+			++it;
 	}
 }
 

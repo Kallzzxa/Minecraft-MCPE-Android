@@ -4,6 +4,7 @@
 //package net.minecraft.world.level.chunk;
 
 #include <string>
+#include <vector>
 #include "../biome/Biome.h"
 
 class ProgressListener;
@@ -34,6 +35,21 @@ public:
 
     virtual bool shouldSave() = 0;
 	virtual void saveAll(bool onlyUnsaved) {}
+
+	// v16 streaming: drop a chunk from this source's own store and delete
+	// it. Returns true if this source owned the chunk (and deleted it) —
+	// the caller (ChunkCache) then only erases its own reference and must
+	// NOT delete the object again. Returns false if the chunk is not in
+	// this source's store (e.g. it was loaded from disk, not generated),
+	// in which case the caller owns the delete. Default: not owned.
+	virtual bool evictChunk(int x, int z) { return false; }
+
+	// v16 streaming: append every chunk this source currently holds
+	// resident (for ChunkCache: the whole map). Used by the storage tick
+	// scan so it only looks at resident chunks instead of re-loading the
+	// whole world through getChunk() every 50 ticks (which would undo
+	// eviction). Default: empty (sources without a resident set).
+	virtual void getResidentChunks(std::vector<LevelChunk*>& out) {}
 
 	virtual Biome::MobList getMobsAt(const MobCategory& mobCategory, int x, int y, int z) = 0;
 

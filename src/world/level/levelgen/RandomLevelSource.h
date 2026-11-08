@@ -9,7 +9,13 @@ class LevelChunk;
 
 #if 1 || USE_MAP
 	#include <map>
-	typedef std::map<int, LevelChunk*> ChunkMap;
+	#include <stdint.h>
+	// v16: 64-bit key (ChunkPos::hashCode) — the old int key collided
+	// beyond +-32767 chunks per axis. chunkMap is the generator's store
+	// of every chunk it ever generated; see evictChunk() — entries are
+	// removed (and the chunk deleted) when ChunkCache evicts them, so
+	// this map no longer grows without bound.
+	typedef std::map<int64_t, LevelChunk*> ChunkMap;
 #else
 	#if defined(__APPLE__)
 		#include <ext/hash_map>
@@ -43,6 +49,15 @@ public:
 	bool hasChunk(int x, int y);
     LevelChunk* create(int x, int z);
 	LevelChunk* getChunk(int xOffs, int zOffs);
+
+	// v16: evict a generated chunk from chunkMap and delete it. Returns
+	// true if the chunk was in chunkMap (owned + deleted), false if not
+	// (it was loaded from disk, so the caller owns it). ChunkCache calls
+	// this during eviction, AFTER saving the chunk — without it, every
+	// generated chunk would stay in chunkMap forever and RAM would grow
+	// without bound as the player walks (the old destructor cleanup is
+	// commented out and ChunkCache slot reuse never deleted either).
+	virtual bool evictChunk(int x, int z);
 
 	void prepareHeights(int xOffs, int zOffs, unsigned char* blocks, /*Biome*/void* biomes, float* temperatures);
     void buildSurfaces(int xOffs, int zOffs, unsigned char* blocks, Biome** biomes);
