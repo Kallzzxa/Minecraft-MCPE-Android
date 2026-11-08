@@ -280,10 +280,14 @@ void Level::tickTiles() {
 			const int zp = zz + pollChunkOffsets[i+1];
 			// v16: no 0..31 filter anymore — the poll offsets are already
 			// player-relative (+-4 chunks), and with streaming the window
-			// moves with the player. Out-of-world coords just resolve to
-			// the shared emptyChunk in ChunkCache::getChunk and tick
-			// nothing. (ChunkPos is keyed by the 64-bit hash now, so
-			// distinct poll positions can no longer collide in the set.)
+			// moves with the player. The polled chunks are always inside
+			// the resident window (+-4 around the player, window radius
+			// is 16), so getChunk() is a cache hit here. (v18: the old
+			// comment said out-of-range coords resolve to the shared
+			// emptyChunk — wrong since v17, getChunk() generates/loads a
+			// real chunk at any coordinate now. ChunkPos is keyed by the
+			// 64-bit hash, so distinct poll positions can no longer
+			// collide in the set.)
 			_chunksToPoll.insert(ChunkPos(xp, zp));
 		}
     }
@@ -1522,6 +1526,31 @@ void Level::tick(Entity* e, bool actual) {
     int zc = Mth::floor(e->z);
     int r = 32;
     if (actual && !hasChunksAt(xc - r, 0, zc - r, xc + r, 128, zc + r)) {
+        // v18: an entity outside the loaded neighbourhood freezes here
+        // (no e->tick(), no chunk-change) — that is the pre-existing
+        // pattern, and it is normally self-healing: the entity stays
+        // indexed in its chunk and eviction despawns it when that chunk
+        // leaves the streaming window. But an entity whose OWN chunk is
+        // not resident either (inChunk == false — left behind when its
+        // chunk was reloaded, or moved outside the window between
+        // sweeps) is indexed NOWHERE, so no sweep can ever find it: it
+        // would sit in Level::entities forever, still counting toward
+        // the MobSpawner caps (countInstanceOf* walks the whole list)
+        // and still being written to entities.dat on save, from where
+        // it would resurrect on the next load. Despawn it instead of
+        // freezing it. The player is never despawned, and an entity
+        // whose own chunk IS resident keeps the old freeze behaviour
+        // (it resumes when the player walks back — no gameplay change
+        // for in-window mobs). Single-player only: on a client the
+        // entities are server-authoritative, so the client must not
+        // unilaterally despawn them.
+        if (!isClientSide && !e->isPlayer()) {
+            int xcn = Mth::floor(e->x / 16.0f);
+            int zcn = Mth::floor(e->z / 16.0f);
+            if (!hasChunk(xcn, zcn)) {
+                removeEntity(e);
+            }
+        }
         return;
     }
 

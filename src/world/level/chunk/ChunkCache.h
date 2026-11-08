@@ -49,12 +49,24 @@ public:
 		// Delete resident chunks FIRST, then the source: the generator's
 		// chunkMap holds the same pointers for generated chunks, and its
 		// destructor must never run while we still owe it a delete.
+		// v18: route each generated chunk through source->evictChunk()
+		// (which erases it from chunkMap AND deletes it) instead of
+		// deleting it directly — the old loop deleted the object while
+		// chunkMap still pointed at it (harmless only because the
+		// source was deleted immediately after without touching the
+		// map). Disk-loaded chunks are not in chunkMap, so
+		// evictChunk() returns false for them and the cache deletes
+		// them itself, exactly like evictChunk() does.
 		for (ChunkMap::iterator it = chunks.begin(); it != chunks.end(); ++it)
 		{
 			if (it->second)
 			{
-				it->second->deleteBlockData();
-				delete it->second;
+				if (source != NULL && source->evictChunk(it->second->x, it->second->z)) {
+					// Deleted by the generator (removed from chunkMap).
+				} else {
+					it->second->deleteBlockData();
+					delete it->second;
+				}
 			}
 		}
 		chunks.clear();
@@ -415,6 +427,51 @@ public:
             size_t before = chunks.size();
             evictChunk(far[i].first, far[i].second);
             if (chunks.size() < before) evicted++;
+        }
+
+        // v18: pre-generate the ring around the player chunk (see
+        // pregenerateNearChunks). Runs on the same 10-tick sweep as
+        // eviction, after it — the two windows are disjoint (pre-gen
+        // radius 3, eviction radius 16), so pre-gen can never resurrect
+        // a chunk this sweep just evicted.
+        pregenerateNearChunks(pcx, pcz);
+    }
+
+    // v18: generate the chunks around the player chunk ahead of time,
+    // a few per sweep, nearest ring first. Verified need (see ROADMAP
+    // v18): the player can never physically walk into air — collision
+    // (Level::getCubes -> getTile -> getChunk) and the renderer
+    // (Chunk::rebuild reads through Region, whose constructor calls
+    // level->getChunk) both generate a chunk synchronously on demand,
+    // and updateDirtyChunks() rebuilds every render chunk within 32
+    // blocks of the player every frame. What pre-gen fixes is the
+    // COST of that on-demand generation landing inside the render
+    // pass: walking into new terrain used to burst several chunk
+    // generations (Perlin + features + mob spawns) into one frame's
+    // near-chunk rebuilds, and far render chunks then queued behind
+    // the 3-per-frame rebuild budget. Generating up to
+    // CHUNK_PREGEN_MAX_PER_SWEEP missing chunks per sweep, in the game
+    // tick, spreads the same work out so the frame stays smooth.
+    // Skipped when there is no generator (MP client cache, source ==
+    // NULL): getChunk() there would only return the shared emptyChunk
+    // and hasChunk() would stay false, so the ring would retry every
+    // sweep for nothing.
+    void pregenerateNearChunks(int pcx, int pcz) {
+        if (source == NULL) return;
+        int generated = 0;
+        for (int ring = 0; ring <= CHUNK_PREGEN_RADIUS && generated < CHUNK_PREGEN_MAX_PER_SWEEP; ++ring) {
+            for (int dx = -ring; dx <= ring && generated < CHUNK_PREGEN_MAX_PER_SWEEP; ++dx) {
+                for (int dz = -ring; dz <= ring && generated < CHUNK_PREGEN_MAX_PER_SWEEP; ++dz) {
+                    // Inner rings were already covered by smaller `ring`
+                    // values — only the perimeter of this ring is new.
+                    if (dx > -ring && dx < ring && dz > -ring && dz < ring) continue;
+                    int cx = pcx + dx;
+                    int cz = pcz + dz;
+                    if (hasChunk(cx, cz)) continue;
+                    getChunk(cx, cz);
+                    ++generated;
+                }
+            }
         }
     }
 

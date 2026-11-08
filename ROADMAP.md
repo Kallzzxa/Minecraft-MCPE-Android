@@ -655,26 +655,144 @@ Each version is ONE coherent batch of features, shipped as a new APK
   walk, memory flat. Only after v18 passes does any version claim
   "infinite".
 
-## Next (v17)
-- **v18 — Infinite world, stage 4: verification + polish.** Prove
-  it on device, fix what leaks, make the far-walk feel right.
-  Files: whatever v17 shakes out (expected: eviction tuning,
-  `LevelRenderer` pool, `MobSpawner` radius, fog/load behaviour,
-  the MP chunk-request set if multiplayer is wanted beyond 512).
-  Work: long walk in a test build (teleport / fly), measure memory
-  (PSS, flat over distance) + FPS on the realme 8, check `chunkMap`
-  size never grows, check the VBO pool count, fix negative-coord
-  edge cases found in v17 testing, decide the loading behaviour for
-  not-yet-generated chunks (today they render as `emptyChunk` void —
-  acceptable while generating, but a pre-gen ring or loading pause
-  may be needed so the player never walks into air). Main risk:
-  a slow leak that only shows after 10+ minutes of walking (the
-  v15 finding that `chunkMap` never evicts is exactly this class of
-  bug — re-verify with a long session, not a quick teleport).
-  Verification: 10-minute walk session, memory flat, FPS within
-  ~10% of v14 at spawn, no void holes, no crash; only then does any
-  version claim "infinite". The v16 APK stays the fallback until
-  this stage passes.
+- **v18 — Infinite world, stage 4: verification + polish (SHIPPED,
+  build-only).** Code audit of the v16/v17 streaming system + three
+  targeted fixes. No gameplay change; v1–v17 features untouched.
+  ### Audit results (what was checked, what was found)
+  1. **Remaining fixed-world assumptions — AUDITED, none left in
+     single-player.** Searched for `CHUNK_CACHE_WIDTH` / `LEVEL_WIDTH` /
+     `LEVEL_DEPTH` as world bounds, `chunksLoaded[1024]`, `x + z*32`
+     indexing, `& 31` / `% 32` slot math and coordinate clamps. What is
+     left is DELIBERATE, not a leak: `Level::inRange()` (only caller is
+     the MP `ClientSideNetworkHandler` block-update gate) and the whole
+     `ClientSideNetworkHandler` chunk-request set (`chunksLoaded[1024]`,
+     `NumRequestChunks = 1024`) — MP stays 512×512, needs matching
+     server-side changes; `CHUNK_CACHE_WIDTH` / `LEVEL_WIDTH` /
+     `LEVEL_DEPTH` survive only as the default spawn centre (new worlds
+     spawn at chunk (16,16) = block (256,256)); `x >> 4` / `x & 15`
+     block-to-chunk math is floor-correct for negatives on this
+     toolchain (arithmetic shift — the pattern is used tree-wide in
+     `Region`, `hasChunksAt`, `Level::getTile`) and `Mth::floor` is a
+     true floor; `Level::MAX_LEVEL_SIZE` is 32,000,000, not a 512
+     clamp. One stale v16 comment fixed (`Level::tickTiles` claimed
+     out-of-range coords resolve to the shared `emptyChunk` — wrong
+     since v17, `getChunk()` generates/loads a real chunk anywhere).
+  2. **Mob walking out of the resident window between sweeps (the v17
+     caveat) — TRACED + SAFETY NET ADDED.** The trace: a mob CANNOT
+     walk out in one tick — `Level::tick(Entity*)` refuses to tick any
+     entity whose ±32-block neighbourhood is not fully resident
+     (`hasChunksAt` gate), so a mob freezes at the window edge (chunk
+     distance 15–16) before it can leave, and `evictChunk()` despawns
+     every entity still indexed in an evicted chunk. The leak class is
+     narrower than the caveat feared: only an entity with
+     `inChunk == false` is indexed NOWHERE, so no sweep can find it —
+     and reaching that state needs the chunk-change to run while the
+     new chunk is not resident, which normal movement (≤1 chunk/tick)
+     and even the enderman teleport (±16 blocks, ≤1 chunk) cannot do
+     after the gate passed. But the class is real if ANY path ever
+     produces it, and the cost is not just memory: a leaked entity
+     stays in `Level::entities` forever, still counts toward the
+     `MobSpawner` caps (`countInstanceOf*` walks the whole list, so
+     leaked animals/monsters suppress new spawns) and is still written
+     to `entities.dat` on save (resurrecting on the next load). Fix
+     (`Level::tick`): when the `hasChunksAt` gate fails, a
+     NON-PLAYER entity whose OWN chunk is not resident is despawned
+     (`removeEntity`, same call eviction uses) instead of freezing.
+     An entity whose own chunk IS resident keeps the old freeze
+     behaviour (resumes when the player walks back — no gameplay
+     change for in-window mobs); the player is never despawned; and
+     the net is single-player only (`!isClientSide` — on a client the
+     entities are server-authoritative).
+  3. **Not-yet-generated chunks — VERIFIED + PRE-GEN RING (the safe
+     option, not a loading pause).** First, the scary claim was
+     checked and is FALSE for physics: the player can never walk into
+     air — collision (`Level::getCubes` → `getTile` → `getChunk`) and
+     the renderer (`Chunk::rebuild` reads through `Region`, whose
+     constructor calls `level->getChunk`) both generate a chunk
+     synchronously on demand, and `updateDirtyChunks()` rebuilds every
+     render chunk within 32 blocks of the player every frame. What
+     was real is the COST: walking into new terrain burst several
+     chunk generations (Perlin + features + mob spawns) into one
+     frame's near-chunk rebuilds, and far render chunks queue behind
+     the 3-per-frame rebuild budget. Fix: `ChunkCache::
+     pregenerateNearChunks()` runs on the same 10-tick sweep as
+     eviction, after it — radius 3 chunks around the player chunk
+     (covers the 32-block near-rebuild band + 1 chunk margin), max 4
+     missing chunks per sweep, nearest ring first, skipped when there
+     is no generator (MP client cache). The two windows are disjoint
+     (pre-gen 3, eviction 16), so pre-gen can never resurrect a chunk
+     the same sweep just evicted. A loading pause was rejected: it
+     would freeze input/movement for a problem that is only a frame
+     hitch, and the renderer was not to be touched.
+  4. **Negative coordinates + eviction tuning — AUDITED, no tuning
+     change.** Floor-division re-checked on every path that touches
+     negative chunk coords: `RegionFile::floorDivRegion` (v17),
+     `prepareLevel` spawn floor-div (v17), `evictFarChunks` manual
+     floor (v17), `reattachTileEntities` / `Level::getTile` /
+     `hasChunksAt` / `Region` `>> 4` shifts (floor on NDK),
+     `MobSpawner` / `tickTiles` / `LevelChunk::addEntity`
+     (`Mth::floor`, true floor), `CommandServer` fill (y clamped
+     only) + checkpoint (`Mth::floor`), `NetherReactor` spawn offsets
+     (±7 blocks, no bounds). All correct. Eviction tuning VERIFIED,
+     not changed: radius 16 matches the render grid exactly (33×33)
+     and the fog end (256 blocks); sweep 10 ticks / max 32 per sweep
+     drains a teleport in ~34 sweeps (~17 s) — bounded, no blind
+     tuning.
+  5. **`chunkMap` growth — PROVEN BOUNDED + one teardown fix.**
+     Sole inserter is `RandomLevelSource::getChunk`, and the ONLY
+     caller of it is `ChunkCache::getChunk` on a cache miss (every
+     `Level` / `Region` / spawner / tile path funnels through
+     `Level::getChunk` → the cache, so every generated chunk is
+     resident in the cache). Sole remover is
+     `RandomLevelSource::evictChunk`, called only from
+     `ChunkCache::evictChunk` on the sweep. Disk-loaded chunks never
+     enter `chunkMap` (created by `storage->load`, deleted by the
+     cache on evict). `saveAll` / the storage 50-tick scan iterate
+     the RESIDENT set only (`getResidentChunks`), never re-loading
+     evicted chunks; `savePendingUnsavedChunks` entries are dropped
+     by `onChunkEvicted` before the delete; `deleteLevel` removes
+     `r.*.dat`. The one hole found: the `ChunkCache` DESTRUCTOR
+     deleted resident chunks directly while `chunkMap` still pointed
+     at them (harmless only because the source was deleted right
+     after) — it now routes each chunk through
+     `source->evictChunk()` (erases from `chunkMap` + deletes),
+     falling back to a direct delete for disk-loaded chunks.
+  ### Verification (build-only until the realme 8 test)
+  Local NDK r17c `ndk-build` (same toolchain as CI) compiles clean
+  for arm64-v8a, full `libminecraftpe.so` link OK; CI
+  `./gradlew assembleDebug` SUCCESS (see run in the v18 report).
+  **"Infinite" is STILL NOT claimable after v18.** v18 proves from
+  code that nothing bounds the world, nothing leaks per the audit,
+  and generation is spread ahead of the player — but the claim needs
+  the device test: 10-minute walk past the old border in every
+  direction + negative coords, memory flat, FPS within ~10% of v14
+  at spawn, no void hole, no crash, edits + far chest + far night
+  mobs surviving reload. Until that test passes, v18 is "infinite in
+  code, unverified on device".
+  ### Debts for v19 (found, not fixed — not tuning-blind, just scoped)
+  - `evictChunk()` rewrites the whole `entities.dat` on EVERY
+    evicted chunk (up to 32 rewrites in one sweep while a teleport
+    drains) — wasteful I/O burst, correctness is fine; save the
+    snapshot once per sweep instead.
+  - The 10-minute device walk itself (see "Verification" above).
+
+## Next (v18)
+- **Device verification for the infinite-world claim (v18's open
+  item, before any version calls the world "infinite").** 10-minute
+  walk session on the realme 8, memory flat, FPS within ~10% of v14
+  at spawn, no void holes, no crash; walk/teleport past x=512 and
+  z=512 and into negative coords — terrain continues, no vertical
+  edge, no blue void; edit blocks beyond the old border, quit,
+  reload, edits persist; OLD 512 world loads and its `chunks.dat`
+  migrates to `r.0.0.dat` (check the world dir); chest with items
+  placed far from spawn, walk away >16 chunks, walk back, contents
+  intact, no duplicate chest; mobs spawn at night far from origin
+  (the old 0..15 bug is gone); a mob left behind >16 chunks despawns
+  instead of freezing forever (v18 net). The v17 APK stays the
+  fallback until this stage passes.
+- **v19 — Music + ambient sounds** (first item in "Queued" below).
+  Also queued there: the v18 debt — save `entities.dat` once per
+  eviction sweep instead of once per evicted chunk.
 
 ## Queued (priority order — re-evaluate after each version)
 

@@ -40,4 +40,18 @@ const int CHUNK_STREAM_MAX_EVICT_PER_SWEEP = 32;
 // around the spawn chunk: 19x19 = 361 chunks instead of all 1024.
 const int CHUNK_SPAWN_GEN_RADIUS = 9;
 
+// v18 pre-generation ring (ChunkCache::pregenerateNearChunks): chunks
+// this close to the player chunk are generated ahead of time, a few per
+// eviction sweep, so the terrain the player is about to walk into
+// already exists before the renderer asks for it. Radius 3 covers the
+// renderer's near-rebuild band (32 blocks = 2 chunks) plus one chunk of
+// margin for sprinting/diagonal movement; the cap spreads the work so a
+// teleport fills the ring over a few sweeps instead of stalling one
+// tick. The renderer still generates on demand (Chunk::rebuild reads
+// through Region -> Level::getTile -> getChunk), so a chunk that is not
+// pre-generated yet can never show as a hole — pre-gen only moves the
+// generation cost out of the render pass and into the game tick.
+const int CHUNK_PREGEN_RADIUS = 3;
+const int CHUNK_PREGEN_MAX_PER_SWEEP = 4;
+
 #endif
