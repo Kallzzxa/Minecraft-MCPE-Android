@@ -378,7 +378,8 @@ float LocalPlayer::getWalkingSpeedModifier() {
 	float mod = 1.0f;
 	if (input && input->sprinting && !abilities.flying)
 		mod = 1.4f;
-	if (speedEffectTicks > 0) mod *= 1.2f;
+	// v26: speed II is x1.4 (modern MC), speed I stays x1.2.
+	if (speedEffectTicks > 0) mod *= (speedEffectLevel >= 2 ? 1.4f : 1.2f);
 	if (slownessEffectTicks > 0) mod *= 0.85f;
 	return mod;
 }

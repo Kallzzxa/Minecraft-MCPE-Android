@@ -286,11 +286,16 @@ void Mob::tick()
 		onFire = 0;
 	}
 	if (regenerationEffectTicks > 0) {
-		if (regenerationEffectTicks % 50 == 0) heal(1);
+		// v26: regeneration II heals twice as fast (1 HP / 25
+		// ticks, modern MC) instead of 1 HP / 50 ticks.
+		if (regenerationEffectTicks % (regenerationEffectLevel >= 2 ? 25 : 50) == 0) heal(1);
 		regenerationEffectTicks--;
 	}
 	if (poisonEffectTicks > 0) {
-		if (poisonEffectTicks % 25 == 0 && health > 1) hurt(NULL, 1);
+		// v26: poison II hurts twice as fast (1 HP / 12 ticks,
+		// modern MC) instead of 1 HP / 25 ticks, still never
+		// below 1 HP.
+		if (poisonEffectTicks % (poisonEffectLevel >= 2 ? 12 : 25) == 0 && health > 1) hurt(NULL, 1);
 		poisonEffectTicks--;
 	}
 
@@ -607,6 +612,11 @@ void Mob::_init() {
 	fireResistanceEffectTicks = 0;
 	regenerationEffectTicks = 0;
 	poisonEffectTicks = 0;
+	// v26: no level II effect active on spawn either.
+	speedEffectLevel = 0;
+	strengthEffectLevel = 0;
+	regenerationEffectLevel = 0;
+	poisonEffectLevel = 0;
 }
 
 void Mob::causeFallDamage( float distance )

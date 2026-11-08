@@ -23,6 +23,22 @@
 // Splash icons live on gui/items.png row 14 (cols 0..10), tinted
 // copies of the row-12 drinkable icons so the two are told apart in
 // the hotbar; names are item.splashPotion.<desc>.name in en_US.lang.
+//
+// v26: UPGRADED potions. Two more flag bits on the aux value,
+// alongside SPLASH_FLAG — the same short "Damage" tag carries them,
+// so no save format change is needed (max aux 10+16+32+64 = 122):
+//   EXTENDED_FLAG (32) — redstone brewing: ~2x duration
+//     (modern MC: 3:00 -> 8:00, 1:30 -> 4:00, 0:45 -> 1:30).
+//   LEVEL2_FLAG (64) — glowstone brewing: stronger effect, shorter
+//     duration (modern MC: swiftness/strength II 1:30, regen/poison
+//     II 0:22, healing II +8 HP, harming II 12 damage).
+// Redstone and glowstone are mutually exclusive (BrewingRecipes
+// refuses either on a potion that already carries the other), and
+// both work on drinkable AND splash potions (the splash flag is
+// preserved — the variant bits are OR'd on, never replacing the
+// aux). baseAux() (& 15) already strips all three flags, so every
+// existing call site keeps working; applyEffect() decodes the
+// variant from the full aux instead.
 
 #include "Item.h"
 #include "ItemInstance.h"
@@ -59,12 +75,34 @@ public:
 	static bool isSplash(int auxValue) { return (auxValue & SPLASH_FLAG) != 0; }
 	static int baseAux(int auxValue) { return auxValue & (SPLASH_FLAG - 1); }
 
+	// v26: upgrade flags — OR'd onto the aux value alongside
+	// SPLASH_FLAG (see the header comment). baseAux() strips all
+	// three, so it still returns just the potion type 0..10.
+	static const int EXTENDED_FLAG = 32;
+	static const int LEVEL2_FLAG = 64;
+	static bool isExtended(int auxValue) { return (auxValue & EXTENDED_FLAG) != 0; }
+	static bool isLevel2(int auxValue) { return (auxValue & LEVEL2_FLAG) != 0; }
+	// v26: strip ONLY the splash bit, keeping the upgrade flags —
+	// ThrownPotion uses this so a thrown splash potion still
+	// applies its extended / level II variant on impact (v25's
+	// baseAux() here would have thrown the variant away).
+	static int stripSplash(int auxValue) { return auxValue & ~SPLASH_FLAG; }
+
 	// Durations in ticks (20 tps). Modern MC: 3:00 for the 3-minute
 	// potions, 0:45 for regeneration/poison, 1:30 for weakness/slowness.
 	static const int DRINK_DURATION = 32; // 1.6 s, like food
 	static const int DURATION_LONG = 3600;
 	static const int DURATION_MEDIUM = 1800;
 	static const int DURATION_SHORT = 900;
+	// v26: extended (redstone) durations, modern MC: 3:00 -> 8:00,
+	// 1:30 -> 4:00, 0:45 -> 1:30.
+	static const int DURATION_LONG_EXTENDED = 9600;
+	static const int DURATION_MEDIUM_EXTENDED = 4800;
+	static const int DURATION_SHORT_EXTENDED = 1800;
+	// v26: level II (glowstone) durations, modern MC — stronger
+	// means shorter: swiftness/strength II 1:30, regen/poison II 0:22.
+	static const int DURATION_LONG_LEVEL2 = 1800;
+	static const int DURATION_SHORT_LEVEL2 = 440;
 
 	PotionItem(int id)
 	:	super(id)
@@ -92,8 +130,8 @@ public:
 		// ones, so the name itself says "Splash Potion of ...".
 		int aux = itemInstance->getAuxValue();
 		if (isSplash(aux))
-			return std::string("item.splashPotion.") + getTypeDesc(baseAux(aux));
-		return super::getDescriptionId() + "." + getTypeDesc(baseAux(aux));
+			return std::string("item.splashPotion.") + getTypeDesc(aux);
+		return super::getDescriptionId() + "." + getTypeDesc(aux);
 	}
 
 	int getUseDuration(ItemInstance* itemInstance) {
@@ -136,21 +174,33 @@ public:
 		return *instance;
 	}
 
-	static const char* getTypeDesc(int auxValue) {
+	// v26: the description key gains a suffix for upgraded
+	// potions, so the name itself tells the variant apart in the
+	// hotbar / brewing preview ("Potion of Swiftness (8:00)",
+	// "Potion of Swiftness II"). The suffix keys live in
+	// en_US.lang (item.potion.<desc>Long / <desc>2.name, and the
+	// item.splashPotion.* twins). Icons are intentionally the base
+	// ones — modern MC uses the same bottle colour for a potion
+	// and its extended / level II variants.
+	static std::string getTypeDesc(int auxValue) {
 		// v25: mask the splash flag off first, so a splash aux
 		// names its base potion type instead of clamping to 10.
-		switch (Mth::clamp(baseAux(auxValue), 0, NUM_TYPES - 1)) {
+		int base = Mth::clamp(baseAux(auxValue), 0, NUM_TYPES - 1);
+		std::string suffix;
+		if (isLevel2(auxValue)) suffix = "2";
+		else if (isExtended(auxValue)) suffix = "Long";
+		switch (base) {
 			case WATER: return "emptyPotion";
 			case AWKWARD: return "awkward";
-			case HEALING: return "heal";
-			case SWIFTNESS: return "moveSpeed";
-			case STRENGTH: return "damageBoost";
-			case FIRE_RESISTANCE: return "fireResistance";
-			case REGENERATION: return "regeneration";
-			case POISON: return "poison";
-			case WEAKNESS: return "weakness";
-			case HARMING: return "harm";
-			case SLOWNESS: return "moveSlowdown";
+			case HEALING: return "heal" + suffix;
+			case SWIFTNESS: return "moveSpeed" + suffix;
+			case STRENGTH: return "damageBoost" + suffix;
+			case FIRE_RESISTANCE: return "fireResistance" + suffix;
+			case REGENERATION: return "regeneration" + suffix;
+			case POISON: return "poison" + suffix;
+			case WEAKNESS: return "weakness" + suffix;
+			case HARMING: return "harm" + suffix;
+			case SLOWNESS: return "moveSlowdown" + suffix;
 			default: return "emptyPotion";
 		}
 	}
@@ -158,34 +208,55 @@ public:
 	static void applyEffect(int aux, Mob* mob) {
 		// v25: mask the splash flag off — a splash potion applies
 		// its BASE effect (a splash healing potion heals, etc.).
-		aux = baseAux(aux);
-		switch (aux) {
-			case HEALING: // instant health I: +4 HP
-				mob->heal(4);
+		// v26: decode the upgrade variant from the full aux (the
+		// base type from baseAux, extended / level II from the
+		// flag bits). Extended = longer duration (modern MC
+		// table above); level II = stronger effect, shorter
+		// duration. The amplifier is stored on the Mob together
+		// with the timer so the consumers (movement, attack,
+		// regen/poison cadence) can read it.
+		int base = baseAux(aux);
+		bool extended = isExtended(aux);
+		bool level2 = isLevel2(aux);
+		switch (base) {
+			case HEALING: // instant health: +4 HP, level II +8 HP
+				mob->heal(level2 ? 8 : 4);
 				break;
-			case HARMING: // instant damage I: 6 HP
-				mob->hurt(NULL, 6);
+			case HARMING: // instant damage: 6 HP, level II 12 HP
+				mob->hurt(NULL, level2 ? 12 : 6);
 				break;
 			case SWIFTNESS:
-				mob->speedEffectTicks = DURATION_LONG;
+				// Speed I x1.2 / II x1.4 (LocalPlayer).
+				mob->speedEffectTicks = extended ? DURATION_LONG_EXTENDED : (level2 ? DURATION_LONG_LEVEL2 : DURATION_LONG);
+				mob->speedEffectLevel = level2 ? 2 : 1;
 				break;
 			case STRENGTH:
-				mob->strengthEffectTicks = DURATION_LONG;
+				// Strength I +3 / II +6 damage (Player::attack).
+				mob->strengthEffectTicks = extended ? DURATION_LONG_EXTENDED : (level2 ? DURATION_LONG_LEVEL2 : DURATION_LONG);
+				mob->strengthEffectLevel = level2 ? 2 : 1;
 				break;
 			case FIRE_RESISTANCE:
-				mob->fireResistanceEffectTicks = DURATION_LONG;
+				// No level II in modern MC (binary effect); only
+				// redstone extends it.
+				mob->fireResistanceEffectTicks = extended ? DURATION_LONG_EXTENDED : DURATION_LONG;
 				break;
 			case REGENERATION:
-				mob->regenerationEffectTicks = DURATION_SHORT;
+				// Regen I 1 HP / 50 ticks, II 1 HP / 25 ticks (Mob::tick).
+				mob->regenerationEffectTicks = extended ? DURATION_SHORT_EXTENDED : (level2 ? DURATION_SHORT_LEVEL2 : DURATION_SHORT);
+				mob->regenerationEffectLevel = level2 ? 2 : 1;
 				break;
 			case POISON:
-				mob->poisonEffectTicks = DURATION_SHORT;
+				// Poison I 1 HP / 25 ticks, II 1 HP / 12 ticks (Mob::tick).
+				mob->poisonEffectTicks = extended ? DURATION_SHORT_EXTENDED : (level2 ? DURATION_SHORT_LEVEL2 : DURATION_SHORT);
+				mob->poisonEffectLevel = level2 ? 2 : 1;
 				break;
 			case WEAKNESS:
-				mob->weaknessEffectTicks = DURATION_MEDIUM;
+				// No level II in modern MC; only redstone extends it.
+				mob->weaknessEffectTicks = extended ? DURATION_MEDIUM_EXTENDED : DURATION_MEDIUM;
 				break;
 			case SLOWNESS:
-				mob->slownessEffectTicks = DURATION_MEDIUM;
+				// No level II in modern MC; only redstone extends it.
+				mob->slownessEffectTicks = extended ? DURATION_MEDIUM_EXTENDED : DURATION_MEDIUM;
 				break;
 			default:
 				break; // water / awkward: no effect

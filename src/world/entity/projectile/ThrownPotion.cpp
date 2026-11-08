@@ -28,7 +28,11 @@ ThrownPotion::ThrownPotion(Level* level, Mob* mob)
 
 ThrownPotion::ThrownPotion(Level* level, Mob* mob, int potionAux)
 :	super(level, mob),
-	potionAux(PotionItem::baseAux(potionAux)),
+	// v26: strip ONLY the splash bit — the redstone / glowstone
+	// variant flags survive the throw, so a splash potion of
+	// swiftness II still applies level II on impact (v25's
+	// baseAux() here would have thrown the variant away).
+	potionAux(PotionItem::stripSplash(potionAux)),
 	splashOwner(false)
 {
 	entityRendererId = ER_THROWN_POTION_RENDERER;
@@ -37,7 +41,8 @@ ThrownPotion::ThrownPotion(Level* level, Mob* mob, int potionAux)
 
 ThrownPotion::ThrownPotion(Level* level, Mob* mob, int potionAux, bool splashOwner)
 :	super(level, mob),
-	potionAux(PotionItem::baseAux(potionAux)),
+	// v26: same as above — keep the upgrade variant flags.
+	potionAux(PotionItem::stripSplash(potionAux)),
 	splashOwner(splashOwner)
 {
 	entityRendererId = ER_THROWN_POTION_RENDERER;

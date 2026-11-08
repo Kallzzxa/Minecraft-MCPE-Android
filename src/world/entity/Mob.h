@@ -196,6 +196,18 @@ public:
 	int regenerationEffectTicks;
 	int poisonEffectTicks;
 
+	// v26: potion effect amplifier (1 = normal, 2 = level II from
+	// glowstone brewing). Only meaningful while the matching timer
+	// is > 0; set together with the timer in
+	// PotionItem::applyEffect. Timers (and levels) are session-only
+	// — Mob never saves them — so no save/load change is needed.
+	// Slowness / weakness / fire resistance have no level II in
+	// modern MC, so they have no level field.
+	int speedEffectLevel;
+	int strengthEffectLevel;
+	int regenerationEffectLevel;
+	int poisonEffectLevel;
+
 	int hurtTime;
 	int hurtDuration;
 	float hurtDir;

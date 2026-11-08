@@ -1493,6 +1493,100 @@ Each version is ONE coherent batch of features, shipped as a new APK
     and check YOU heal, fill/empty the cauldron with bottles,
     check the swamp hut now has a full cauldron, no crash).
 
+- **v26 — Brewing upgrades: redstone + glowstone (SHIPPED, build-only).**
+  Pays the v20 caveat "belum ada redstone/glowstone upgrade" for
+  potions.
+  ### Audit (read from code before writing anything)
+  - Potion encoding had room: aux = base type 0–10 (bits 0–3) +
+    SPLASH_FLAG 16 (bit 4), saved as a short "Damage" tag
+    (`ItemInstance.cpp:281`), so bits 5 (32) and 6 (64) were free
+    for the two new variants — no save-format change, max aux
+    10+16+32+64 = 122. `baseAux()` (& 15) already stripped all
+    flags, so every existing call site kept working.
+  - Durations and magnitudes were HARDCODED, with no level/duration
+    stored anywhere: durations in `PotionItem::applyEffect`
+    (DURATION_LONG 3600 / MEDIUM 1800 / SHORT 900), magnitudes at
+    the consumers — speed x1.2 (`LocalPlayer.cpp:381`), strength +3
+    (`Player.cpp:790`), regen 1 HP / 50 ticks, poison 1 HP / 25
+    ticks (`Mob.cpp:288-294`). The 7 timers live on `Mob` and are
+    NOT saved (only zeroed on spawn, `Mob.cpp:603-609`), so the new
+    amplifier fields are session-only too — no save/load change.
+  - Both ingredients already existed: redstone dust
+    (`Item::redStone`, id 331, redstone ore v11) and glowstone dust
+    (`Item::yellowDust`, id 348, witch drop 1/4 in v24).
+  - One trap found by the audit: `ThrownPotion`'s ctor normalised
+    the aux with `baseAux()`, which would have thrown the variant
+    flags away the moment a splash potion was thrown — fixed to
+    strip only the splash bit (see below). A second trap in the
+    same area: the v25 gunpowder branch rebuilt the result as
+    `baseAux + SPLASH_FLAG`, which would also have stripped an
+    extended / level II variant when splashing it — now OR's the
+    flag on instead.
+  ### What shipped
+  - **Redstone = extended.** Any timed-effect potion + redstone
+    dust -> extended variant (flag 32): swiftness / strength /
+    fire resistance 3:00 -> 8:00 (9600 ticks), regeneration /
+    poison 0:45 -> 1:30 (1800), weakness / slowness 1:30 -> 4:00
+    (4800) — the modern MC table. Instant healing / harming have
+    no duration to extend, water / awkward have no effect — both
+    refuse redstone.
+  - **Glowstone = level II.** Any upgradable potion + glowstone
+    dust -> level II variant (flag 64): healing +8 HP (was +4),
+    harming 12 damage (was 6), swiftness x1.4 (was x1.2),
+    strength +6 damage (was +3), regeneration 1 HP / 25 ticks
+    (was / 50), poison 1 HP / 12 ticks (was / 25). Level II
+    durations are SHORTER, modern MC: swiftness / strength II
+    1:30 (1800), regen / poison II 0:22 (440). Fire resistance
+    is binary (no level II), weakness / slowness have no brewable
+    level II in modern MC, water / awkward have no effect — all
+    refuse glowstone.
+  - **Mutual exclusivity.** An extended potion refuses glowstone
+    and a level II potion refuses redstone (both in
+    `BrewingRecipes::getResult`). Fermented spider eye also
+    refuses upgraded potions (no corrupt table for variants in
+    this tree — it refuses rather than silently downgrading).
+  - **Drinkable AND splash.** Both upgrades work on splash
+    potions too (the variant flag is OR'd on, the splash bit
+    survives), and an extended / level II potion can still be
+    splashed with gunpowder (flag preserved). The thrown potion
+    keeps its variant through `ThrownPotion` (strip-splash only)
+    and applies it in the radius-3 splash via the same
+    `PotionItem::applyEffect`.
+  - **Names differ in UI.** `getTypeDesc` now appends a suffix
+    for upgraded potions, with 26 new lang keys in `en_US.lang`:
+    extended shows the duration ("Potion of Swiftness (8:00)",
+    "Potion of Regeneration (1:30)", ...), level II shows "II"
+    ("Potion of Swiftness II", "Potion of Healing II", ...),
+    each with a "Splash Potion of ..." twin. Icons are
+    intentionally the base ones — modern MC uses the same bottle
+    colour for a potion and its extended / level II variants.
+  - Amplifier storage: 4 new `Mob` fields (`speed / strength /
+    regeneration / poisonEffectLevel`, 1 = normal, 2 = level II),
+    set together with the timer in `applyEffect` and read by the
+    existing consumers (`LocalPlayer::getWalkingSpeedModifier`,
+    `Player::attack`, `Mob::tick` regen/poison cadence).
+  - Version bump 25 -> 26 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,158,920 B / armv7 8,748,932 B, new symbols confirmed
+    (`PotionItem::applyEffect/getTypeDesc`, `BrewingRecipes::
+    isIngredient`, extended/level II handling). CI
+    `./gradlew assembleDebug` SUCCESS (see run in the v26 report).
+  ### Known limits / debts
+  - No lingering potions, no buckets (v25 debts stand). Splash
+    potions are still not in the creative inventory (brew them).
+  - Corrupting an extended / level II potion with fermented
+    spider eye is refused (modern MC carries the variant over —
+    e.g. extended swiftness -> extended slowness — but this tree
+    has no corrupt table for variants; a refusal is honest, a
+    silent downgrade would not be).
+  - A splash potion thrown at a block is still used like an
+    egg/snowball (v25 caveat stands).
+  - All of it is build-only until a live test on device (brew an
+    effect potion + redstone -> longer duration felt in play,
+    + glowstone -> stronger effect felt, both also as splash,
+    redstone + glowstone on one potion refused, no crash).
+
 ## Next (v24)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
@@ -1522,7 +1616,31 @@ Each version is ONE coherent batch of features, shipped as a new APK
 - **Device verification for player splash potions + cauldron (v25's
   open item).** See the v25 test list above. The v24 APK stays the
   fallback until this stage passes.
+- **Device verification for brewing upgrades (v26's open item).**
+  Brew an effect potion + redstone dust -> the name shows the
+  extended duration and the effect lasts noticeably longer;
+  + glowstone dust -> the name shows "II" and the effect is
+  noticeably stronger (faster / more damage / more healing);
+  both also as splash potions (throw an extended / level II splash
+  at a mob — the variant effect must be felt); brew glowstone into
+  an extended potion (and redstone into a level II one) -> refused,
+  the potion is unchanged; no crash. The v25 APK stays the fallback
+  until this stage passes.
 - **v25 — Player splash potions + cauldron.** SHIPPED (see "Done").
+- **v26 — Brewing upgrades: redstone + glowstone.** SHIPPED (see "Done").
+- **Next version (v27 candidate): end crystals + dragon respawn
+  (v22 debt).** The End's boss loop is currently one-shot: the
+  dragon spawns once per world, and after its death the exit portal
+  stays and no new dragon ever comes. Modern MC lets the player
+  resummon it with 4 end crystals on the exit portal. Every
+  ingredient already exists in this tree (glass, eye of ender,
+  ghast tear; the dragon + exit portal + `ensureEndDragon` hooks
+  are all v22 code), so this is the highest-value remaining debt:
+  it completes a dimension instead of starting a new one. (The
+  other named debts — Nether fortress, village chest loot — stay
+  queued behind it: a fortress is a new structure system, and
+  village chests only move the first emerald earlier in a loop
+  trading already serves.)
 
 ## Queued (priority order — re-evaluate after each version)
 

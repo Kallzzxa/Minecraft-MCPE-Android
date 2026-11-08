@@ -502,6 +502,22 @@ item.potion.poison.name=Potion of Poison
 item.potion.weakness.name=Potion of Weakness
 item.potion.harm.name=Potion of Harming
 item.potion.moveSlowdown.name=Potion of Slowness
+# v26: upgraded potions — extended (redstone, duration in the name)
+# and level II (glowstone). Names must differ from the base potion
+# so the variant is visible in the hotbar and the brewing preview.
+item.potion.heal2.name=Potion of Healing II
+item.potion.harm2.name=Potion of Harming II
+item.potion.moveSpeed2.name=Potion of Swiftness II
+item.potion.damageBoost2.name=Potion of Strength II
+item.potion.regeneration2.name=Potion of Regeneration II
+item.potion.poison2.name=Potion of Poison II
+item.potion.moveSpeedLong.name=Potion of Swiftness (8:00)
+item.potion.damageBoostLong.name=Potion of Strength (8:00)
+item.potion.fireResistanceLong.name=Potion of Fire Resistance (8:00)
+item.potion.regenerationLong.name=Potion of Regeneration (1:30)
+item.potion.poisonLong.name=Potion of Poison (1:30)
+item.potion.weaknessLong.name=Potion of Weakness (4:00)
+item.potion.moveSlowdownLong.name=Potion of Slowness (4:00)
 item.splashPotion.emptyPotion.name=Splash Water Bottle
 item.splashPotion.awkward.name=Splash Awkward Potion
 item.splashPotion.heal.name=Splash Potion of Healing
@@ -513,6 +529,20 @@ item.splashPotion.poison.name=Splash Potion of Poison
 item.splashPotion.weakness.name=Splash Potion of Weakness
 item.splashPotion.harm.name=Splash Potion of Harming
 item.splashPotion.moveSlowdown.name=Splash Potion of Slowness
+# v26: splash twins of the upgraded-potion names above.
+item.splashPotion.heal2.name=Splash Potion of Healing II
+item.splashPotion.harm2.name=Splash Potion of Harming II
+item.splashPotion.moveSpeed2.name=Splash Potion of Swiftness II
+item.splashPotion.damageBoost2.name=Splash Potion of Strength II
+item.splashPotion.regeneration2.name=Splash Potion of Regeneration II
+item.splashPotion.poison2.name=Splash Potion of Poison II
+item.splashPotion.moveSpeedLong.name=Splash Potion of Swiftness (8:00)
+item.splashPotion.damageBoostLong.name=Splash Potion of Strength (8:00)
+item.splashPotion.fireResistanceLong.name=Splash Potion of Fire Resistance (8:00)
+item.splashPotion.regenerationLong.name=Splash Potion of Regeneration (1:30)
+item.splashPotion.poisonLong.name=Splash Potion of Poison (1:30)
+item.splashPotion.weaknessLong.name=Splash Potion of Weakness (4:00)
+item.splashPotion.moveSlowdownLong.name=Splash Potion of Slowness (4:00)
 item.emptyPotion.name=Water Bottle
 item.goldNugget.name=Gold Nugget
 item.glassBottle.name=Glass Bottle

@@ -787,7 +787,8 @@ void Player::attack(Entity* entity) {
 	int dmg = inventory->getAttackDamage(entity);
 	// v20: strength (+3 damage, modern MC strength I) / weakness
 	// (-1 damage) from potions.
-	if (strengthEffectTicks > 0) dmg += 3;
+	// v26: strength II is +6 damage (modern MC, +3 per level).
+	if (strengthEffectTicks > 0) dmg += (strengthEffectLevel >= 2 ? 6 : 3);
 	if (weaknessEffectTicks > 0) dmg = Mth::Max(0, dmg - 1);
     if (dmg > 0) {
         entity->hurt(this, dmg);
