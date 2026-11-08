@@ -60,6 +60,14 @@ public:
     int getDamageValue() const;
     int getMaxDamage() const;
 
+    // v10: enchanting — one enchantment per item (id + level, NONE/0
+    // when unenchanted). Survives copy/save/load; see Enchantment.h
+    // for what each enchantment does.
+    int getEnchantment() const;
+    int getEnchantmentLevel() const;
+    void setEnchantment(int enchantmentId, int enchantmentLevel);
+    bool isEnchanted() const;
+
 	int getAuxValue() const;
 	void setAuxValue(int value);
 
@@ -106,6 +114,10 @@ public:
 	//int popTime;
 	int id;
 private:
+	// v10: enchantment (see Enchantment.h). Kept next to auxValue so
+	// copy/save/load stay in sync — update all three when adding fields.
+	int enchantmentId;
+	int enchantmentLevel;
     /**
      * This was previously the damage value, but is now used for different stuff
      * depending on item / tile. Use the getter methods to make sure the value

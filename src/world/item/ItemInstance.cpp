@@ -1,7 +1,9 @@
 #include "ItemInstance.h"
 #include "Item.h"
+#include "Enchantment.h"
 #include "../level/tile/Tile.h"
 #include "../../nbt/CompoundTag.h"
+#include "../../util/Mth.h"
 
 ItemInstance::ItemInstance() {
 	init(0, 0, 0);
@@ -40,12 +42,18 @@ ItemInstance::ItemInstance(const ItemInstance& rhs) {
 	this->count		= rhs.count;
 	//this->popTime	= rhs.popTime;
 	this->id		= rhs.id;
+	// v10: enchanting
+	this->enchantmentId = rhs.enchantmentId;
+	this->enchantmentLevel = rhs.enchantmentLevel;
 }
 
 void ItemInstance::init(int id, int count, int damage) {
 	this->id = id;
 	this->count = count;
 	this->auxValue = damage;
+	// v10: a fresh instance is unenchanted.
+	this->enchantmentId = Enchantment::NONE;
+	this->enchantmentLevel = 0;
 }
 
 bool ItemInstance::isNull() const {
@@ -54,6 +62,9 @@ bool ItemInstance::isNull() const {
 
 void ItemInstance::setNull() {
 	id = count = auxValue = 0;
+	// v10: a nulled-out slot is unenchanted.
+	enchantmentId = Enchantment::NONE;
+	enchantmentLevel = 0;
 }
 
 //ItemInstance::ItemInstance(CompoundTag itemTag) {
@@ -62,7 +73,11 @@ void ItemInstance::setNull() {
 
 ItemInstance ItemInstance::remove(int count) {
     this->count -= count;
-    return /*new*/ ItemInstance(id, count, auxValue);
+    ItemInstance removed(id, count, auxValue);
+    // v10: keep the enchantment on the split-off stack.
+    removed.enchantmentId = enchantmentId;
+    removed.enchantmentLevel = enchantmentLevel;
+    return removed;
 }
 
 bool ItemInstance::useOn(Player* player, Level* level, int x, int y, int z, int face, float clickX, float clickY, float clickZ) {
@@ -91,7 +106,10 @@ bool ItemInstance::isStackable() const {
 
 bool ItemInstance::isStackable( const ItemInstance* a, const ItemInstance* b ) {
 	return a && b && a->id == b->id && b->isStackable()
-		&& (!b->isStackedByData() || a->getAuxValue() == b->getAuxValue());
+		&& (!b->isStackedByData() || a->getAuxValue() == b->getAuxValue())
+		// v10: enchanted items never stack with differently-enchanted ones.
+		&& (a->getEnchantment() == b->getEnchantment())
+		&& (a->getEnchantmentLevel() == b->getEnchantmentLevel());
 }
 
 bool ItemInstance::isDamageableItem() const {
@@ -131,6 +149,14 @@ void ItemInstance::hurt(int i) {
     if (!isDamageableItem())
         return;
 
+    // v10: Unbreaking — level/(level+1) chance to take no durability
+    // damage at all (e.g. Unbreaking III skips 3 out of 4 hits).
+    if (enchantmentId == Enchantment::UNBREAKING && enchantmentLevel > 0) {
+        float keepChance = (float) enchantmentLevel / (float) (enchantmentLevel + 1);
+        if (Mth::random() < keepChance)
+            return;
+    }
+
     auxValue += i;
     if (auxValue > getMaxDamage()) {
         count--;
@@ -148,7 +174,11 @@ void ItemInstance::mineBlock(int tile, int x, int y, int z) {
 }
 
 int ItemInstance::getAttackDamage(Entity* entity) {
-    return Item::items[id]->getAttackDamage(entity);
+    int dmg = Item::items[id]->getAttackDamage(entity);
+    // v10: Sharpness — +1 damage per level.
+    if (enchantmentId == Enchantment::SHARPNESS && enchantmentLevel > 0)
+        dmg += enchantmentLevel;
+    return dmg;
 }
 
 bool ItemInstance::canDestroySpecial(Tile* tile) {
@@ -163,7 +193,11 @@ void ItemInstance::interactEnemy(Mob* mob) {
 }
 
 ItemInstance* ItemInstance::copy() const {
-    return new ItemInstance(id, count, auxValue);
+    ItemInstance* copy = new ItemInstance(id, count, auxValue);
+    // v10: keep the enchantment on the copy.
+    copy->enchantmentId = enchantmentId;
+    copy->enchantmentLevel = enchantmentLevel;
+    return copy;
 }
 
 /*static*/
@@ -202,7 +236,17 @@ ItemInstance* ItemInstance::setDescriptionId(const std::string& id) {
 }
 
 std::string ItemInstance::getName() const {
-	return I18n::get(getDescriptionId() + ".name");
+	std::string name = I18n::get(getDescriptionId() + ".name");
+	// v10: enchanted items show their enchantment in the name, so the
+	// player can tell at a glance (hotbar, inventory, tooltips).
+	if (isEnchanted()) {
+		name += " [";
+		name += Enchantment::getName(enchantmentId);
+		name += " ";
+		name += Enchantment::getRomanNumeral(enchantmentLevel);
+		name += "]";
+	}
+	return name;
 }
 
 std::string ItemInstance::toString() const {
@@ -225,13 +269,19 @@ ItemInstance ItemInstance::cloneSafe( const ItemInstance* item ) {
 bool ItemInstance::matches(const ItemInstance* b) const {
     return (id == b->id)
 		&& (count == b->count)
-		&& (auxValue == b->auxValue);
+		&& (auxValue == b->auxValue)
+		// v10: an enchanted item is not the same stack as a plain one.
+		&& (enchantmentId == b->enchantmentId)
+		&& (enchantmentLevel == b->enchantmentLevel);
 }
 
 CompoundTag* ItemInstance::save(CompoundTag* compoundTag) {
     compoundTag->putShort("id", (short) id);
     compoundTag->putByte("Count", (unsigned char) count);
     compoundTag->putShort("Damage", (short) auxValue);
+    // v10: persist the enchantment (0/0 = unenchanted).
+    compoundTag->putShort("Ench", (short) enchantmentId);
+    compoundTag->putShort("EnchLvl", (short) enchantmentLevel);
     return compoundTag;
 }
 
@@ -239,12 +289,37 @@ void ItemInstance::load(CompoundTag* compoundTag) {
     id = compoundTag->getShort("id");
     count = (unsigned char) compoundTag->getByte("Count");
     auxValue = compoundTag->getShort("Damage");
+    // v10: old saves have no Ench tags — getShort returns 0, i.e.
+    // unenchanted, which is exactly right.
+    enchantmentId = compoundTag->getShort("Ench");
+    enchantmentLevel = compoundTag->getShort("EnchLvl");
 }
 
 bool ItemInstance::operator==( const ItemInstance& rhs ) const {
 	return id		== rhs.id
 		&& auxValue == rhs.auxValue
-		&& count    == rhs.count;
+		&& count    == rhs.count
+		// v10: enchantment is part of identity.
+		&& enchantmentId == rhs.enchantmentId
+		&& enchantmentLevel == rhs.enchantmentLevel;
+}
+
+// v10: enchanting accessors.
+int ItemInstance::getEnchantment() const {
+	return enchantmentId;
+}
+
+int ItemInstance::getEnchantmentLevel() const {
+	return enchantmentLevel;
+}
+
+void ItemInstance::setEnchantment(int enchantmentId, int enchantmentLevel) {
+	this->enchantmentId = enchantmentId;
+	this->enchantmentLevel = enchantmentLevel;
+}
+
+bool ItemInstance::isEnchanted() const {
+	return enchantmentId != Enchantment::NONE && enchantmentLevel > 0;
 }
 
 ItemInstance* ItemInstance::fromTag( CompoundTag* tag ) {

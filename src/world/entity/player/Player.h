@@ -89,10 +89,15 @@ public:
     int getScore();
     void awardKillScore(Entity* victim, int score);
 
-	// v8: experience / levels (classic MC XP curve; enchanting in v11
-	// will spend these levels). XP is deliberately KEPT on death for
-	// now — death drops nothing in this build (see Player::die).
+	// v8: experience / levels (classic MC XP curve). v10 enchanting
+	// spends these levels (see spendExperienceLevels). XP is
+	// deliberately KEPT on death for now — death drops nothing in
+	// this build (see Player::die).
 	void addExperience(int amount);
+	// v10: enchanting spends whole levels (1/2/3 per enchant). Returns
+	// false when the player does not have that many levels; the
+	// partial-progress bar resets to 0 when levels are spent.
+	bool spendExperienceLevels(int levels);
 	int getExperienceLevel() const { return experienceLevel; }
 	int getExperienceProgress() const { return experienceProgress; }
 	float getExperienceProgressFraction() const;
@@ -117,6 +122,12 @@ public:
 	ItemInstance* getArmor(int slot);
 	int getArmorTypeHash();
 
+	// v10: Protection — total Protection level across worn armor.
+	int getTotalProtectionLevels();
+	// v10: armor absorb + Protection reduction (Mob::hurt ->
+	// actuallyHurt calls this virtual).
+	virtual int getDamageAfterArmorAbsorb(int damage);
+
     void interact(Entity* entity);
     void attack(Entity* entity);
 	virtual ItemInstance* getCarriedItem();
@@ -127,6 +138,8 @@ public:
 
 	virtual void openContainer(ChestTileEntity* container);
 	virtual void openFurnace(FurnaceTileEntity* e);
+	// v10: opens the enchanting-table screen (LocalPlayer only).
+	virtual void openEnchantTable();
 	void tileEntityDestroyed( int tileEntityId );
 
 	virtual void displayClientMessage(const std::string& messageId);

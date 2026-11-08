@@ -180,6 +180,8 @@ public:
     static Tile* farmland;
     static Tile* furnace;
     static Tile* furnace_lit;
+	// v10: enchanting table (id 116).
+    static Tile* enchantTable;
     static Tile* sign;
     static Tile* door_wood;
     static Tile* ladder;

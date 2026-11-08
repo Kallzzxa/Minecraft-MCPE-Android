@@ -451,12 +451,16 @@ Recipes::Recipes()
 		"XXX", //
 		definition('#', Tile::cloth, 'X', Tile::wood));
 
-	//addShapedRecipe(ItemInstance(Tile::enchantTable, 1), //
-	//	" B ", //
-	//	"D#D", //
-	//	"###", //
+	// v10: enchanting table. Book on top, diamond (Item::emerald is
+	// the diamond gem in this tree's old naming) on the sides,
+	// obsidian below — same shape as modern MC. The original recipe
+	// was commented out here with emerald as the side ingredient.
+	addShapedRecipe(ItemInstance(Tile::enchantTable, 1),
+		" B ",
+		"D#D",
+		"###",
 
-	//	'#', Tile::obsidian, 'B', Item::book, 'D', Item::emerald);
+		definition('#', Tile::obsidian, 'B', Item::book, 'D', Item::emerald));
 
 	//addShapelessRecipe(ItemInstance(Item::eyeOfEnder, 1), //
 	//	Item::enderPearl, Item::blazePowder);

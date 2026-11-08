@@ -46,6 +46,8 @@ public:
 
 	void openContainer(ChestTileEntity* container);
 	void openFurnace(FurnaceTileEntity* e);
+	// v10: enchanting table.
+	void openEnchantTable();
 
     bool isSneaking();
 

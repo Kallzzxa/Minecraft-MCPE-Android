@@ -51,6 +51,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/client/gui/screens/ConfirmScreen.cpp \
 ../../../../src/client/gui/screens/ChestScreen.cpp \
 ../../../../src/client/gui/screens/DeathScreen.cpp \
+../../../../src/client/gui/screens/EnchantScreen.cpp \
 ../../../../src/client/gui/screens/FurnaceScreen.cpp \
 ../../../../src/client/gui/screens/InBedScreen.cpp \
 ../../../../src/client/gui/screens/IngameBlockSelectionScreen.cpp \
@@ -181,6 +182,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/item/ArmorItem.cpp \
 ../../../../src/world/item/BedItem.cpp \
 ../../../../src/world/item/DyePowderItem.cpp \
+../../../../src/world/item/Enchantment.cpp \
 ../../../../src/world/item/Item.cpp \
 ../../../../src/world/item/ItemInstance.cpp \
 ../../../../src/world/item/HangingEntityItem.cpp \
@@ -228,6 +230,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/level/tile/ChestTile.cpp \
 ../../../../src/world/level/tile/CropTile.cpp \
 ../../../../src/world/level/tile/DoorTile.cpp \
+../../../../src/world/level/tile/EnchantTableTile.cpp \
 ../../../../src/world/level/tile/EntityTile.cpp \
 ../../../../src/world/level/tile/FurnaceTile.cpp \
 ../../../../src/world/level/tile/GrassTile.cpp \

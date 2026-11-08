@@ -16,6 +16,7 @@
 #include "../EntityEvent.h"
 #include "../../Difficulty.h"
 #include "../../item/ArmorItem.h"
+#include "../../item/Enchantment.h"
 
 const float Player::DEFAULT_WALK_SPEED = 0.1f;
 const float Player::DEFAULT_FLY_SPEED = 0.02f;
@@ -519,6 +520,16 @@ void Player::addExperience(int amount) {
 	}
 }
 
+// v10: enchanting spends whole levels. The progress bar towards the
+// next level resets — the cost is levels, not XP points.
+bool Player::spendExperienceLevels(int levels) {
+	if (levels <= 0) return true;
+	if (experienceLevel < levels) return false;
+	experienceLevel -= levels;
+	experienceProgress = 0;
+	return true;
+}
+
 float Player::getWalkingSpeedModifier() {
 	return 1.0f;
 }
@@ -685,6 +696,10 @@ void Player::startStonecutting(int x, int y, int z) {
 }
 
 void Player::openFurnace(FurnaceTileEntity* e) {
+}
+
+void Player::openEnchantTable() {
+	// Do nothing on the server, this is a client thing :)
 }
 
 void Player::take(Entity* e, int orgCount) {
@@ -961,5 +976,31 @@ int Player::getArmorValue() {
         val += baseProtection;
     }
     return val;
+}
+
+// v10: Protection — sum of Protection levels on all worn armor pieces.
+int Player::getTotalProtectionLevels() {
+    int total = 0;
+    for (int i = 0; i < NUM_ARMOR; i++) {
+        ItemInstance& item = armor[i];
+        if (!ItemInstance::isArmorItem(&item))
+            continue;
+        if (item.getEnchantment() == Enchantment::PROTECTION)
+            total += item.getEnchantmentLevel();
+    }
+    return total;
+}
+
+// v10: after the normal armor absorb, Protection removes 1 damage per
+// total Protection level, capped at half the remaining hit so an
+// enchanted player can never become invulnerable from this alone.
+int Player::getDamageAfterArmorAbsorb(int damage) {
+    int reduced = super::getDamageAfterArmorAbsorb(damage);
+    int prot = getTotalProtectionLevels();
+    if (prot > 0 && reduced > 0) {
+        int cut = Mth::Min(prot, reduced / 2);
+        reduced -= cut;
+    }
+    return reduced;
 }
 

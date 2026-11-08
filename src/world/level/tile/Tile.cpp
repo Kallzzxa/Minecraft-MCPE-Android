@@ -119,6 +119,7 @@ Tile* Tile::carrots		= NULL;
 Tile* Tile::potatoes	= NULL;
 Tile* Tile::furnace     = NULL;
 Tile* Tile::furnace_lit = NULL;
+Tile* Tile::enchantTable = NULL;
 Tile* Tile::chest		= NULL;
 Tile* Tile::lightGem    = NULL;
 Tile* Tile::stairs_wood = NULL;
@@ -219,6 +220,11 @@ void Tile::initTiles() {
 	farmland    = (new FarmTile(60))->init()->setDestroyTime(0.6f)->setSoundType(SOUND_GRAVEL)->setCategory(ItemCategory::Structures)->setDescriptionId("farmland");
 	furnace		= (new FurnaceTile(61, false))->init()->setDestroyTime(3.5f)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("furnace");//.sendTileData();
 	furnace_lit = (new FurnaceTile(62, true))->init()->setDestroyTime(3.5f)->setSoundType(SOUND_STONE)->setLightEmission(14 / 16.0f)->setCategory(ItemCategory::Structures)->setDescriptionId("furnace");//.sendTileData();
+	// v10: enchanting table, id 116 (modern MC). Description id
+	// "enchantmentTable" reuses the lang string that already exists
+	// (tile.enchantmentTable.name=Enchantment Table). Top face shows
+	// books, sides are obsidian; see EnchantTableTile.
+	enchantTable = (new EnchantTableTile(116))->init()->setDestroyTime(3.5f)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("enchantmentTable");
     sign        = (new SignTile(63, TileEntityType::Sign, true))->init()->setDestroyTime(1.0f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Decorations)->setDescriptionId("sign");//->sendTileData();
 	door_wood   = (new DoorTile(64, Material::wood))->init()->setDestroyTime(3.0f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Structures)->setDescriptionId("doorWood");
 	ladder      = (new LadderTile(65, 3 + 5 * 16))->init()->setDestroyTime(0.4f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Structures)->setDescriptionId("ladder");

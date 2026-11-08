@@ -22,6 +22,7 @@
 #ifndef STANDALONE_SERVER
 #include "../gui/Screen.h"
 #include "../gui/screens/FurnaceScreen.h"
+#include "../gui/screens/EnchantScreen.h"
 #include "../gui/screens/ChestScreen.h"
 #include "../gui/screens/crafting/WorkbenchScreen.h"
 #include "../gui/screens/crafting/StonecutterScreen.h"
@@ -472,6 +473,15 @@ void LocalPlayer::openFurnace( FurnaceTileEntity* e ) {
 #ifndef STANDALONE_SERVER
 	if (!minecraft->isCreativeMode())
 		minecraft->setScreen( new FurnaceScreen(this, e) );
+#endif
+}
+
+// v10: enchanting table — opens the enchant screen for the item held
+// in the player's hand (no container; see EnchantScreen).
+void LocalPlayer::openEnchantTable() {
+#ifndef STANDALONE_SERVER
+	if (!minecraft->isCreativeMode())
+		minecraft->setScreen( new EnchantScreen(this) );
 #endif
 }
 

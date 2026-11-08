@@ -318,7 +318,10 @@ float Inventory::getDestroySpeed( Tile* tile )
 {
 	ItemInstance* item = getSelected();
 	if (item && item->id >= 256) {
-		return Item::items[item->id]->getDestroySpeed(NULL, tile);
+		// v10: pass the real instance (was NULL) so Efficiency and
+		// other per-item modifiers in DiggerItem::getDestroySpeed
+		// can see the enchantment.
+		return Item::items[item->id]->getDestroySpeed(item, tile);
 	}
 	return 1.0f;
 }

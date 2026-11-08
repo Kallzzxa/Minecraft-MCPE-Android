@@ -88,15 +88,45 @@ Each version is ONE coherent batch of features, shipped as a new APK
   poisonous potato (no status-effect system yet); zombie drop rate is
   code-only until a live kill test on device.
 
-## Next (v10)
+- **v10 — Enchanting.** New `EnchantTableTile` (tile 116, modern MC id;
+  top face reuses the bookshelf texture, sides are obsidian; lang
+  `tile.enchantmentTable.name` already existed) + crafting recipe
+  (book / diamond — `Item::emerald` is the diamond gem in this tree's
+  old naming — / obsidian; the recipe was commented out in
+  `Recipes.cpp` and is now live). Using the table opens `EnchantScreen`,
+  which enchants the item held in the hand — no container/tile-entity
+  plumbing. It shows up to 3 random offers for enchantments the held
+  item can take, each costing 1–3 whole XP levels (v8 levels, spent via
+  new `Player::spendExperienceLevels`; the partial-progress bar resets
+  when levels are spent). One enchantment per item, stored on the
+  `ItemInstance` (`Ench`/`EnchLvl` in the item tag, so it survives
+  save/load, copy and split; enchanted items never stack with
+  differently-enchanted ones) and shown in the item name as
+  e.g. `Diamond Sword [Sharpness II]`. Four working enchantments:
+  Sharpness (+1 damage/level, `ItemInstance::getAttackDamage`),
+  Efficiency (+50% dig speed/level, `DiggerItem::getDestroySpeed` —
+  this also fixed `Inventory::getDestroySpeed` passing NULL instead of
+  the selected item, which would have hidden every per-item modifier),
+  Protection (−1 damage per total level across worn armor, capped at
+  half the hit, `Player::getDamageAfterArmorAbsorb`), Unbreaking
+  (level/(level+1) chance to take no durability damage,
+  `ItemInstance::hurt`). Applicability: Sharpness swords only,
+  Efficiency pickaxe/shovel/axe only (hoes are plain `Item`s here, not
+  `DiggerItem`, so no Efficiency on hoes), Protection armor only,
+  Unbreaking any damageable item. Caveats: no lapis cost, no anvil, no
+  enchanted books, no re-enchanting an already-enchanted item (the
+  table refuses it); no bookshelf-power mechanic (offer levels are
+  purely random 1–3, bookshelves nearby change nothing); the table
+  texture is a reuse (bookshelf top + obsidian sides), not a new sprite;
+  all of it is build-only until a live test on device.
 
-- **v10 — Enchanting** (see Queued below): enchanting table + basic
-  enchantments, building on the v8 XP system.
+## Next (v11)
+
+- **v11 — Redstone basics.** Redstone dust + torch + lever + simple power
+  propagation. (Redstone ore tile exists; no wiring yet.)
 
 ## Queued (priority order — re-evaluate after each version)
 
-- **v10 — Enchanting.** Enchanting table + basic enchantments
-  (sharpness, efficiency, protection, unbreaking). Needs v8 XP (done).
 - **v11 — Redstone basics.** Redstone dust + torch + lever + simple power
   propagation. (Redstone ore tile exists; no wiring yet.)
 - **v12 — Minecarts + rails.** Rideable minecart on rails.

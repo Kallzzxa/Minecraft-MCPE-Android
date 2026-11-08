@@ -7,6 +7,7 @@
 
 #include "Item.h"
 #include "ItemInstance.h"
+#include "Enchantment.h"
 
 class DiggerItem: public Item
 {
@@ -15,9 +16,14 @@ protected:
 	typedef std::vector<Tile*> TileList;
 public:
     float getDestroySpeed(ItemInstance* itemInstance, Tile* tile) {
-		if (hasTile(tile))
-			return speed;
-        return 1;
+		float base = hasTile(tile) ? speed : 1;
+		// v10: Efficiency — +50% dig speed per level.
+		if (itemInstance != NULL
+			&& itemInstance->getEnchantment() == Enchantment::EFFICIENCY
+			&& itemInstance->getEnchantmentLevel() > 0) {
+			base *= (1.0f + 0.5f * (float) itemInstance->getEnchantmentLevel());
+		}
+		return base;
     }
 
     //@Override
