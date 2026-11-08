@@ -165,9 +165,11 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/entity/item/PrimedTnt.cpp \
 ../../../../src/world/entity/item/TripodCamera.cpp \
 ../../../../src/world/entity/monster/Creeper.cpp \
+../../../../src/world/entity/monster/Enderman.cpp \
 ../../../../src/world/entity/monster/Monster.cpp \
 ../../../../src/world/entity/monster/PigZombie.cpp \
 ../../../../src/world/entity/monster/Skeleton.cpp \
+../../../../src/world/entity/monster/Slime.cpp \
 ../../../../src/world/entity/monster/Spider.cpp \
 ../../../../src/world/entity/monster/Zombie.cpp \
 ../../../../src/world/entity/projectile/Arrow.cpp \

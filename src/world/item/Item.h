@@ -169,6 +169,7 @@ public:
     static Item* paper;
     static Item* book;
     static Item* slimeBall;
+    static Item* ender_pearl;
     static Item* minecart_chest;
     static Item* minecart_furnace;
     static Item* egg;

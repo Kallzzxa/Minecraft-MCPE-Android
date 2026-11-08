@@ -2,8 +2,10 @@
 #define NET_MINECRAFT_WORLD_ENTITY_MONSTER__MonsterInclude_H__
 
 #include "Creeper.h"
+#include "Enderman.h"
 #include "Monster.h"
 #include "Skeleton.h"
+#include "Slime.h"
 #include "Spider.h"
 #include "Zombie.h"
 #include "PigZombie.h"

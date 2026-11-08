@@ -149,15 +149,41 @@ Each version is ONE coherent batch of features, shipped as a new APK
   sprites, not the modern ones; all of it is build-only until a live
   test on device.
 
-## Next (v11)
+- **v12 — Slime + Enderman (FALLBACK for minecarts, see
+  "Skipped / blocked").** New `Slime` monster (`MobTypes::Slime` 37):
+  1×1×1 cube, 8 HP, hop movement (jump every 10–20 ticks while on the
+  ground, goals steer it like a zombie), squash-and-stretch animation
+  (`getSquish`, eased toward 0.25 on ground / −0.2 in air, applied by
+  `SlimeRenderer::scale`), drops 0–2 slimeballs via
+  `Mob::dropDeathLoot` (`Item::slimeBall` id 85 was already registered
+  in this tree). New `Enderman` monster (`MobTypes::Enderman` 38):
+  0.6×2.9, 20 HP, 6 damage, tall thin humanoid model (30px arms/legs)
+  with a black texture + purple eyes, teleports away 50% of the time
+  when hurt (up to 8 tries for a safe spot within 16 blocks, with
+  smoke puffs at both ends), drops 0–2 ender pearls (new `Item`
+  id 368, icon drawn into blank `gui/items.png` cell (6, 8), lang
+  `item.enderPearl.name` already existed). Both use the zombie goal
+  setup (melee + stroll, nearest-attackable-target + hurt-by-target),
+  spawn at night through `Biome` (slime weight 10, clusters 1–3;
+  enderman weight 1, always alone — the two spawn lines were
+  commented out since the original tree), and give 3–5 XP via
+  `Monster::getExperienceReward`. New textures `mob/slime.png` /
+  `mob/enderman.png` (64×32, drawn, not modern sprites). Caveats:
+  single-size slime only (no splitting into smaller slimes on death);
+  no enderman stare/teleport-to-player behaviour (no look-at-player
+  goal exists in this tree — it attacks on sight like a zombie);
+  no ender-pearl throwing (no throwable use for the item yet);
+  all of it is build-only until a live night test on device.
 
-- **v12 — Minecarts + rails.** Rideable minecart on rails.
+## Next (v12)
+
+- **v13 — More mobs.** Witch — whichever fits the AI framework
+  (GoalSelector exists). Slime + Enderman shipped in v12.
 
 ## Queued (priority order — re-evaluate after each version)
 
-- **v12 — Minecarts + rails.** Rideable minecart on rails.
-- **v13 — More mobs.** Slime (+ slimeball), Enderman (+ ender pearl),
-  witch — whichever fits the AI framework (GoalSelector exists).
+- **v13 — More mobs.** Witch — whichever fits the AI framework
+  (GoalSelector exists).
 - **v14 — Graphics polish.** Clouds, water animation, sky, particles
   (breaking, splashing). Low risk, high visibility.
 - **v15 — Music + ambient sounds.** 102 sound files exist; check what
@@ -190,6 +216,23 @@ Each version is ONE coherent batch of features, shipped as a new APK
   system from scratch (entity + water physics + model/renderer + riding
   + player controls + item + recipe) — a multi-version effort, not a
   v-batch. v7 shipped the v8 fallback (hostile mob drops) instead.
+- **Minecarts + rails (v12 scope, investigated 2026-11-08, NOT feasible
+  in one batch).** The residue is even thinner than the boat's: only
+  commented-out `Item::minecart` / `minecart_chest` / `minecart_furnace`
+  declarations + registration (`Item.cpp`, ids 72/86/87, `MinecartItem`
+  class) and commented-out crafting recipes (`Recipes.cpp`, incl. rail
+  x16 / golden rail / detector rail), a `SHAPE_RAIL` constant + a
+  commented-out `tesselateRailInWorld` call (`TileRenderer.cpp`), and
+  `Tile::rail` declared in `Tile.h` but never defined. There is NO
+  `Minecart` entity class, NO `MinecartItem` class, NO `RailTile` /
+  `DetectorRail` / `GoldenRail` class, NO rail tile registration, and
+  NO riding system at all in `Entity` — only a vestigial `Model::riding`
+  bool that `MobRenderer` hardcodes to `false` (`//mob.isRiding()`).
+  Shipping a usable minecart would mean writing a vehicle system from
+  scratch (rail tile + shape/connection logic + minecart entity +
+  rail physics + model/renderer + riding + player controls + item +
+  recipe) — a multi-version effort, not a v-batch. v12 shipped the
+  slime + enderman fallback instead.
 - (none yet — fill in as versions prove things out)
 - **Infinite world** — not feasible: fixed `CHUNK_CACHE_WIDTH` chunk
   cache; max sane size is 512×512 today (1024 pending measurement).

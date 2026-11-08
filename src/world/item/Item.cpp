@@ -122,6 +122,8 @@ Item* Item::reeds = NULL;
 Item* Item::paper = NULL;
 Item* Item::book = NULL;
 Item* Item::slimeBall = NULL;
+// v12: ender pearl (modern MC id 368; lang item.enderPearl.name already existed).
+Item* Item::ender_pearl = NULL;
 //Item* Item::minecart_chest = NULL;
 //Item* Item::minecart_furnace = NULL;
 Item* Item::egg = NULL;
@@ -266,6 +268,10 @@ void Item::initItems() {
 	Item::paper = (new Item(83))->setIcon(10, 3)->setCategory(ItemCategory::Decorations)->setDescriptionId("paper");
 	Item::book = (new Item(84))->setIcon(11, 3)->setCategory(ItemCategory::Decorations)->setDescriptionId("book");
 	Item::slimeBall = (new Item(85))->setIcon(14, 1)->setCategory(ItemCategory::Decorations)->setDescriptionId("slimeball");
+	// v12: ender pearl, dropped by the enderman (icon drawn into the
+	// blank gui/items.png cell (6, 8); category Tools like the other
+	// mob drops sulphur/string).
+	Item::ender_pearl = (new Item(368))->setIcon(6, 8)->setCategory(ItemCategory::Tools)->setDescriptionId("enderPearl");
 	//Item::minecart_chest = (new MinecartItem(86, Minecart::CHEST))->setIcon(7, 9)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("minecartChest");
 	//Item::minecart_furnace = (new MinecartItem(87, Minecart::FURNACE))->setIcon(7, 10)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("minecartFurnace");
 	Item::egg = (new EggItem(88))->setIcon(12, 0)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("egg");

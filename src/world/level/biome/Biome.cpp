@@ -41,8 +41,11 @@ Biome::Biome()
     _enemies.insert(_enemies.end(), MobSpawnerData(MobTypes::Zombie, 12, 2, 4));
     _enemies.insert(_enemies.end(), MobSpawnerData(MobTypes::Skeleton, 6, 1, 3));
     _enemies.insert(_enemies.end(), MobSpawnerData(MobTypes::Creeper, 4, 1, 1));
-    //_enemies.insert(_enemies.end(), MobSpawnerData(Slime.class, 10, 4, 4));
-    //_enemies.insert(_enemies.end(), MobSpawnerData(EnderMan.class, 1, 1, 4));
+    // v12: slime + enderman (these two lines were commented out since the
+    // original tree: Slime.class weight 10, EnderMan.class weight 1).
+    // Slime clusters of 1-3, enderman always alone — modern MC behaviour.
+    _enemies.insert(_enemies.end(), MobSpawnerData(MobTypes::Slime, 10, 1, 3));
+    _enemies.insert(_enemies.end(), MobSpawnerData(MobTypes::Enderman, 1, 1, 1));
 
     // wolves are added to forests and taigas
     // _friendlies.insert(_friendlies.end(), new MobSpawnerData(Wolf.class, 2));
