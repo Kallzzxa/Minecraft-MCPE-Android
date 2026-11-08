@@ -9,7 +9,7 @@
 #include "../../SharedConstants.h"
 #include "../../network/packet/SetHealthPacket.h"
 //#include "../effect/MobEffectInstance.h"
-//#include "../food/FoodConstants.h"
+#include "../food/FoodConstants.h"
 
 class FoodItem: public Item
 {
@@ -44,7 +44,9 @@ public:
     }
 
 	ItemInstance* use(ItemInstance* instance, Level* level, Player* player) {
-		if (!player->abilities.invulnerable && player->isHurt()) {
+		// Eat when hurt (old behaviour) OR when hungry (hunger system, v5).
+		if (!player->abilities.invulnerable &&
+			(player->isHurt() || player->foodData.getFoodLevel() < FoodConstants::MAX_FOOD)) {
 			player->startUsingItem(*instance, getUseDuration(instance));
 		}
 		return instance;

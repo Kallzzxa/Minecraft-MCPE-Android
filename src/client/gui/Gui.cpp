@@ -17,6 +17,7 @@
 #include "../../world/level/material/Material.h"
 #include "../../world/item/Item.h"
 #include "../../world/item/ItemInstance.h"
+#include "../../world/food/FoodConstants.h"
 #include "../../platform/input/Mouse.h"
 #include "../../world/level/Level.h"
 #include "../../world/PosTranslator.h"
@@ -86,6 +87,7 @@ void Gui::render(float a, bool mouseFree, int xMouse, int yMouse) {
 		t.beginOverride();
 		t.colorABGR(0xffffffff);
 		renderHearts();
+		renderHunger();
 		renderBubbles();
 		t.endOverrideAndDraw();
 	}
@@ -609,9 +611,27 @@ void Gui::renderHearts() {
 	}
 }
 
+void Gui::renderHunger() {
+	int food = minecraft->player->foodData.getFoodLevel();
+	int xx = 2;
+	int yo = 12;
+	// Shake the bar when starving, like the hearts shake at low health.
+	if (food <= 6) {
+		yo = yo + random.nextInt(2) - 1;
+	}
+	for (int i = 0; i < FoodConstants::MAX_FOOD / 2; i++) {
+		int ip2 = i + i + 1;
+		int xo = xx + i * 8;
+		// container (empty drumstick outline)
+		blit(xo, yo, 16 + 0 * 9, 9 * 3, 9, 9);
+		if (ip2 < food) blit(xo, yo, 16 + 4 * 9, 9 * 3, 9, 9);
+		else if (ip2 == food) blit(xo, yo, 16 + 5 * 9, 9 * 3, 9, 9);
+	}
+}
+
 void Gui::renderBubbles() {
 	if (minecraft->player->isUnderLiquid(Material::water)) {
-		int yo = 12;
+		int yo = 22;
 		int count = (int) std::ceil((minecraft->player->airSupply - 2) * 10.0f / Player::TOTAL_AIR_SUPPLY);
 		int extra = (int) std::ceil((minecraft->player->airSupply) * 10.0f / Player::TOTAL_AIR_SUPPLY) - count;
 		for (int i = 0; i < count + extra; i++) {

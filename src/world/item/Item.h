@@ -197,6 +197,8 @@ public:
 	static Item* beef_cooked;
 	static Item* chicken_raw;
 	static Item* chicken_cooked;
+	static Item* mutton_raw;
+	static Item* mutton_cooked;
 
 	static Item* netherbrick;
 	static Item* netherQuartz;

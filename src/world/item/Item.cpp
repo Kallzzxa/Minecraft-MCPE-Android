@@ -147,6 +147,8 @@ Item* Item::beef_raw = NULL;
 Item* Item::beef_cooked = NULL;
 Item* Item::chicken_raw = NULL;
 Item* Item::chicken_cooked = NULL;
+Item* Item::mutton_raw = NULL;
+Item* Item::mutton_cooked = NULL;
 
 Item* Item::netherbrick = NULL;
 Item* Item::netherQuartz = NULL;
@@ -279,6 +281,8 @@ void Item::initItems() {
 	Item::beef_cooked = (new FoodItem(108, 8, /*FoodConstants.FOOD_SATURATION_GOOD,*/ true))->setIcon(10, 6)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("beefCooked");
 	Item::chicken_raw = (new FoodItem(109, 2, /*FoodConstants.FOOD_SATURATION_LOW,*/ true))->setIcon(9, 7)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("chickenRaw");
 	Item::chicken_cooked = (new FoodItem(110, 6, /*FoodConstants.FOOD_SATURATION_NORMAL,*/ true))->setIcon(10, 7)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("chickenCooked");
+	Item::mutton_raw = (new FoodItem(168, 2, true))->setIcon(7, 7)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("muttonRaw");
+	Item::mutton_cooked = (new FoodItem(169, 6, true))->setIcon(8, 7)->setCategory(ItemCategory::FoodArmor)->setDescriptionId("muttonCooked");
 
 	Item::netherbrick = (new Item(149))->setIcon(5, 9)->setDescriptionId("netherbrickItem")->setCategory(ItemCategory::Structures);
 	Item::netherQuartz = (new Item(150))->setIcon(5, 10)->setDescriptionId("netherquartz")->setCategory(ItemCategory::Mechanisms);
