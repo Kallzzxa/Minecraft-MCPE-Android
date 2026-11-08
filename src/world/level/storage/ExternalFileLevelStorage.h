@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <list>
+#include <stdint.h>
 
 //#include "com/mojang/nbt/CompoundTag.h"
 #include "LevelStorage.h"
@@ -19,7 +20,10 @@ class RegionFile;
 
 typedef struct UnsavedLevelChunk
 {
-	int				pos;
+	// v17: was "int pos" = x + z * CHUNK_CACHE_WIDTH, which collides
+	// for negative / large chunk coordinates. Now the 64-bit ChunkPos
+	// hash (see ExternalFileLevelStorage::tick).
+	int64_t			pos;
 	RakNet::TimeMS	addedToList;
 	LevelChunk*		chunk;
 } UnsavedLevelChunk;

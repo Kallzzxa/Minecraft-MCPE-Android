@@ -3,20 +3,17 @@
 
 //package net.minecraft.world.level.chunk;
 
-// v16 — STREAMING CORE: the fixed 32x32 slot array is gone. Resident
-// chunks live in a std::map keyed by the 64-bit ChunkPos hash, and a
-// periodic sweep (tick()) evicts chunks farther than
-// CHUNK_STREAM_RADIUS (16) chunks from the player chunk, saving them
-// first. The ChunkSource interface is unchanged, so Level::getChunk
-// callers do not change.
-//
-// The world is STILL 512x512 in v16 (fits() stays 0..31): the RegionFile
-// offset table only holds 32x32 chunks, so chunks outside cannot be
-// saved yet — that is v17. What changed is HOW the 512 world is cached
-// and streamed: prepareLevel() no longer generates all 1024 chunks at
-// load, and the resident window now moves with the player instead of
-// being the whole world at once. Worst case memory is unchanged
-// (<= 1024 chunks, ~85 MiB), because the world itself is still capped.
+// v17 — BORDER LIFTED: the world is no longer 512x512. fits() (the
+// 0..31 world border) is gone: getChunk() now loads or generates a real
+// chunk at ANY coordinate, and RegionFile saves it in the per-region
+// file for that coordinate. The resident set is still bounded by the
+// v16 streaming window (CHUNK_STREAM_RADIUS 16 around the player), so
+// memory stays ~85 MiB — the window just moves without limit now.
+// Eviction no longer pins chunks with entities / tile entities (that
+// pinned trail would grow without bound in an infinite world): entities
+// are despawned and tile entities detached + re-attached on reload
+// (see evictChunk / reattachTileEntities). The v16 streaming core is
+// otherwise unchanged.
 
 #include <map>
 #include <vector>
@@ -28,6 +25,7 @@
 #include "../Level.h"
 #include "../LevelConstants.h"
 #include "../ChunkPos.h"
+#include "../tile/entity/TileEntity.h"
 
 class ChunkCache: public ChunkSource {
     //static const int CHUNK_CACHE_WIDTH = CHUNK_CACHE_WIDTH; // WAS 32;
@@ -64,18 +62,13 @@ public:
 		delete emptyChunk;
 	}
 
-    // v16: this is now the WORLD border (0..31 chunks = 512x512 blocks),
-    // not the cache size. Outside it getChunk() still returns the shared
-    // emptyChunk (air) exactly as before — the border is lifted in v17
-    // once RegionFile can save chunks at any coordinate.
-    bool fits(int x, int z) {
-        return (x >= 0 && z >= 0 && x < CHUNK_CACHE_WIDTH && z < CHUNK_CACHE_WIDTH);
-    }
-
+    // v17: NO world border anymore — a chunk "fits" at any coordinate
+    // (the old 0..31 check was the 512x512 border; RegionFile now saves
+    // per-region files, so there is nothing to reject). hasChunk() now
+    // means exactly "resident in the cache": the shared emptyChunk is
+    // no longer the answer for outside coordinates, getChunk() loads or
+    // generates a real chunk there instead.
     bool hasChunk(int x, int z) {
-		// with a fixed world size, chunks outside the fitting area are always available (emptyChunks)
-        if (!fits(x, z)) return true;
-
         if (x == xLast && z == zLast && last != NULL) {
             return true;
         }
@@ -96,8 +89,8 @@ public:
 		if (x == xLast && z == zLast && last != NULL) {
             return last;
         }
-		if (!fits(x, z)) return emptyChunk;
-        //if (!level->isFindingSpawn && !fits(x, z)) return emptyChunk;
+        // v17: no fits() border anymore — any coordinate loads from
+        // disk or generates, exactly like 0..31 did in v16.
         int64_t key = ChunkPos::hashCode(x, z);
         ChunkMap::iterator it = chunks.find(key);
         if (it == chunks.end()) {
@@ -144,6 +137,14 @@ public:
                 newChunk->load();
             }
 
+            // v17: re-attach tile entities that were detached when this
+            // chunk was evicted (their objects live on in
+            // Level::tileEntities with their contents; the chunk map is
+            // only an index). Must run before postProcess / any
+            // getTileEntity() call, or the chunk would create a fresh
+            // EMPTY tile entity for the same chest/furnace.
+            reattachTileEntities(newChunk);
+
             if (!newChunk->terrainPopulated && hasChunk(x + 1, z + 1) && hasChunk(x, z + 1) && hasChunk(x + 1, z)) postProcess(this, x, z);
             if (hasChunk(x - 1, z) && !getChunk(x - 1, z)->terrainPopulated && hasChunk(x - 1, z + 1) && hasChunk(x, z + 1) && hasChunk(x - 1, z)) postProcess(this, x - 1, z);
             if (hasChunk(x, z - 1) && !getChunk(x, z - 1)->terrainPopulated && hasChunk(x + 1, z - 1) && hasChunk(x, z - 1) && hasChunk(x + 1, z)) postProcess(this, x, z - 1);
@@ -169,7 +170,6 @@ public:
 	}
 
     void postProcess(ChunkSource* parent, int x, int z) {
-		if (!fits(x, z)) return;
         LevelChunk* chunk = getChunk(x, z);
         if (!chunk->terrainPopulated) {
             chunk->terrainPopulated = true;
@@ -262,36 +262,64 @@ public:
 		}
 	}
 
-    // v16 streaming: evict one resident chunk. Saving is UNCONDITIONAL
+    // v17 streaming: evict one resident chunk. Saving is UNCONDITIONAL
     // (same as the old slot-reuse path): a freshly generated chunk starts
     // with unsaved=false, so "save only if dirty" would drop never-saved
     // generated terrain — and regeneration is NOT bit-identical
     // (postProcess uses shared Random state), so the chunk must reach
     // disk exactly as it was. Edits survive because eviction writes the
     // chunk before deleting it; a later visit loads it back from disk.
+    //
+    // v17 — NO MORE PINNING (the v16 debt, now paid): in v16 a chunk
+    // holding a live entity or a tile entity was never evicted, because
+    // LevelChunk::unload() is a stub and deleting the chunk would leave
+    // dangling pointers. That was bounded while the world was 512x512
+    // (<= 1024 chunks), but in an infinite world the pinned trail
+    // would grow without bound as the player walks. So eviction now
+    // clears the chunk properly first:
+    //  - ENTITIES: every non-player entity in the chunk is despawned
+    //    (Level::removeEntity marks it removed; Level::tickEntities
+    //    deletes it on the next game tick and removes it from the
+    //    chunk index + the level entity list). This is safe because
+    //    Entity::save() already refuses removed entities, so a
+    //    despawned mob is NOT written back to entities.dat and can
+    //    never resurrect / duplicate on reload. Despawn is also the
+    //    modern-MC behaviour at distance: hostile mobs already
+    //    self-despawn past 96 blocks (Mob::checkDespawn), and passive
+    //    animals NEVER self-despawn (Animal::removeWhenFarAway() is
+    //    false) — without this they would accumulate forever as new
+    //    chunks generate animals via postProcess. Dropped items and XP
+    //    orbs despawn the same way (this tree has no per-chunk entity
+    //    save — entities.dat is one global snapshot — so keeping them
+    //    alive detached would leave them ticking in unloaded chunks;
+    //    an item dropped and then left >16 chunks behind is lost,
+    //    documented in ROADMAP). The PLAYER chunk is never evicted
+    //    (distance 0), but a player entity in the chunk pins it as a
+    //    safety net — a player must never be despawned.
+    //  - TILE ENTITIES: detached, NOT deleted. Their objects stay alive
+    //    in Level::tileEntities (which owns the chest/furnace contents)
+    //    and are re-attached to the chunk map when the chunk reloads
+    //    (reattachTileEntities). The eviction's saveEntities() call
+    //    below writes the detached tile entities to entities.dat, so
+    //    contents survive a full save/load cycle too. Empty chests /
+    //    idle furnaces report shouldSave()==false and are simply
+    //    re-created empty on reload — empty is empty, nothing is lost.
     void evictChunk(int64_t key, LevelChunk* chunk) {
         if (chunk == NULL || chunk == emptyChunk) return;
-        // THE unload-stub hazard (LevelChunk::unload() only sets
-        // loaded=false; entity/tile-entity removal inside it is
-        // commented out): a chunk is only deleted when it provably holds
-        // no live entity and no tile entity. Entities live in TWO places
-        // — Level::entities (master list) and the chunk's entityBlocks
-        // index — and tile entities live in Level::tileEntities plus the
-        // chunk's tileEntities map. Deleting the chunk object while either
-        // list still references it would leave dangling pointers (the
-        // chunk index for entities, the chunk map for tile entities, and
-        // a duplicate tile entity would be created when the chunk reloads
-        // and getTileEntity() finds an empty map). So such chunks are
-        // PINNED: they stay resident until their entities/tile entities
-        // go away through the normal paths (mob death/removal, chest
-        // broken). This is bounded in v16: the world is still 512x512
-        // (<= 1024 chunks, the same as before), mob caps are tiny
-        // (monster 20 + creature 15 + water 10 per level), and tile
-        // entities are player-placed and few. v17 MUST add real entity
-        // despawn/relocation before lifting the border, or the pinned
-        // trail would grow without bound in an infinite world.
-        if (chunk->countEntities() > 0) return;
-        if (!chunk->getTileEntityMap().empty()) return;
+
+        std::vector<Entity*> chunkEntities;
+        chunk->collectEntities(chunkEntities);
+        // Player check FIRST, before touching anything: a player in
+        // the chunk pins it (a player must never be despawned).
+        for (size_t i = 0; i < chunkEntities.size(); ++i) {
+            if (chunkEntities[i] != NULL && chunkEntities[i]->isPlayer()) return;
+        }
+        for (size_t i = 0; i < chunkEntities.size(); ++i) {
+            Entity* e = chunkEntities[i];
+            if (e == NULL) continue;
+            level->removeEntity(e);
+        }
+        chunk->detachTileEntities();
 
         if (chunk == last) {
             last = NULL;
@@ -305,7 +333,10 @@ public:
             // FIRST: it holds a raw pointer that would dangle after the
             // delete below (savePendingUnsavedChunks would write through
             // it). Then persist blocks + the global entities snapshot,
-            // exactly like the old slot-reuse path did.
+            // exactly like the old slot-reuse path did. The snapshot
+            // still contains the detached tile entities (contents
+            // saved) but NOT the just-despawned entities (Entity::save
+            // refuses removed entities).
             storage->onChunkEvicted(chunk);
             save(chunk);
             saveEntities(chunk);
@@ -319,6 +350,26 @@ public:
         // Disk-loaded chunk: not in the generator's map, the cache owns it.
         chunk->deleteBlockData();
         delete chunk;
+    }
+
+    // v17: re-attach tile entities detached by evictChunk() when their
+    // chunk loads again. Runs inside getChunk() right after the chunk
+    // is loaded, before postProcess or any getTileEntity() call, so the
+    // chunk map holds the ORIGINAL tile entity (with its contents)
+    // instead of a fresh empty one. The hasTileEntityAt() guard makes a
+    // duplicate attach impossible (e.g. a tile entity loaded from
+    // entities.dat at level start for the same position).
+    void reattachTileEntities(LevelChunk* chunk) {
+        if (chunk == NULL || chunk == emptyChunk || level == NULL) return;
+        for (size_t i = 0; i < level->tileEntities.size(); ++i) {
+            TileEntity* te = level->tileEntities[i];
+            if (te == NULL || te->isRemoved()) continue;
+            // (x >> 4) is floor-division by 16, matching the chunk the
+            // tile entity belongs to for negative coordinates too.
+            if ((te->x >> 4) != chunk->x || (te->z >> 4) != chunk->z) continue;
+            if (chunk->hasTileEntityAt(te)) continue;
+            chunk->setTileEntity(te->x & 15, te->y, te->z & 15, te);
+        }
     }
 
     // v16 streaming: drop resident chunks farther than
@@ -357,10 +408,10 @@ public:
         }
         int evicted = 0;
         for (size_t i = 0; i < far.size() && evicted < CHUNK_STREAM_MAX_EVICT_PER_SWEEP; ++i) {
-            // evictChunk() may refuse a pinned chunk (entities / tile
-            // entities); that still counts as visited but not evicted.
-            // Count only real evictions against the cap so a sweep full
-            // of pinned chunks does not starve later sweeps.
+            // evictChunk() may refuse a chunk holding a player entity;
+            // that still counts as visited but not evicted. Count only
+            // real evictions against the cap so a sweep full of refused
+            // chunks does not starve later sweeps.
             size_t before = chunks.size();
             evictChunk(far[i].first, far[i].second);
             if (chunks.size() < before) evicted++;
@@ -370,10 +421,6 @@ public:
 private:
     LevelChunk* load(int x, int z) {
         if (storage == NULL) return emptyChunk;
-		if (!fits(x, z))
-		{
-			return emptyChunk;
-		}
         //try {
             LevelChunk* levelChunk = storage->load(level, x, z);
             if (levelChunk != NULL) {

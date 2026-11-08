@@ -416,17 +416,20 @@ void Minecraft::prepareLevel(const std::string& title) {
 		spawnCZ = CHUNK_CACHE_WIDTH / 2;
 	} else {
 		Pos spawn = level->getSharedSpawnPos();
-		spawnCX = spawn.x / 16;
-		spawnCZ = spawn.z / 16;
+		// Floor-divide (C++ / truncates toward zero, which would put
+		// a negative spawn one chunk off).
+		spawnCX = spawn.x >= 0 ? spawn.x / 16 : -((-spawn.x + 15) / 16);
+		spawnCZ = spawn.z >= 0 ? spawn.z / 16 : -((-spawn.z + 15) / 16);
 	}
+	// v17: the old clamps pinned the spawn area to chunks 0..31 (the
+	// 512x512 border). For an old world whose stored/bed spawn sits
+	// outside that range, the clamps made cx1 < cx0 and generated
+	// NOTHING at load. In an infinite world the spawn area is simply
+	// spawn +- CHUNK_SPAWN_GEN_RADIUS, wherever the spawn is.
 	int cx0 = spawnCX - CHUNK_SPAWN_GEN_RADIUS;
-	if (cx0 < 0) cx0 = 0;
 	int cx1 = spawnCX + CHUNK_SPAWN_GEN_RADIUS;
-	if (cx1 >= CHUNK_CACHE_WIDTH) cx1 = CHUNK_CACHE_WIDTH - 1;
 	int cz0 = spawnCZ - CHUNK_SPAWN_GEN_RADIUS;
-	if (cz0 < 0) cz0 = 0;
 	int cz1 = spawnCZ + CHUNK_SPAWN_GEN_RADIUS;
-	if (cz1 >= CHUNK_CACHE_WIDTH) cz1 = CHUNK_CACHE_WIDTH - 1;
 	int Max = (cx1 - cx0 + 1) * (cz1 - cz0 + 1);
 	int pp = 0;
 	for (int cx = cx0; cx <= cx1; cx++) {

@@ -38,11 +38,24 @@ int MobSpawner::tick(Level* level, bool spawnEnemies, bool spawnFriendlies) {
 	// (The code above is the same as in the java version)
 	// This code goes over the whole map one "row" at a time
 
-	// Spawn friendlies == loop over whole map, and disable Monster spawning this tick
+	// Spawn friendlies == loop around the player, and disable Monster spawning this tick
 	if (spawnFriendlies) {
 		spawnEnemies = false;
-		for (int i = 0; i < 256; ++i)
-			chunksToPoll.insert( std::make_pair( ChunkPos(i>>4, i&15), false) );
+		// v17: was an ABSOLUTE 0..15 chunk loop (ChunkPos(i>>4, i&15)
+		// over 256 chunks) — friendly mobs effectively only spawned
+		// while the player stood in the world's south-west quarter.
+		// Now player-relative, the same +-8 chunk radius as hostile
+		// spawning below.
+		if (level->players.size()) {
+			Player* p = level->players[0];
+			int xx = Mth::floor(p->x / 16);
+			int zz = Mth::floor(p->z / 16);
+			int r = 128 / 16;
+			for (int x = -r; x <= r; x++)
+			for (int z = -r; z <= r; z++) {
+				chunksToPoll.insert( std::make_pair( ChunkPos(xx + x, zz + z), false) );
+			}
+		}
 
 	} else {
 		// Only spawn mobs, check around one player per tick (@todo: optimize the "count instances of"?)
@@ -57,8 +70,13 @@ int MobSpawner::tick(Level* level, bool spawnEnemies, bool spawnFriendlies) {
 			for (int z = -r; z <= r; z++) {
 				const int cx = xx + x;
 				const int cz = zz + z;
-				if (cx >= 0 && cx < 16 && cz >= 0 && cz < 16)
-					chunksToPoll.insert(std::make_pair(ChunkPos(cx, cz), false ));
+				// v17: was "cx >= 0 && cx < 16 && cz >= 0 && cz < 16"
+				// — ABSOLUTE chunk coords, so hostile mobs effectively
+				// only spawned while the player was in the world's
+				// south-west quarter (chunks 0..15). The loop is
+				// already player-relative (+-8 chunks = 128 blocks),
+				// so no bounds check is needed at all.
+				chunksToPoll.insert(std::make_pair(ChunkPos(cx, cz), false ));
 			}
 		}
 	}

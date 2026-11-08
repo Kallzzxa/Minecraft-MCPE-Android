@@ -435,14 +435,12 @@ void Level::setInitialSpawn() {
     int xSpawn = CHUNK_CACHE_WIDTH * CHUNK_WIDTH / 2; // (Level.MAX_LEVEL_SIZE - 100) * 0;
     int ySpawn = 64;
     int zSpawn = CHUNK_CACHE_WIDTH * CHUNK_DEPTH / 2; // (Level.MAX_LEVEL_SIZE - 100) * 0;
+    // v17: the old [4, 508] wander clamp was the 512x512 world border.
+    // In an infinite world there is no border to stay inside; the
+    // wander steps (+-32 per try) stay near the centre on their own.
     while (!dimension->isValidSpawn(xSpawn, zSpawn)) {
         xSpawn += random.nextInt(32) - random.nextInt(32);
         zSpawn += random.nextInt(32) - random.nextInt(32);
-
-		if (xSpawn < 4) xSpawn += 32;
-		if (xSpawn >= LEVEL_WIDTH-4) xSpawn -= 32;
-		if (zSpawn < 4) zSpawn += 32;
-		if (zSpawn >= LEVEL_DEPTH-4) zSpawn -= 32;
     }
     levelData.setSpawn(xSpawn, ySpawn, zSpawn);
     isFindingSpawn = false;
@@ -455,14 +453,11 @@ void Level::validateSpawn() {
     }
     int xSpawn = levelData.getXSpawn();
     int zSpawn = levelData.getZSpawn();
+    // v17: the old [4, 508] wander clamp was the 512x512 world border
+    // (see setInitialSpawn above); dropped for the same reason.
     while (getTopTile(xSpawn, zSpawn) == 0 || getTopTile(xSpawn, zSpawn) == Tile::invisible_bedrock->id) {
         xSpawn += random.nextInt(8) - random.nextInt(8);
         zSpawn += random.nextInt(8) - random.nextInt(8);
-
-		if (xSpawn < 4) xSpawn += 8;
-		if (xSpawn >= LEVEL_WIDTH-4) xSpawn -= 8;
-		if (zSpawn < 4) zSpawn += 8;
-		if (zSpawn >= LEVEL_DEPTH-4) zSpawn -= 8;
     }
     levelData.setXSpawn(xSpawn);
     levelData.setZSpawn(zSpawn);
@@ -948,10 +943,12 @@ HitResult Level::clip(const Vec3& A, const Vec3& b, bool liquid /*= false*/, boo
 		if (solidOnly && tile != NULL && tile->getAABB(this, xTile0, yTile0, zTile0) == NULL) {
 			// No collision
 		} else if (t > 0 && tile->mayPick(data, liquid)) {
-			if(xTile0 >= 0 && zTile0 >= 0 && xTile0 < LEVEL_WIDTH && zTile0 < LEVEL_WIDTH) {
-				HitResult r = tile->clip(this, xTile0, yTile0, zTile0, a, b);
-				if (r.isHit()) return r;
-			}
+			// v17: the old gate (xTile0/zTile0 in [0, LEVEL_WIDTH))
+			// was the 512x512 border — it made blocks past the edge
+			// unbreakable/unpickable. t > 0 already proves a real
+			// block is there, so no bounds check is needed.
+			HitResult r = tile->clip(this, xTile0, yTile0, zTile0, a, b);
+			if (r.isHit()) return r;
         }
     }
     return HitResult();

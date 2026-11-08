@@ -115,6 +115,24 @@ void ExternalFileLevelStorageSource::deleteLevel( const std::string& levelId )
 		remove((path + "/chunks.dat").c_str());
 		remove((path + "/player.dat").c_str());
 		remove((path + "/level.dat").c_str());
+		// v17: per-region chunk files (r.<rx>.<rz>.dat) — remove them
+		// too, or a half-deleted world would resurrect its terrain.
+		// (POSIX only; on Windows the DeleteDirectory above is the
+		// only path and already removes the whole folder when it works.)
+#ifndef WIN32
+		DIR* dp = opendir(path.c_str());
+		if (dp) {
+			struct dirent* dirp;
+			while ((dirp = readdir(dp)) != NULL) {
+				std::string name = dirp->d_name;
+				if (name.size() > 6 && name.compare(0, 2, "r.") == 0
+						&& name.compare(name.size() - 4, 4, ".dat") == 0) {
+					remove((path + "/" + name).c_str());
+				}
+			}
+			closedir(dp);
+		}
+#endif
 	}
 }
 

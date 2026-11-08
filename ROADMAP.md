@@ -21,10 +21,11 @@ Each version is ONE coherent batch of features, shipped as a new APK
   engine job, NOT one batch. v15 (this version) proved it IS feasible:
   terrain gen, biomes, the renderer grid and fog are already
   coordinate-free; the blockers are a fixed 32×32 save-offset table and
-  ~10 clamp sites, all bounded (see "v15" for the full map). v16 builds
-  the streaming core, v17 removes the border + dynamic save/load, v18
-  verifies. No version promises "infinite" until the streaming core
-  (v16) is proven on device.
+  ~10 clamp sites, all bounded (see "v15" for the full map). v16 built
+  the streaming core, v17 removed the border + dynamic save/load, v18
+  verifies. No version promises "infinite" until v18 proves it on
+  device (v17 lifts the border in code; the claim still waits on the
+  v18 device verification).
 - Everything is BUILD-ONLY until tested on the user's realme 8.
 
 ## Done
@@ -524,46 +525,142 @@ Each version is ONE coherent batch of features, shipped as a new APK
   stays ≤ 1,089, walk back and the old area looks identical, edited
   chunks survive save/load, no crash on evict/reload cycles.
 
-## Next (v16)
-- **v17 — Infinite world, stage 3: remove the border + dynamic
-  save/load.** Endless terrain + chunks saved/loaded at any
-  coordinate.
-  Files: `src/world/level/storage/RegionFile.h/.cpp` (per-region
-  files `region/r.<rx>.<rz>.dat`, each with its own 32×32 offset
-  table; negative region coords via floor division, not C++
-  truncation; bump the storage version; migrate old `chunks.dat`
-  0..31 → region (0,0)), `ExternalFileLevelStorage.cpp`
-  (remove the v1 player-pos clamp at :279-280 — the `tick()` unsaved
-  scan over the resident set was already done in v16, it had to be,
-  or eviction would have been undone every 50 ticks),
-  `src/world/entity/Entity.cpp:887-888` (remove the x/z load clamp),
-  `src/world/level/Level.cpp` (`setInitialSpawn`/`validateSpawn`:
-  drop the [4,508] clamps; `inRange()`: y-only, or drop the call at
-  `ClientSideNetworkHandler.cpp:798`; `clip()`: fix the Z check to
-  `LEVEL_DEPTH` then remove both bounds),
-  `src/world/level/MobSpawner.cpp:44-46,60` (player-relative spawn
-  radius — also fixes the live 0..15 hostile-spawn bug found in
-  v15), `NetherReactorTileEntity.cpp:133,143` (drop the [0,512)
-  re-rolls), `CommandServer.cpp:239-241,459,507` (fill clamp +
-  checkpoint units), `ClientSideNetworkHandler` (dynamic chunk
-  request set for MP). New in v17 (debt from v16): real entity
-  despawn/relocation on evict + proper tile-entity detach — v16 pins
-  chunks with entities/tile entities, which is only bounded while the
-  world is capped at 512; the border must NOT lift before this exists.
-  Main risk: negative-coordinate bugs — C++ `%`
-  and `>>` on negatives, `ChunkPos::hashCode` sign handling, and
-  region-file naming for negative regions; test negative X/Z
-  explicitly. Second risk: save corruption on crash mid-write
-  (region rewrite is not atomic today either — same exposure as now,
-  just more files). Verification: walk/teleport past x=512 and
-  z=512 and into negative coords — terrain continues, no vertical
-  edge, no blue void; edit blocks beyond the old border, quit,
-  reload, edits persist; spawn works; mobs spawn far from origin;
-  an OLD 512 world still loads (migration).
+- **v17 — Infinite world, stage 3: border lifted + dynamic save/load
+  (SHIPPED).** The world is no longer 512×512: the player can walk
+  past x/z 0 and 512 and into negative coordinates, and terrain
+  generates/saves/loads there. The v16 pinning debt is paid (see
+  below), so the resident window can move without limit.
+  ### What shipped
+  - `RegionFile.h/.cpp` — PER-REGION save files. The chunk payload
+    format inside a file is UNCHANGED (4 KiB sectors, first sector =
+    1024-entry offset table, same bytes), but there is now one file
+    per 32×32-chunk region, `r.<rx>.<rz>.dat` in the level directory
+    (region = floor-divide chunk coord by 32), instead of one
+    `chunks.dat` for the whole world. Negative chunk coords and
+    coords ≥ 32 map to exactly one region file + one slot, so saving
+    can no longer index before the offset array (heap corruption) or
+    collide chunks. Region files open lazily and are capped at 16
+    open (LRU — offset tables are written through on every write and
+    rebuilt from disk on open, so closing one loses nothing; the cap
+    bounds file descriptors on long walks). Migration: on first open
+    of region (0,0), a legacy `chunks.dat` (exactly region 0..31) is
+    RENAMED to `r.0.0.dat` (same bytes, new name); if the rename
+    fails the legacy file is used as-is for region (0,0) so no data
+    is lost. Old 512 worlds keep loading with all chunks intact.
+  - `ChunkCache.h` — the border is gone: `fits()` (0..31) deleted;
+    `hasChunk()` now means exactly "resident in the cache";
+    `getChunk()` loads/generates a real chunk at ANY coordinate
+    (no more shared `emptyChunk` for outside coords);
+    `postProcess()` / `load()` lose their `fits()` guards. The v16
+    streaming window (Chebyshev radius 16, sweep every 10 ticks,
+    max 32/sweep) is unchanged.
+  - Entity + tile-entity eviction (the v16 debt, PAID):
+    `LevelChunk::collectEntities()` + `detachTileEntities()` (new).
+    `evictChunk()` no longer pins chunks with entities/tile
+    entities. ENTITIES: every non-player entity in the evicted chunk
+    is despawned via `Level::removeEntity()` (marked removed;
+    `Level::tickEntities()` deletes it on the next game tick). Safe
+    because `Entity::save()` already refuses removed entities, so a
+    despawned mob is never written back to `entities.dat` and can
+    never resurrect/duplicate on reload. A player entity in the chunk
+    still pins it (checked FIRST, before any despawn). TILE
+    ENTITIES: detached, not deleted — `detachTileEntities()` only
+    clears the chunk's map (no `setRemoved()`, no delete); the
+    objects stay alive in `Level::tileEntities` with their contents,
+    the eviction's `saveEntities()` writes them to `entities.dat`,
+    and `ChunkCache::reattachTileEntities()` (new, runs in
+    `getChunk()` right after a chunk loads, before postProcess or any
+    `getTileEntity()` call) puts the ORIGINAL tile entity back into
+    the chunk map, so a chest/furnace keeps its contents and is never
+    duplicated (guarded by `hasTileEntityAt()`).
+  - `MobSpawner.cpp` — the v15 real bug, FIXED: hostile spawning
+    dropped the absolute `cx >= 0 && cx < 16 && cz >= 0 && cz < 16`
+    check (the loop was already player-relative ±8 chunks, so no
+    check is needed); friendly spawning dropped its absolute
+    0..255-chunk loop (`ChunkPos(i>>4, i&15)`) for the same ±8-chunk
+    player-relative radius. Hostile mobs now spawn anywhere, not
+    just in the south-west quarter.
+  - Border clamps removed: `Level.cpp` `setInitialSpawn()` /
+    `validateSpawn()` (the [4,508] wander clamps), `Level::clip()`
+    (the `[0, LEVEL_WIDTH)` gate — `t > 0` already proves a real
+    block is there); `Entity::loadFromTag()` (the x/z load clamp
+    that teleported entities back inside on load);
+    `ExternalFileLevelStorage::readPlayerData()` (the v1 player-pos
+    clamp to [0.5, 511.5]); `Minecraft::prepareLevel()` (the
+    0..31 spawn-area clamps — for a bed spawn outside 0..31 they
+    made cx1 < cx0 and generated NOTHING at load; spawn chunk now
+    floor-divided so negative spawns land right);
+    `CommandServer.cpp` fill (x/z clamps dropped, y clamp kept);
+    `NetherReactorTileEntity.cpp` (the [0,512) spawn re-roll loops).
+  - Two fixes found while doing this: `ExternalFileLevelStorage`
+    pending-unsaved key was `x + z * 32` (an int) — it COLLIDES for
+    negative/large coords (chunk (-1,0) and (31,-1) both give -1),
+    so two chunks shared one entry and one would never save; it is
+    now the 64-bit `ChunkPos` hash (`UnsavedLevelChunk::pos` is
+    `int64_t`). `CommandServer` checkpoint used `CHUNK_CACHE_WIDTH`
+    (32) as a BLOCK size — wrong unit, chunk coords off by 2× AND
+    `getBlocksAndData` fed a 32-wide range (buffer over-read/write
+    past the 16×128×16 chunk); now `CHUNK_WIDTH` (16) with
+    `Mth::floor` chunk coords, consistent with the restore path and
+    `numChunkBytes`. `deleteLevel()` fallback now also removes
+    `r.*.dat` files.
+  - `LevelConstants.h`: `CHUNK_CACHE_WIDTH` / `LEVEL_WIDTH` /
+    `LEVEL_DEPTH` no longer cap anything — they survive only as the
+    default spawn centre (new worlds still spawn at chunk (16,16)
+    = block (256,256)).
+  ### Deviations from the v17 plan (in "Next" before this version)
+  - Region files are flat `r.<rx>.<rz>.dat` in the level directory,
+    NOT `region/r.<rx>.<rz>.dat` as the plan sketched — same effect,
+    one less directory to create/manage.
+  - The storage version was NOT bumped: the chunk payload format is
+    byte-identical inside each region file and the migration is a
+    rename, so the existing version/converters still apply.
+  - `Level::inRange()` + multiplayer `ClientSideNetworkHandler`
+    (`chunksLoaded[1024]`, `NumRequestChunks = 1024`) were LEFT
+    untouched: MP needs a dynamic request set AND matching
+    server-side changes, a separate subsystem — single-player is
+    unaffected. MP still plays a 512 world; see "Known limits".
+  - `clip()`: the plan said fix the Z check to `LEVEL_DEPTH` then
+    remove both bounds; the gate was removed outright instead
+    (`t > 0` is the sufficient check).
+  ### Known limits / caveats (honest, for v18 to verify on device)
+  - Dropped items + XP orbs DESPAWN when their chunk evicts (they
+    are despawned like mobs). This tree has no per-chunk entity
+    save — `entities.dat` is one global snapshot — so keeping them
+    alive detached would leave them ticking in unloaded chunks. An
+    item dropped and then left >16 chunks behind is lost (modern MC
+    would keep it). Mobs despawning at distance matches modern MC
+    (hostiles already self-despawn past 96 blocks; animals never
+    self-despawn, which is exactly why eviction must despawn them).
+  - Multiplayer still 512×512 (see above).
+  - Entity positions are `float` (v15 note stands): past ~±100k
+    blocks precision visibly degrades; ~±1M blocks it jitters.
+    No hard cap added; "infinite" in practice means tens of
+    thousands of blocks from spawn.
+  - A mob that walks out of the resident window BETWEEN eviction
+    sweeps (not via its chunk evicting) is not despawned by this
+    version — it keeps ticking with `inChunk == false` (pre-existing
+    pattern, also possible in v16 inside 0..31). Rare; v18 to check.
+  ### Verification (build-only until the realme 8 test)
+  CI `./gradlew assembleDebug` SUCCESS (see run in the v17 report);
+  APK verified locally (versionCode 17, signatures, `unzip -t`,
+  sha256). Device proof still needed (v18): walk/teleport past
+  x=512 and z=512 and into negative coords — terrain continues, no
+  vertical edge, no blue void; edit blocks beyond the old border,
+  quit, reload, edits persist; OLD 512 world loads and its
+  `chunks.dat` migrates to `r.0.0.dat` (check the world dir);
+  chest with items placed far from spawn, walk away >16 chunks,
+  walk back, contents intact, no duplicate chest; mobs spawn at
+  night far from origin (the old 0..15 bug is gone); 10-minute
+  walk, memory flat. Only after v18 passes does any version claim
+  "infinite".
+
+## Next (v17)
 - **v18 — Infinite world, stage 4: verification + polish.** Prove
   it on device, fix what leaks, make the far-walk feel right.
-  Files: whatever v16/v17 shake out (expected: eviction tuning,
-  `LevelRenderer` pool, `MobSpawner` radius, fog/load behaviour).
+  Files: whatever v17 shakes out (expected: eviction tuning,
+  `LevelRenderer` pool, `MobSpawner` radius, fog/load behaviour,
+  the MP chunk-request set if multiplayer is wanted beyond 512).
   Work: long walk in a test build (teleport / fly), measure memory
   (PSS, flat over distance) + FPS on the realme 8, check `chunkMap`
   size never grows, check the VBO pool count, fix negative-coord
@@ -576,7 +673,7 @@ Each version is ONE coherent batch of features, shipped as a new APK
   bug — re-verify with a long session, not a quick teleport).
   Verification: 10-minute walk session, memory flat, FPS within
   ~10% of v14 at spawn, no void holes, no crash; only then does any
-  version claim "infinite". The 512 world stays the fallback until
+  version claim "infinite". The v16 APK stays the fallback until
   this stage passes.
 
 ## Queued (priority order — re-evaluate after each version)

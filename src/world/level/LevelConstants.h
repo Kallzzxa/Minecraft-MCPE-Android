@@ -3,16 +3,16 @@
 
 
 const int LEVEL_HEIGHT = 128;
-// v16: CHUNK_CACHE_WIDTH is now the WORLD width in chunks (32 -> world
-// 512x512 blocks), NOT the cache size — the cache is a dynamic map
-// (ChunkCache) whose resident set is bounded by CHUNK_STREAM_RADIUS
-// below. It no longer needs to be a power of 2 (nothing indexes slots
-// with & (WIDTH-1) anymore). The world is still 512x512 in v16: the
-// RegionFile offset table only holds 32x32 chunks, so the border stays
-// until v17 replaces the save format.
+// v17: CHUNK_CACHE_WIDTH / LEVEL_WIDTH / LEVEL_DEPTH no longer cap the
+// world — the world is infinite now (RegionFile saves per-region files,
+// ChunkCache has no border). These constants survive only as the
+// DEFAULT SPAWN CENTRE: a new world spawns at chunk (16, 16) = block
+// (256, 256), the old world centre, and prepareLevel generates around
+// it. Nothing indexes slots with & (WIDTH-1) anymore.
 // Per-chunk ~82.7KB (32KB blocks + 3x16KB nibble layers + height/update maps)
-// => a full 1024-chunk world is ~85MB chunk data.
-const int CHUNK_CACHE_WIDTH = 32; // in chunks (was 16: world 256x256).
+// => the old full 1024-chunk world was ~85MB chunk data; the streaming
+// resident window (33x33 chunks) is the same order of magnitude.
+const int CHUNK_CACHE_WIDTH = 32; // in chunks (legacy world width; spawn centre only).
 const int CHUNK_WIDTH = 16; // in blocks
 const int CHUNK_DEPTH = 16;
 const int LEVEL_WIDTH = CHUNK_CACHE_WIDTH * CHUNK_WIDTH;

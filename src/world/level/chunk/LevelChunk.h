@@ -80,6 +80,19 @@ public:
 	virtual void markUnsaved();
 
 	virtual int countEntities();
+    // v17: append every entity currently indexed in this chunk (used
+    // by ChunkCache eviction to despawn them before the chunk object
+    // is deleted — see ChunkCache::evictChunk).
+    virtual void collectEntities(std::vector<Entity*>& out);
+    // v17: drop every tile entity from this chunk's map WITHOUT
+    // deleting it or marking it removed. The objects stay alive in
+    // Level::tileEntities (they own the chest/furnace contents, which
+    // are saved to entities.dat by the eviction's saveEntities call)
+    // and are re-attached to the chunk map when the chunk reloads
+    // (ChunkCache::reattachTileEntities). Must NOT use
+    // removeTileEntity() here: that setRemoved()s the tile entity,
+    // and Level::tickEntities would then delete it from the level.
+    virtual void detachTileEntities();
     virtual void getEntities(Entity* except, const AABB& bb, std::vector<Entity*>& es);
 
 	virtual int getTile(int x, int y, int z);

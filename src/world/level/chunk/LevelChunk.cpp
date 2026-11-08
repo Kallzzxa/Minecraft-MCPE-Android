@@ -542,6 +542,26 @@ int LevelChunk::countEntities()
 	return entityCount;
 }
 
+void LevelChunk::collectEntities(std::vector<Entity*>& out)
+{
+	for (int yc = 0; yc < EntityBlocksArraySize; yc++) {
+		for (size_t i = 0; i < entityBlocks[yc].size(); ++i) {
+			out.push_back(entityBlocks[yc][i]);
+		}
+	}
+}
+
+void LevelChunk::detachTileEntities()
+{
+	// The tile entity objects are owned by Level::tileEntities, not
+	// by this map — the map is only an index. Clearing it detaches
+	// them from the chunk so the chunk object can be deleted; their
+	// contents survive in entities.dat and they are re-attached when
+	// the chunk reloads. Deliberately no setRemoved() and no delete:
+	// either would destroy the contents.
+	tileEntities.clear();
+}
+
 //@note: @todo @te Verify
 TileEntity* LevelChunk::getTileEntity(int x, int y, int z) {
 	TilePos pos(x, y, z);

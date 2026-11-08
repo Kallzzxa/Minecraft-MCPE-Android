@@ -233,12 +233,11 @@ std::string CommandServer::parse(ConnectedClient& client, const std::string& s) 
 		apiPosTranslate.from(x0, y0, z0);
 		apiPosTranslate.from(x1, y1, z1);
 
-		if (x0 < 0) x0 = 0;
+		// v17: the old x/z clamps forced the fill inside [0, 512)
+		// (the world border). In an infinite world a fill can be
+		// anywhere; only y is genuinely bounded (0..LEVEL_HEIGHT-1).
 		if (y0 < 0) y0 = 0;
-		if (z0 < 0) z0 = 0;
-		if (x1 >= LEVEL_WIDTH ) x1 = LEVEL_WIDTH  - 1;
 		if (y1 >= LEVEL_HEIGHT) y1 = LEVEL_HEIGHT - 1;
-		if (z1 >= LEVEL_DEPTH ) z1 = LEVEL_DEPTH  - 1;
 
 		for (int y = y0; y <= y1; ++y)
 		for (int z = z0; z <= z1; ++z)
@@ -456,9 +455,16 @@ std::string CommandServer::parse(ConnectedClient& client, const std::string& s) 
 			sw.start();
 
 			// Save a cuboid around the player
-			const int CSize = CHUNK_CACHE_WIDTH;
-			int cx = (int)e->x / CSize;
-			int cz = (int)e->z / CSize;
+			// v17: was CHUNK_CACHE_WIDTH (32) used as a BLOCK size —
+			// wrong unit (a chunk is 16 blocks). cx/cz are chunk
+			// coords, so dividing by 32 put the checkpoint half a
+			// chunk off AND getBlocksAndData was fed a 32-wide range
+			// (buffer over-read/write past the 16x128x16 chunk).
+			// CHUNK_WIDTH (16) makes the math consistent with the
+			// restore path (16 * (restorePos - 2)) and numChunkBytes.
+			const int CSize = CHUNK_WIDTH;
+			int cx = Mth::floor(e->x / (float)CSize);
+			int cz = Mth::floor(e->z / (float)CSize);
 
 			restorePos = Pos(cx, (int)e->y - 8, cz);
 			handleCheckpoint(false);
@@ -504,7 +510,7 @@ bool CommandServer::handleCheckpoint(bool doRestore ) {
 	const int cz = restorePos.z;
 	const int y0 = restorePos.y;
 	const int y1 = y0 + RestoreHeight;
-	const int CSize = CHUNK_CACHE_WIDTH;
+	const int CSize = CHUNK_WIDTH;
 	const int numChunkBytes = RestoreHeight * CSize * CSize * 20 / 8;
 
 	if (!restoreBuffer) {

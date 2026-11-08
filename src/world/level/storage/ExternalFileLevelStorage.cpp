@@ -273,12 +273,11 @@ bool ExternalFileLevelStorage::readPlayerData(const std::string& filename, Level
 			if (fread(&dest.playerData, 1, sizeof(dest.playerData), fp) != size)
 				break;
 
-			// Fix coordinates
+			// v17: the old clamp forced the player into [0.5, 511.5]
+			// on load (the 512x512 border). In an infinite world the
+			// player can legitimately be anywhere; only the y sanity
+			// fix stays.
 			Vec3& pos = dest.playerData.pos;
-			if (pos.x < 0.5f) pos.x = 0.5f;
-			if (pos.z < 0.5f) pos.z = 0.5f;
-			if (pos.x > (LEVEL_WIDTH - 0.5f)) pos.x = LEVEL_WIDTH - 0.5f;
-			if (pos.z > (LEVEL_DEPTH - 0.5f)) pos.z = LEVEL_DEPTH - 0.5f;
 			if (pos.y < 0) pos.y = 64;
 
 			dest.playerDataVersion = version;
@@ -300,8 +299,7 @@ void ExternalFileLevelStorage::tick()
 		// which re-loads every chunk ChunkCache just evicted, every 50
 		// ticks, undoing eviction entirely and paying the per-chunk
 		// light recompute each time. The resident set is the correct
-		// scan: evicted chunks were already saved when evicted, and the
-		// world is still 0..31 in v16 so the pos key is unchanged.
+		// scan: evicted chunks were already saved when evicted.
 		// NOTE: getResidentChunks() comes from the chunk source, not
 		// from getChunk(), so this scan loads nothing.
 		std::vector<LevelChunk*> resident;
@@ -315,7 +313,13 @@ void ExternalFileLevelStorage::tick()
 				{
 					int x = chunk->x;
 					int z = chunk->z;
-					int pos = x + z * CHUNK_CACHE_WIDTH;
+					// v17: was "x + z * CHUNK_CACHE_WIDTH" (an int).
+					// That collides for negative / large coordinates
+					// (e.g. chunk (-1, 0) and (31, -1) both give -1),
+					// so two different chunks would share one pending
+					// entry and one of them would never be saved. The
+					// 64-bit ChunkPos hash is collision-free.
+					int64_t pos = ChunkPos::hashCode(x, z);
 					UnsavedChunkList::iterator prev = unsavedChunkList.begin();
 					for ( ; prev != unsavedChunkList.end(); ++prev)
 					{

@@ -882,11 +882,10 @@ bool Entity::load( CompoundTag* tag )
     float yy = pos->getFloat(1);
     float zz = pos->getFloat(2);
 
-    // Add a small padding if standing next to the world edges
-    const float padding = bbWidth * 0.5f + 0.001f;
-    xx = Mth::clamp(xx, padding, (float)LEVEL_WIDTH - padding);
-    zz = Mth::clamp(zz, padding, (float)LEVEL_DEPTH - padding);
-
+    // v17: the old clamp forced every loaded entity into
+    // [padding, 512-padding] — the invisible wall on LOAD (an entity
+    // saved past the border teleported back inside). In an infinite
+    // world entities live at any coordinate, so no clamp.
     xo = xOld = x = xx;
     yo = yOld = y = yy;
     zo = zOld = z = zz;
