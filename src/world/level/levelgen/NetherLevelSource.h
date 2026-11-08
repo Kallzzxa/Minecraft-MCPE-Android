@@ -14,7 +14,8 @@
 //  - nether quartz ore veins inside netherrack (~1.2% of blocks).
 //  - glowstone clusters hanging under the ceiling (y=120..125).
 //  - no trees, no water, no ores from the overworld, no structures
-//    (no Nether fortress in this batch — see ROADMAP).
+//    (v31 adds the Nether fortress in postProcess — see
+//    NetherFortressFeature).
 //
 // No chunkMap: unlike RandomLevelSource this source keeps no second
 // store of generated chunks. ChunkCache owns every chunk it holds, so
@@ -46,17 +47,20 @@ public:
 	bool hasChunk(int x, int y) { (void) x; (void) y; return true; }
 	LevelChunk* create(int x, int z) { return getChunk(x, z); }
 	LevelChunk* getChunk(int x, int z);
-	void postProcess(ChunkSource* parent, int x, int z) {
-		(void) parent; (void) x; (void) z;
-		// All decoration (ore, glowstone, soul sand) is placed in
-		// getChunk itself, so there is nothing left to post-process.
-		// ChunkCache still marks the chunk terrainPopulated.
-	}
+	// v31: fortress placement runs here (ChunkCache::postProcess
+	// calls source->postProcess once the chunk's neighbours exist).
+	void postProcess(ChunkSource* parent, int x, int z);
 	bool tick() { return false; }
 	bool shouldSave() { return true; }
 	std::string gatherStats() { return "Nether"; }
 
 	Biome::MobList getMobsAt(const MobCategory& mobCategory, int x, int y, int z);
+
+	// v31: Nether floor height at block (x, z) — the top of the solid
+	// netherrack/soul-sand floor, i.e. the `h` getChunk() itself uses
+	// (28..62). Public so NetherFortressFeature can derive its deck
+	// Y from the exact same terrain math, with no chunk reads.
+	static int getFloorHeight(long seed, int x, int z);
 
 private:
 	// Deterministic 0..1 hashes of integer coords (no RNG state, so a

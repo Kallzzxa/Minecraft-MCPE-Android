@@ -66,6 +66,8 @@ public:
 	static const int Villager	= 42;
 	// v24: witch (ranged, throws splash potions; lives in swamp huts).
 	static const int Witch		= 43;
+	// v31: magma cube (fire-immune slime; hops around the Nether).
+	static const int MagmaCube	= 44;
 };
 
 struct ParticleType {

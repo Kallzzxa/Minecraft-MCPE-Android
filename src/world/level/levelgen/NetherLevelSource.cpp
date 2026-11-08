@@ -1,4 +1,5 @@
 #include "NetherLevelSource.h"
+#include "NetherFortressFeature.h"
 
 #include <string.h>
 #include "../Level.h"
@@ -59,6 +60,26 @@ float NetherLevelSource::noise2D(long seed, int x, int z)
 	return total; // ~0..1
 }
 
+/*static*/
+int NetherLevelSource::getFloorHeight(long seed, int x, int z)
+{
+	// Floor height 28..62 — the exact formula getChunk() uses, so
+	// the fortress deck derived from it can never disagree with the
+	// terrain that was actually generated.
+	return 28 + (int)(noise2D(seed, x, z) * 34);
+}
+
+void NetherLevelSource::postProcess(ChunkSource* parent, int x, int z)
+{
+	(void) parent;
+	// All decoration (ore, glowstone, soul sand) is placed in
+	// getChunk itself. v31: the Nether fortress is placed here,
+	// LAST, so its nether brick overwrites anything inside the
+	// footprint — the same slot villages use in the overworld.
+	NetherFortressFeature::tryPlaceFortress(level, x, z);
+	// ChunkCache still marks the chunk terrainPopulated.
+}
+
 LevelChunk* NetherLevelSource::getChunk(int xOffs, int zOffs)
 {
 	unsigned char* blocks = new unsigned char[LevelChunk::ChunkBlockCount];
@@ -75,9 +96,8 @@ LevelChunk* NetherLevelSource::getChunk(int xOffs, int zOffs)
 		for (int lz = 0; lz < 16; lz++) {
 			int wx = xOffs * 16 + lx;
 			int wz = zOffs * 16 + lz;
-			float n = noise2D(seed, wx, wz);
+			int h = getFloorHeight(seed, wx, wz);
 			float n2 = noise2D(seed + 12345, wx, wz);
-			int h = 28 + (int)(n * 34); // floor height 28..62
 			bool soulPatch = n2 > 0.78f;
 			bool glowCluster = hash01(wx, wz, seed ^ 0x51f15e) > 0.965f;
 
@@ -130,6 +150,9 @@ Biome::MobList NetherLevelSource::getMobsAt(const MobCategory& mobCategory, int 
 		list.push_back(Biome::MobSpawnerData(MobTypes::PigZombie, 10, 1, 4));
 		list.push_back(Biome::MobSpawnerData(MobTypes::Blaze, 6, 1, 2));
 		list.push_back(Biome::MobSpawnerData(MobTypes::Ghast, 4, 1, 1));
+		// v31: magma cubes hop around the Nether floor like overworld
+		// slimes (same weight as blazes, clusters of 1-2).
+		list.push_back(Biome::MobSpawnerData(MobTypes::MagmaCube, 6, 1, 2));
 	}
 	return list;
 }

@@ -27,6 +27,7 @@
 #include "../ChunkPos.h"
 #include "../levelgen/VillageFeature.h"
 #include "../levelgen/SwampHutFeature.h"
+#include "../levelgen/NetherFortressFeature.h"
 #include "../tile/entity/TileEntity.h"
 
 class ChunkCache: public ChunkSource {
@@ -173,6 +174,8 @@ public:
             VillageFeature::ensureVillagers(level, x, z);
             // v24: same top-up for a swamp hut's witch.
             SwampHutFeature::ensureWitch(level, x, z);
+            // v31: same top-up for a Nether fortress's blazes.
+            NetherFortressFeature::ensureBlazes(level, x, z);
 
             xLast = x;
             zLast = z;
@@ -206,6 +209,8 @@ public:
                 VillageFeature::ensureVillagers(level, x, z);
                 // v24: same top-up for a swamp hut's witch.
                 SwampHutFeature::ensureWitch(level, x, z);
+                // v31: same top-up for a Nether fortress's blazes.
+                NetherFortressFeature::ensureBlazes(level, x, z);
             }
         }
     }

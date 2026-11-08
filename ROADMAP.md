@@ -2076,6 +2076,132 @@ Each version is ONE coherent batch of features, shipped as a new APK
     check perch + heal-beam + respawn v27-v29 still work, no
     crash, old features intact).
 
+- **v31 — Nether fortress + magma cube (SHIPPED, build-only).**
+  Pays the v21 debt "no Nether fortress / nether brick structures,
+  no magma cube, no wither skeleton" — the fortress and the magma
+  cube. The wither skeleton and the blaze spawner stay debts (below).
+  ### Audit (read from code before writing anything)
+  - Structure pattern: `VillageFeature` (v23) + `SwampHutFeature`
+    (v24) — deterministic grid-cell placement (splitmix64 hash of
+    seed + cell) + clipped per-chunk writes in
+    `RandomLevelSource::postProcess` + entity top-up from
+    `ChunkCache` (`ensureVillagers` / `ensureWitch`). The Nether
+    reuses it directly: `ChunkCache::postProcess` calls
+    `source->postProcess` for ANY source, and `NetherLevelSource::
+    postProcess` was an empty no-op — the fortress hooks in there,
+    no ChunkCache change needed for placement.
+  - Nether terrain (`NetherLevelSource::getChunk`): bedrock floor
+    y=0 (+scatter y1-4) and ceiling y=127, rolling netherrack floor
+    height 28-62 (value noise), lava sea y<=31 where the floor dips
+    below 32, soul sand patches, quartz ore, glowstone under the
+    ceiling. The Nether has NO usable heightmap (the bedrock
+    ceiling at y=127 would read as the "top"), so the fortress deck
+    Y is derived from the terrain noise itself (see below).
+  - Nether brick: ALREADY existed — tile 112 (`Tile::netherBrick`,
+    tex 14x16 cell), stairs 114, smelt recipe netherrack ->
+    netherbrick item, stairs recipe, in the creative inventory
+    (`Inventory.cpp:150`). No new tile was needed for the fortress.
+  - Blaze: ALREADY existed (v21, `MobTypes::Blaze` 40, 20 HP,
+    fireball <=16 blocks every 3 s + melee, drops 0-1 blaze rod,
+    fire-immune). It only spawned randomly across the Nether via
+    `NetherLevelSource::getMobsAt` (weight 6) — nothing tied it to
+    a fortress, because there was no fortress.
+  - Blaze spawner tile: DOES NOT exist. `Tile::mobSpawner` is only
+    DECLARED (`Tile.h:169`), never defined or registered, and no
+    spawner tile-entity class exists anywhere in the tree (the
+    dungeon spawner/chest feature is `#if 0`'d out, v23 note). A
+    spawner tile would need a new tile + tile entity + tick
+    spawning — out of scope; blazes come from the top-up instead.
+  - Wither skeleton / magma cube: NEITHER existed (zero hits for
+    "wither"/"magma" as mobs; `Item::magmaCream` existed since v20
+    as a brewing ingredient). Magma cube is a `Slime` subclass away
+    (hop movement, squash-and-stretch via `SlimeRenderer`'s
+    `(Slime*)` cast, zombie goals — all inherited). Wither skeleton
+    is NOT: `Skeleton` is a bow mob (`Skeleton::checkHurtTarget`
+    shoots an `Arrow` every 3 s within 10 blocks), so a wither
+    skeleton needs melee AI + a sword + the wither effect (no
+    wither effect exists — v20's system has 7 timers, wither is
+    not one) + a wither-skull item (does not exist). Deferred.
+  - Nether wart: farmable since v21 (`NetherWartTile` id 115, 4
+    stages data 0-3, grows on soul sand in the dark, mature drops
+    2-4). A wart room plants it on soul sand the fortress places
+    itself, so it needs no terrain soul-sand patch underneath.
+  ### What shipped
+  - **Fortress structure** (`NetherFortressFeature`, new): one
+    fortress per 20x20-chunk grid cell (320 blocks, splitmix64
+    hash of seed + cell, different salt from villages), centre
+    chunk jittered inside the cell. ~49x33 blocks of nether
+    brick: bridge E-W (deck 33 long x 5 wide + 1-high curbs,
+    walkable middle 3), corridor N-S (3 wide, 29 long, side
+    walls + flat roof, open at both ends), blaze room east (7x7,
+    walls + roof, doorway facing the bridge, glowstone in the 4
+    inner ceiling corners), wart room west (7x5, soul-sand floor,
+    10 mature wart in two rows, doorway facing the bridge, 2
+    glowstone). Nether-brick support pillars run from the deck
+    down to solid ground under the bridge (every 4 blocks), room
+    corners/midpoints and corridor ends — through air AND lava,
+    so nothing floats over the lava sea or the void.
+  - **Deck height, deterministic:** `NetherLevelSource::
+    getFloorHeight` (new public static — the exact
+    `28 + (int)(noise2D * 34)` formula `getChunk` uses) gives the
+    floor height per column; the deck Y is the MAXIMUM over the
+    fortress footprint, so the deck is never buried where the
+    terrain rises. A fortress is skipped when that deck would sit
+    in/just above the lava sea (deckY < 36; the sea tops out at
+    y=31). Pure noise — no chunk reads — so every chunk
+    overlapping a fortress agrees on the same deck Y, and the
+    fortress is saved with the chunks like any other terrain.
+  - **Blazes live in the fortress** (`ensureBlazes`, same top-up
+    pattern as villagers/witch, hooked in `ChunkCache::getChunk`
+    + `postProcess`, Nether-only + centre-chunk + terrain-
+    populated guards): blazes within the fortress box are counted
+    and topped up to 3, spawned inside the blaze room. Random
+    Nether blaze spawning (`getMobsAt` weight 6) is unchanged.
+  - **Magma cube** (`MobTypes` 44, `ER_SLIME_RENDERER` reused):
+    `Slime` subclass, 8 HP, hop movement + squash-and-stretch
+    inherited, fire-immune, drops 0-2 magma cream
+    (`Item::magmaCream`, v20 ingredient), orange magma texture
+    (`mob/magmacube.png`, a luminance-preserving tint of
+    `mob/slime.png`). Spawns in the Nether via `getMobsAt`
+    (weight 6, clusters 1-2, same as blazes). Registered in
+    `MobFactory` (save/load works via `EntityFactory::loadEntity`,
+    type id 44 < 64).
+  - Version bump 30 -> 31 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,216,264 B / armv7 8,765,316 B, new symbols confirmed in
+    the object files (`NetherFortressFeature::tryPlaceFortress/
+    ensureBlazes/getDeckY`, `NetherLevelSource::postProcess/
+    getFloorHeight`, `MagmaCube` ctor + `getDeathLoot`).
+    CI + APK verification: PENDING (see the v31 doc commit).
+  ### Known limits / debts
+  - No wither skeleton (see audit: needs melee AI + wither
+    effect + wither-skull item — the fortress's other signature
+    mob, next version's candidate).
+  - No blaze spawner tile (see audit: `Tile::mobSpawner` is
+    declared but never defined; no spawner tile entity exists).
+    The blaze room's blazes come from the top-up, not a spawner
+    block — a room cleared of blazes refills when its centre
+    chunk reloads (same deliberate top-up as villagers/witch).
+  - No fortress loot chest (placing a tile entity during
+    postProcess has no precedent in this tree — the v23 village
+    chest debt stands, same reason).
+  - No nether-brick fence (no such tile exists — the bridge
+    curbs are full nether-brick blocks, not fences); flat roofs,
+    not gabled; one fixed fortress layout (no rotation/variants);
+    magma cubes are single-size only (no splitting on death,
+    same as the v12 slime); the magma texture is a tint of the
+    slime sprite, not the modern magma-cube sprite; magma cube
+    sounds are the slime's (silent — `mob.slime` unregistered).
+  - All of it is build-only until a live test on device (enter
+    the Nether, walk ~320+ blocks and find a fortress — bridge/
+    corridor/rooms in nether brick on pillars, never floating
+    over lava — check 3 blazes in/near the blaze room, check the
+    wart room's 10 mature wart, check magma cubes hopping on the
+    Nether floor and dropping magma cream, quit/reload — the
+    fortress is still there at the same place, no crash, old
+    features intact).
+
 ## Next (v24)
 - **Device verification for the infinite-world claim (v18's open
   item, before any version calls the world "infinite").** 10-minute
@@ -2158,21 +2284,17 @@ Each version is ONE coherent batch of features, shipped as a new APK
   crash. The v29 APK stays the fallback until this stage
   passes.
 - **v30 — Dragon fireball targeting.** SHIPPED (see "Done").
-- **Next version (v31 candidate): Nether fortress.** The End
-  boss loop is now complete (orbit fireballs v30, perch v28,
-  heal beam v29, crystals + respawn v27), so the biggest
-  remaining named structure debt is the Nether's: v21 shipped
-  the dimension with terrain, lava sea, ghasts/blazes and
-  wart farming, but no fortress — the Nether still has no
-  landmark to explore for, and no wither skeleton / magma
-  cube / fortress loot. A fortress is a new structure system
-  (the village/swamp-hut `Feature::place` pattern is the
-  reusable precedent, but the Nether needs its own generator,
-  nether-brick corridors and blaze spawners), so it is a
-  multi-part job, not one batch — v31 scopes the first part.
-  Village chest loot stays queued behind it: it only moves the
-  first emerald earlier in a loop trading already serves, and
-  it needs a tile-entity loot placement precedent first.
+- **v31 — Nether fortress.** SHIPPED (see "Done").
+- **Next version (v32 candidate): Wither skeleton.** v31 shipped
+  the fortress structure, its blazes, its wart room and the magma
+  cube — the fortress's other signature mob is the one named
+  Nether mob still missing. It needs a melee skeleton variant
+  (Skeleton is a bow mob), a wither effect added to the v20 effect
+  system, and a wither-skull item — a mob-sized batch, not a
+  structure-sized one. Village chest loot stays queued behind it:
+  it only moves the first emerald earlier in a loop trading
+  already serves, and it still needs a tile-entity loot placement
+  precedent first (the v23 debt).
 
 ## Queued (priority order — re-evaluate after each version)
 

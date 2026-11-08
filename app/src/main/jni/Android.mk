@@ -178,6 +178,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/entity/monster/PigZombie.cpp \
 ../../../../src/world/entity/monster/Skeleton.cpp \
 ../../../../src/world/entity/monster/Slime.cpp \
+../../../../src/world/entity/monster/MagmaCube.cpp \
 ../../../../src/world/entity/monster/Spider.cpp \
 ../../../../src/world/entity/monster/Witch.cpp \
 ../../../../src/world/entity/monster/Zombie.cpp \
@@ -231,6 +232,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/level/levelgen/RandomLevelSource.cpp \
 ../../../../src/world/level/levelgen/VillageFeature.cpp \
 ../../../../src/world/level/levelgen/SwampHutFeature.cpp \
+../../../../src/world/level/levelgen/NetherFortressFeature.cpp \
 ../../../../src/world/level/levelgen/NetherLevelSource.cpp \
 ../../../../src/world/level/levelgen/EndLevelSource.cpp \
 ../../../../src/world/level/levelgen/feature/Feature.cpp \
