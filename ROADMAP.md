@@ -120,15 +120,41 @@ Each version is ONE coherent batch of features, shipped as a new APK
   texture is a reuse (bookshelf top + obsidian sides), not a new sprite;
   all of it is build-only until a live test on device.
 
+- **v11 — Redstone basics.** Redstone dust item (id 331, the
+  registration commented out since the original tree) + wire tile
+  (id 55, flat slab, on/off signal — no 0–15 levels, no up/down
+  steps), redstone torch (id 76, always-ON source, light 7, red
+  sparkles), lever (id 69, tap to toggle, bit 8 = on, wall/floor
+  mount like a torch), redstone lamp (ids 123/124 off/on pair, swaps
+  tiles on power change). Power uses the tree's existing signal
+  framework (`isSignalSource` / `getSignal` / `hasNeighborSignal` /
+  `neighborChanged` + `setData` propagation); TNT already listened
+  to it, so TNT now explodes from lever/torch/wire power with no
+  TNT change, and wooden doors/trapdoors also react to the signal.
+  Mining redstone ore now actually drops 4–5 dust (its `getResource`
+  returned 0 before — no drop at all), and smelting ore in a furnace
+  gives dust too (that recipe already existed but its item was NULL).
+  Crafting: redstone torch (redstone + stick), lever (stick + stone),
+  lamp (glowstone + 4 redstone). All four in the creative inventory;
+  new terrain.png textures drawn into unused magenta cells
+  (199 wire off, 200 wire on, 201 lamp off, 202 lamp on, 203 torch,
+  215 lever). Caveats: signal is on/off only; wire does NOT transmit
+  power through the solid block below it (deliberate — otherwise a
+  powered wire would see its own power reflected back and latch on
+  forever), so a lamp/TNT on top of a block with wire on the block's
+  side does not trigger — put the wire directly next to the target;
+  torch never turns off when powered (no burnout/toggle-off logic);
+  no pistons, repeaters, comparators, buttons, pressure plates, or
+  rails (out of scope); lamp/torch/wire textures are simple drawn
+  sprites, not the modern ones; all of it is build-only until a live
+  test on device.
+
 ## Next (v11)
 
-- **v11 — Redstone basics.** Redstone dust + torch + lever + simple power
-  propagation. (Redstone ore tile exists; no wiring yet.)
+- **v12 — Minecarts + rails.** Rideable minecart on rails.
 
 ## Queued (priority order — re-evaluate after each version)
 
-- **v11 — Redstone basics.** Redstone dust + torch + lever + simple power
-  propagation. (Redstone ore tile exists; no wiring yet.)
 - **v12 — Minecarts + rails.** Rideable minecart on rails.
 - **v13 — More mobs.** Slime (+ slimeball), Enderman (+ ender pearl),
   witch — whichever fits the AI framework (GoalSelector exists).

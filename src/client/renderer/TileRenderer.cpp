@@ -194,7 +194,10 @@ void TileRenderer::tesselateInWorldNoCulling( Tile* tile, int x, int y, int z )
 
 bool TileRenderer::tesselateTorchInWorld( Tile* tt, int x, int y, int z )
 {
-	int dir = level->getData(x, y, z);
+	// v11: mask off the lever's ON bit (8) — a wall lever's data is
+	// 8|dir, and the orientation branches below only know dir 1-5.
+	// No-op for normal torches (data is always 0-5).
+	int dir = level->getData(x, y, z) & 7;
 
 	Tesselator& t = Tesselator::instance;
 

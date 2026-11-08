@@ -105,6 +105,11 @@ Tile* Tile::sign        = NULL;
 Tile* Tile::wallSign    = NULL;
 Tile* Tile::mossStone	= NULL;
 Tile* Tile::torch       = NULL;
+Tile* Tile::redStoneDust = NULL;
+Tile* Tile::redStoneTorch = NULL;
+Tile* Tile::lever        = NULL;
+Tile* Tile::redstoneLamp = NULL;
+Tile* Tile::redstoneLamp_lit = NULL;
 Tile* Tile::water       = NULL;
 Tile* Tile::lava        = NULL;
 FireTile* Tile::fire    = NULL;
@@ -236,6 +241,16 @@ void Tile::initTiles() {
 
 	redStoneOre = (new RedStoneOreTile(73, 16 * 3 + 3, false))->init()->setDestroyTime(3.0f)->setExplodeable(5)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("oreRedstone");
 	redStoneOre_lit = (new RedStoneOreTile(74, 16 * 3 + 3, true))->init()->setDestroyTime(3.0f)->setLightEmission(10 / 16.0f)->setExplodeable(5)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("oreRedstone");
+
+	// v11: redstone basics. Wire textures 199 (off) / 200 (on), torch
+	// 203, lamp 201 (off) / 202 (on) are row-12 terrain.png cells that
+	// were unused magenta placeholders; lever texture 215 is a row-13
+	// one (same trick as v9's crop sprites). Ids match modern MC.
+	redStoneDust = (new RedStoneWireTile(55, 199, 200))->init()->setDestroyTime(0.0f)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("redstoneDust");
+	redStoneTorch = (new RedStoneTorchTile(76, 203))->init()->setDestroyTime(0.0f)->setLightEmission(7 / 16.0f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("redstoneTorch");
+	lever = (new LeverTile(69, 215))->init()->setDestroyTime(0.5f)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("lever");
+	redstoneLamp = (new RedstoneLampTile(123, 201, false))->init()->setDestroyTime(0.3f)->setSoundType(SOUND_GLASS)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("redstoneLight");
+	redstoneLamp_lit = (new RedstoneLampTile(124, 202, true))->init()->setDestroyTime(0.3f)->setLightEmission(1.0f)->setSoundType(SOUND_GLASS)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("redstoneLight");
 
 	topSnow     = (new TopSnowTile(78, 16 * 4 + 2))->init()->setDestroyTime(0.1f)->setSoundType(SOUND_CLOTH)->setCategory(ItemCategory::Structures)->setDescriptionId("snow");
 	ice         = (new IceTile(79, 16 * 4 + 3))->init()->setDestroyTime(0.5f)->setLightBlock(3)->setSoundType(SOUND_GLASS)->setCategory(ItemCategory::Structures)->setDescriptionId("ice");

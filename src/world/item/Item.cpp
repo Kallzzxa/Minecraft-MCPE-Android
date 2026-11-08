@@ -108,7 +108,8 @@ Item* Item::door_wood = NULL;
 //Item* Item::minecart = NULL;
 //Item* Item::saddle = NULL;
 Item* Item::door_iron = NULL;
-//Item* Item::redStone = NULL;
+// v11: redstone dust item (was commented out since the original tree).
+Item* Item::redStone = NULL;
 Item* Item::snowBall = NULL;
 
 //Item* Item::boat = NULL;
@@ -252,7 +253,9 @@ void Item::initItems() {
 	//Item::minecart = (new MinecartItem(72, Minecart.RIDEABLE))->setIcon(7, 8)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("minecart");
 	//Item::saddle = (new SaddleItem(73))->setIcon(8, 6)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("saddle");
 	Item::door_iron = (new DoorItem(74, Material::metal))->setIcon(12, 2)->setCategory(ItemCategory::Structures)->setDescriptionId("doorIron");
-	//Item::redStone = (new RedStoneItem(75))->setIcon(8, 3)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("redstone");
+	// v11: redstone dust item (was commented out since the original
+	// tree). Full id 331; places wire via RedStoneItem::useOn.
+	Item::redStone = (new RedStoneItem(75))->setIcon(8, 3)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("redstone");
 	Item::snowBall = (new SnowballItem(76))->setIcon(14, 0)->setCategory(ItemCategory::Decorations)->setDescriptionId("snowball");
 	//Item::boat = (new BoatItem(77))->setIcon(8, 8)->setCategory(ItemCategory::Mechanisms)->setDescriptionId("boat");
 	Item::leather = (new Item(78))->setIcon(7, 6)->setCategory(ItemCategory::Tools)->setDescriptionId("leather");

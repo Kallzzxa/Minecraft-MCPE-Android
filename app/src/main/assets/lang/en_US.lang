@@ -253,6 +253,7 @@ tile.mobSpawner.name=Monster Spawner
 tile.stairsWood.name=Wooden Stairs
 tile.chest.name=Chest
 tile.redstoneDust.name=Redstone Dust
+tile.redstoneTorch.name=Redstone Torch
 tile.oreDiamond.name=Diamond Ore
 tile.blockDiamond.name=Block of Diamond
 tile.workbench.name=Crafting Table

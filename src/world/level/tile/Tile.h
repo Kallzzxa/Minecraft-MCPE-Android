@@ -170,6 +170,9 @@ public:
     static Tile* stairs_wood;
     static Tile* chest;
     static Tile* redStoneDust;
+    static Tile* redStoneTorch;
+    static Tile* redstoneLamp;
+    static Tile* redstoneLamp_lit;
     static Tile* emeraldOre;
     static Tile* emeraldBlock;
     static Tile* workBench;

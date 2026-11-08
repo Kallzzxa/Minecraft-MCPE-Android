@@ -6,6 +6,7 @@
 #include "../../../util/Random.h"
 #include "../material/Material.h"
 #include "../Level.h"
+#include "../../item/Item.h"
 
 class Player;
 
@@ -56,8 +57,11 @@ public:
     }
 
     int getResource(int data, Random* random) {
-        //return Item.redStone.id;
-		return 0;
+        // v11: mining redstone ore now actually drops redstone dust
+        // (was `return 0`, i.e. no drop at all). Item::redStone is
+        // registered by Item::initItems; this runs at harvest time,
+        // long after init, so the pointer is valid here.
+        return Item::redStone->id;
     }
 
     int getResourceCount(Random* random) {

@@ -227,6 +227,12 @@ void Inventory::setupDefault() {
 		addItem(new ItemInstance(Tile::furnace));
 		addItem(new ItemInstance(Tile::tnt));
 
+		// v11: redstone basics (dust item + torch / lever / lamp).
+		addItem(new ItemInstance(Item::redStone));
+		addItem(new ItemInstance(Tile::redStoneTorch));
+		addItem(new ItemInstance(Tile::lever));
+		addItem(new ItemInstance(Tile::redstoneLamp));
+
 		addItem(new ItemInstance(((Tile*)Tile::flower)));
 		addItem(new ItemInstance(((Tile*)Tile::rose)));
 		addItem(new ItemInstance(((Tile*)Tile::mushroom1)));

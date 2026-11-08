@@ -8,7 +8,7 @@ android {
         applicationId "com.custom.minecraftpe"
         minSdkVersion 21
         targetSdkVersion 30
-        versionCode 10
+        versionCode 11
         versionName "0.6.1"
 
         ndk {

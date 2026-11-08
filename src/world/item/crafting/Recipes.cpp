@@ -216,6 +216,32 @@ Recipes::Recipes()
 		definition( 'X', ItemInstance(Item::coal, 1, CoalItem::CHAR_COAL),//
 					'#', Item::stick));
 
+	// v11: redstone basics. Torch shape is the commented-out notGate
+	// recipe from the original tree (1 redstone over 1 stick); lever
+	// is stick over stone (no cobblestone tile exists in this tree);
+	// lamp is glowstone surrounded by 4 redstone, like modern MC.
+	addShapedRecipe(ItemInstance(Tile::redStoneTorch, 1), //
+		"X", //
+		"#", //
+
+		definition( 'X', Item::redStone,//
+					'#', Item::stick));
+
+	addShapedRecipe(ItemInstance(Tile::lever, 1), //
+		"X", //
+		"#", //
+
+		definition( 'X', Item::stick,//
+					'#', Tile::rock));
+
+	addShapedRecipe(ItemInstance(Tile::redstoneLamp, 1), //
+		"R R", //
+		" G ", //
+		"R R", //
+
+		definition( 'R', Item::redStone,//
+					'G', Tile::lightGem));
+
 	addShapedRecipe(ItemInstance(Item::bowl, 4), //
 		"# #", //
 		" # ", //
