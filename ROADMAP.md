@@ -13,12 +13,18 @@ Each version is ONE coherent batch of features, shipped as a new APK
   v7 hostile mob drops, v8 XP orbs + levels + HUD, v9 carrots/potatoes.
 - If a feature proves unfeasible after reasonable investigation, mark it
   skipped here with the reason and move on. Don't grind.
-- World 1024×1024 ONLY with measurements (v3/v6 rejected it on paper:
-  4096 chunks ~339 MB + ~400k VBO buffers). A truly infinite world
-  like modern Minecraft needs the fixed chunk cache replaced with a
-  dynamic chunk map + streaming — a multi-version engine job, NOT one
-  batch; v15 starts with investigation/design (see "Next"), and no
-  version promises "infinite" until the streaming core is proven.
+- World 1024×1024 ONLY with measurements (v3/v6 rejected it on paper;
+  v15 re-measured it from the code — see "v15" below: 4096 chunks
+  ≈ 322 MB chunk RAM + 399,384 renderer VBO buffers, still not viable).
+  A truly infinite world like modern Minecraft needs the fixed chunk
+  cache replaced with a dynamic chunk map + streaming — a multi-version
+  engine job, NOT one batch. v15 (this version) proved it IS feasible:
+  terrain gen, biomes, the renderer grid and fog are already
+  coordinate-free; the blockers are a fixed 32×32 save-offset table and
+  ~10 clamp sites, all bounded (see "v15" for the full map). v16 builds
+  the streaming core, v17 removes the border + dynamic save/load, v18
+  verifies. No version promises "infinite" until the streaming core
+  (v16) is proven on device.
 - Everything is BUILD-ONLY until tested on the user's realme 8.
 
 ## Done
@@ -255,26 +261,255 @@ Each version is ONE coherent batch of features, shipped as a new APK
   white (was light grey). All of it is build-only until a live test
   on device (press-hold = walk, double-tap-hold = sprint).
 
-## Next (v14)
+- **v15 — Infinite world, stage 1: investigation + design (NO gameplay
+  change — the APK plays exactly like v14).** The user asked for a world
+  with no borders, 100% like modern MC (screenshot: terrain ends in a
+  vertical edge, blue void outside). Read the whole chunk pipeline to
+  find out whether infinite is feasible and what it costs.
+  ### What the edge in the screenshot actually is
+  Outside the 512×512 world, `ChunkCache::getChunk` returns the shared
+  `emptyChunk` (air) — `ChunkCache.h:73` — so there is simply no terrain
+  there: the last real chunk ends in a vertical wall and the sky shows
+  through as blue void. Removing the border means making `getChunk`
+  generate (or load from disk) a real chunk at ANY coordinate instead
+  of returning air.
+  ### Map of every fixed-world assumption (file:line — what it assumes)
+  1. `src/world/level/LevelConstants.h:6,14-15` — the root:
+     `CHUNK_CACHE_WIDTH = 32` chunks, `LEVEL_WIDTH = LEVEL_DEPTH = 512`
+     blocks. Comment says it MUST stay a power of 2 (`ChunkCache`
+     indexes slots with `& (WIDTH-1)`).
+  2. `src/world/level/chunk/ChunkCache.h:27,34,45,55-57,74-76,202-203,
+     214,257` — the fixed cache itself: `LevelChunk*
+     chunks[32*32]` (1024 slots); `fits()` rejects any chunk outside
+     [0,32); `getChunk()` returns `emptyChunk` outside; slot index is
+     `(x & 31) + (z & 31) * 32` (would silently WRAP to a wrong chunk
+     if the `fits()` guard were just deleted); `saveAll()` loops
+     x/z 0..31; `load()` rejects outside coords. Slot REUSE already
+     exists (`getChunk()`: evicted slot → `unload()` + `save()` +
+     `saveEntities()`), but it never frees RAM — see (3).
+  3. `src/world/level/levelgen/RandomLevelSource.h` (`ChunkMap` =
+     `std::map<int, LevelChunk*>`) + `RandomLevelSource.cpp:getChunk()`
+     — the hidden second copy of the world: EVERY generated chunk is
+     kept in `chunkMap` forever (the destructor cleanup is commented
+     out, and `ChunkCache` slot eviction does not delete the chunk —
+     the same object lives on in `chunkMap`). Today that is bounded
+     by 1024 because the cache only ever asks for 0..31; with
+     streaming it would grow WITHOUT BOUND unless eviction deletes
+     from `chunkMap` too. Key is `ChunkPos::hashCode`
+     (`src/world/level/ChunkPos.h`): 15 bits per axis + sign bit —
+     chunks beyond ±32767 (±524,288 blocks) COLLIDE onto other
+     chunks' keys. Must become a 64-bit key
+     (`((int64)x << 32) | (uint32)z`) when the map becomes the
+     streaming store (also used by `ChunkPos::operator<` for
+     `Level::_chunksToPoll`, so the change ripples there too).
+     GOOD NEWS — generation itself is already infinite-capable:
+     per-chunk seed `(x*341872712 + z*132899541)`, Perlin heights,
+     `hasChunk()` always returns true, `postProcess()` works off
+     `xt*16` offsets — no clamp anywhere. `BiomeSource`
+     (`src/world/level/biome/BiomeSource.cpp:getBiomeBlock`,
+     `getTemperatureBlock`) is likewise coordinate-free Perlin noise;
+     its 16×16 arrays are per-chunk scratch, not world-sized.
+  4. `src/world/level/Level.cpp:2239-2243` — `inRange()` (x/z < 512);
+     only caller is `ClientSideNetworkHandler.cpp:798` (multiplayer
+     block updates). `setInitialSpawn()` (431-443): spawn = world
+     centre (256,256), wander-clamped to [4,508];
+     `validateSpawn()` (452-463): same [4,508] clamp on load.
+     `tick()` (281-282): chunk-poll list only accepts chunks 0..31
+     (already player-relative ±4 chunks, so just drop the filter).
+     `clip()` (947): hit test gated to `LEVEL_WIDTH` — and uses
+     `LEVEL_WIDTH` for the Z check too (harmless while the world is
+     square, wrong the moment it is not).
+  5. `src/world/entity/Entity.cpp:887-888` — `loadFromTag()` clamps
+     every loaded entity's position into `[padding, 512-padding]`.
+     This is the invisible wall on LOAD (an entity saved past the
+     border teleports back inside). No clamp exists in
+     `Entity::move`/`baseTick` — movement itself is already unbounded.
+  6. `src/world/level/storage/ExternalFileLevelStorage.cpp:279-280`
+     — v1 player-load clamps pos to [0.5, 511.5]; `:297-299` —
+     `tick()` scans x/z 0..31 for unsaved chunks (must iterate the
+     resident set instead); `save()`/`load()` delegate to `RegionFile`.
+  7. `src/world/level/storage/RegionFile.h/.cpp` — THE hard blocker
+     for saving an infinite world. `chunks.dat` holds ONE fixed
+     offset table: `offsets[1024]` (`SECTOR_INTS = 1024`,
+     `SECTOR_COLS = 32`); `readChunk`/`writeChunk` index
+     `offsets[x + z*32]` with NO bounds check — a negative chunk
+     coordinate indexes BEFORE the array (heap corruption), a
+     coordinate ≥ 32 collides with / runs past another chunk's slot.
+     The whole world's chunks live in this single file, so the format
+     itself must change (one region file per 32×32 chunk region,
+     modern-`.mca`-style, or a hashed offset table). Old worlds need
+     a migration: `chunks.dat` 0..31 maps to region (0,0); the
+     storage-version machinery already exists for this
+     (`SharedConstants::StorageVersion`, `ChunkVersion_Light = 1`,
+     `ChunkVersion_Entity = 2` in `ExternalFileLevelStorage.cpp`).
+     `LevelData.h` needs NO change: it stores no world size, only
+     seed + spawn xyz (32-bit ints) + time + dimension + game type.
+  8. `src/client/Minecraft.cpp:408-434` — `prepareLevel()` generates
+     the ENTIRE world at load: `getTile()` per chunk over all 1024
+     chunks + full light update + `clearUpdateMap()`. For infinite
+     this must become "generate only the spawn area" (radius ~9
+     chunks); the rest generates on demand as the player walks.
+  9. `src/client/renderer/LevelRenderer.cpp:68-69` — the VBO pool is
+     sized by `LEVEL_WIDTH`: `maxChunksWidth = 2*512/16+1 = 65` →
+     `numListsOrBuffers = 65*65*(128/16)*3 = 101,400` GL buffers.
+     The render grid itself is ALREADY player-relative and
+     infinite-friendly: `allChanged()` (156-176) builds a 33×33×8
+     grid (dist 512, `CHUNK_SIZE` 16) needing only 8,712×3 = 26,136
+     buffers, and `resortChunks()` (247-295) wraps that grid around
+     the player with modulo arithmetic. Fix = size the pool from the
+     render distance (33-wide → 26,136), not from `LEVEL_WIDTH` —
+     saves ~75k buffer objects. (`GameRenderer.cpp:92,589-590` needs
+     no change: `renderDistance = 256 >> viewDistance`, far = 256
+     blocks, fog START 0.8×256 ≈ 205 / END 256 — fog already hides
+     the unloaded edge; the streaming load radius just has to exceed
+     the fog end so terrain exists before the player reaches it.)
+  10. `src/world/level/MobSpawner.cpp:60` — a REAL BUG found by this
+      investigation, independent of infinite: enemy spawning checks
+      `cx >= 0 && cx < 16 && cz >= 0 && cz < 16` — ABSOLUTE chunk
+      coords 0..15, not 32, and not player-relative. Hostile mobs
+      effectively only spawn while the player is in the world's
+      south-west quarter (chunks 0..15). Friendly spawning (44-46)
+      has the same 0..15 loop (`ChunkPos(i>>4, i&15)`). Both must
+      become a player-relative radius in v17. (`Level::tick`'s own
+      ±4-chunk poll offsets are already player-relative — fine.)
+  11. Multiplayer only — `src/network/ClientSideNetworkHandler.h:100,
+      103-104` + `.cpp:61,69,74-78,581,629-630`:
+      `chunksLoaded[1024]` bool array, `NumRequestChunks = 1024`,
+      `isChunkLoaded()` rejects outside coords,
+      `areAllChunksLoaded()` counts to 1024. Single-player is
+      unaffected; MP needs a dynamic request set (its
+      `arrangeRequestChunkOrder()` already sorts around the player).
+      `ChunkDataPacket.h:11` x/z are plain `int` — fine as-is.
+  12. Small sites: `CommandServer.cpp:239-241` (fill command clamps
+      to `LEVEL_WIDTH/DEPTH` — keep a clamp, just re-derive it),
+      `:459,507` (checkpoint treats `CHUNK_CACHE_WIDTH` (32) as a
+      BLOCK size: `cx = (int)e->x / 32` — wrong unit, debug feature,
+      rework with streaming); `NetherReactorTileEntity.cpp:133,143`
+      (item/enemy spawn positions re-rolled while outside [0,512) —
+      drop the bounds in v17).
+  ### Measured numbers (from the code, not paper)
+  - Per chunk in RAM: blocks 32,768 B + data/skyLight/blockLight
+    3×16,384 B + heightmap 256 + updateMap 256 ≈ 82,432 B ≈ 80.5 KiB
+    (`LevelChunk.h`: `ChunkBlockCount = 256*128 = 32,768`;
+    `DataLayer` nibbles are `length>>1`). On disk per chunk:
+    82,176 B payload + 4 B length → 21×4,096 B sectors ≈ 84 KiB.
+  - Today: 1,024 chunks ≈ 80.5 MiB chunk RAM (+ renderer VBO pool
+    101,400 buffers). Walking the whole 512 world already keeps all
+    1,024 chunks alive via `chunkMap` (see (3)) — memory is flat
+    only because the world is capped.
+  - Fallback re-measured (1024×1024 world): 4,096 chunks ≈ 322 MiB
+    chunk RAM + VBO pool 129-wide → 129²×8×3 = 399,384 buffers +
+    `RegionFile` offset table would need 4,096 entries. Still not
+    viable on the user's realme 8 — the v3/v6 rejection stands, now
+    with real numbers. Streaming is the only route to "infinite".
+  - Streaming budget (design target for v16): resident window =
+    render window. Render grid is 33×33 render-chunks (16-block) =
+    ±16 chunks around the player → 1,089 level chunks ≈ 85 MiB,
+    i.e. THE SAME memory as today — streaming does not save RAM at
+    far view distance, it just lets the window MOVE. Eviction:
+    Chebyshev radius 16 chunks from the player chunk, LRU; save
+    dirty chunks on evict (mechanism already exists in
+    `ChunkCache::getChunk` slot reuse + the `tick()` unsaved scan).
+  ### Verdict: NO blocker makes infinite infeasible
+  Terrain gen, biomes, the renderer grid, fog and `LevelData` are all
+  already coordinate-free. The work is bounded: (a) `ChunkCache` →
+  hash map + eviction, (b) `RegionFile` format → per-region files,
+  (c) remove ~10 clamp sites, (d) fix the `MobSpawner` 0..15 cap,
+  (e) dynamic MP chunk-request set. No engine rewrite.
+  Known limit to document, not fix: entity positions are `float`
+  (`Entity::x/y/z`). Past ~±1M blocks float32 precision visibly
+  jitters movement (0.0625-block steps at 2^20); ~±100k blocks is
+  ~0.008-block precision, fine. Modern Bedrock has the same float32
+  property — "infinite" in practice means tens of thousands of
+  blocks from spawn, not billions. No hard cap is needed for v16–v18;
+  the limit is stated here so nobody is surprised at 1M blocks.
+  ### v15 changed NO gameplay
+  Only `ROADMAP.md` (this plan) + version bump 14 → 15. World is
+  still 512×512, all v1–v14 features untouched. The APK is identical
+  to v14 in play; it is only the stage marker for this plan.
 
-- **v15 — Infinite world, stage 1: investigation + design.** The user
-  asked for a world with no borders, 100% like modern MC (screenshot:
-  terrain ends in a vertical edge, blue void outside). The engine's
-  chunk cache is a fixed array, so this is a dynamic chunk map +
-  streaming rewrite, staged: v15 maps the fixed cache (`ChunkCache`,
-  `Level` chunk storage, render-chunk grid, save format), measures
-  memory per chunk and streaming cost, and prototypes a hashed chunk
-  map behind the existing interface — no gameplay change yet.
-- **v16 — Infinite world, stage 2: streaming core.** Load/unload
-  chunks around the player as they move; the 512×512 world keeps
-  working as the fallback.
-- **v17 — Infinite world, stage 3: remove the border.** Endless
-  terrain gen + save/load of streamed chunks.
-- **v18 — Infinite world, stage 4: polish.** Distant fog / loading
-  behaviour, perf on realme 8. Each stage ships only if the previous
-  one is proven; the 512 world stays the fallback until streaming is
-  stable. No version promises "infinite" until the streaming core
-  (v16) is proven.
+## Next (v15)
+
+- **v16 — Infinite world, stage 2: streaming core.** Replace the fixed
+  cache with a dynamic chunk map + load/unload around the player.
+  The 512×512 world keeps working as the fallback (same resident
+  memory, ~85 MiB — the window just moves now).
+  Files: `src/world/level/chunk/ChunkCache.h` (replace
+  `chunks[1024]` with `std::map<uint64_t, LevelChunk*>` + LRU evict
+  at Chebyshev radius 16 from the player chunk; keep the
+  `ChunkSource` interface so `Level::getChunk` callers do not change),
+  `src/world/level/ChunkPos.h` (64-bit hash key),
+  `src/world/level/levelgen/RandomLevelSource.h/.cpp` (evict from
+  `chunkMap` when the cache evicts — delete block data + object —
+  otherwise RAM grows without bound; keep the per-chunk seed gen),
+  `src/world/level/LevelConstants.h` (define the stream radius;
+  keep `LEVEL_WIDTH` for now as the fallback-world size),
+  `src/client/Minecraft.cpp:prepareLevel()` (generate spawn area
+  only, radius ~9 chunks, not all 1024),
+  `src/world/level/Level.cpp:tick()` (drop the 0..31 poll filter),
+  `src/client/renderer/LevelRenderer.cpp` (size the VBO pool from
+  the 33-wide render grid → 26,136 buffers, not `LEVEL_WIDTH`).
+  Main risk: eviction deleting a chunk something still references —
+  `LevelChunk::unload()` (`LevelChunk.cpp:454`) is a STUB (only sets
+  `loaded = false`; the entity/tile-entity removal inside it is
+  commented out), so entities/tile entities in an evicted chunk must
+  be moved or removed explicitly first, or the game will hold
+  dangling pointers. Second risk: lighting recompute cost when a
+  chunk is re-loaded (the `updateLights` loop in
+  `ChunkCache::getChunk` runs per chunk). Verification: walk /
+  teleport far from spawn in a test build; resident chunk count
+  stays ≤ 1,089 and memory stays flat (logcat `gatherStats` + device
+  meminfo); walk back — the old area re-generates or re-loads and
+  looks identical; no crash on evict/reload cycles; edited chunks
+  survive a save/load round-trip.
+- **v17 — Infinite world, stage 3: remove the border + dynamic
+  save/load.** Endless terrain + chunks saved/loaded at any
+  coordinate.
+  Files: `src/world/level/storage/RegionFile.h/.cpp` (per-region
+  files `region/r.<rx>.<rz>.dat`, each with its own 32×32 offset
+  table; negative region coords via floor division, not C++
+  truncation; bump the storage version; migrate old `chunks.dat`
+  0..31 → region (0,0)), `ExternalFileLevelStorage.cpp`
+  (`tick()` unsaved scan over the resident set, not 0..31; remove
+  the v1 player-pos clamp at :279-280),
+  `src/world/entity/Entity.cpp:887-888` (remove the x/z load clamp),
+  `src/world/level/Level.cpp` (`setInitialSpawn`/`validateSpawn`:
+  drop the [4,508] clamps; `inRange()`: y-only, or drop the call at
+  `ClientSideNetworkHandler.cpp:798`; `clip()`: fix the Z check to
+  `LEVEL_DEPTH` then remove both bounds),
+  `src/world/level/MobSpawner.cpp:44-46,60` (player-relative spawn
+  radius — also fixes the live 0..15 hostile-spawn bug found in
+  v15), `NetherReactorTileEntity.cpp:133,143` (drop the [0,512)
+  re-rolls), `CommandServer.cpp:239-241,459,507` (fill clamp +
+  checkpoint units), `ClientSideNetworkHandler` (dynamic chunk
+  request set for MP). Main risk: negative-coordinate bugs — C++ `%`
+  and `>>` on negatives, `ChunkPos::hashCode` sign handling, and
+  region-file naming for negative regions; test negative X/Z
+  explicitly. Second risk: save corruption on crash mid-write
+  (region rewrite is not atomic today either — same exposure as now,
+  just more files). Verification: walk/teleport past x=512 and
+  z=512 and into negative coords — terrain continues, no vertical
+  edge, no blue void; edit blocks beyond the old border, quit,
+  reload, edits persist; spawn works; mobs spawn far from origin;
+  an OLD 512 world still loads (migration).
+- **v18 — Infinite world, stage 4: verification + polish.** Prove
+  it on device, fix what leaks, make the far-walk feel right.
+  Files: whatever v16/v17 shake out (expected: eviction tuning,
+  `LevelRenderer` pool, `MobSpawner` radius, fog/load behaviour).
+  Work: long walk in a test build (teleport / fly), measure memory
+  (PSS, flat over distance) + FPS on the realme 8, check `chunkMap`
+  size never grows, check the VBO pool count, fix negative-coord
+  edge cases found in v17 testing, decide the loading behaviour for
+  not-yet-generated chunks (today they render as `emptyChunk` void —
+  acceptable while generating, but a pre-gen ring or loading pause
+  may be needed so the player never walks into air). Main risk:
+  a slow leak that only shows after 10+ minutes of walking (the
+  v15 finding that `chunkMap` never evicts is exactly this class of
+  bug — re-verify with a long session, not a quick teleport).
+  Verification: 10-minute walk session, memory flat, FPS within
+  ~10% of v14 at spawn, no void holes, no crash; only then does any
+  version claim "infinite". The 512 world stays the fallback until
+  this stage passes.
 
 ## Queued (priority order — re-evaluate after each version)
 
@@ -333,5 +568,12 @@ Each version is ONE coherent batch of features, shipped as a new APK
   recipe) — a multi-version effort, not a v-batch. v12 shipped the
   slime + enderman fallback instead.
 - (none yet — fill in as versions prove things out)
-- **Infinite world** — not feasible: fixed `CHUNK_CACHE_WIDTH` chunk
-  cache; max sane size is 512×512 today (1024 pending measurement).
+- **Infinite world (pre-v15 note, SUPERSEDED by the v15 investigation
+  above).** Was listed as "not feasible: fixed `CHUNK_CACHE_WIDTH`
+  chunk cache; max sane size is 512×512 today (1024 pending
+  measurement)". v15 measured 1024 (4,096 chunks ≈ 322 MiB + 399,384
+  VBO buffers — still not viable, rejection stands) AND proved
+  infinite itself IS feasible via streaming: terrain gen, biomes,
+  renderer grid and fog are already coordinate-free; the blockers
+  are the fixed 32×32 `RegionFile` offset table and ~10 clamp sites.
+  Stages v16–v18 in "Next" are the plan; nothing here blocks them.
