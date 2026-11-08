@@ -2172,8 +2172,16 @@ Each version is ONE coherent batch of features, shipped as a new APK
     10,216,264 B / armv7 8,765,316 B, new symbols confirmed in
     the object files (`NetherFortressFeature::tryPlaceFortress/
     ensureBlazes/getDeckY`, `NetherLevelSource::postProcess/
-    getFloorHeight`, `MagmaCube` ctor + `getDeathLoot`).
-    CI + APK verification: PENDING (see the v31 doc commit).
+    getFloorHeight`, `MagmaCube` ctor + `getDeathLoot`). CI
+    `./gradlew assembleDebug` SUCCESS (run 42536116776, ~3m10s);
+    APK `minecraft-mcpe-android-0.6.1-debug-v31.apk`
+    12,922,872 B, sha256
+    deba056b71e63e1b202f2cddb7d2597480b6d42fec088b0650f008c932315f2c,
+    versionCode 31, `apksigner verify` v1+v2 true, `unzip -t`
+    clean; the APK itself was re-checked to contain the new
+    symbols in its `libminecraftpe.so` (arm64 10,216,264 B /
+    armv7 8,765,316 B — byte-identical sizes to the local build)
+    and the new `mob/magmacube.png` texture (64x32, orange tint).
   ### Known limits / debts
   - No wither skeleton (see audit: needs melee AI + wither
     effect + wither-skull item — the fortress's other signature
@@ -2282,6 +2290,16 @@ Each version is ONE coherent batch of features, shipped as a new APK
   the player, the rate/damage feel fair (not spam, dodgeable);
   then check perch + heal-beam + respawn v27-v29 still work, no
   crash. The v29 APK stays the fallback until this stage
+  passes.
+- **Device verification for the Nether fortress (v31's open
+  item).** Enter the Nether, walk ~320+ blocks and find a
+  fortress — bridge/corridor/rooms in nether brick on pillars,
+  never floating over lava; check 3 blazes in/near the blaze
+  room (they shoot fireballs, drop blaze rods), check the wart
+  room's 10 mature wart (harvest gives 2-4 each), check magma
+  cubes hopping on the Nether floor and dropping magma cream,
+  quit/reload — the fortress is still there at the same place;
+  no crash. The v30 APK stays the fallback until this stage
   passes.
 - **v30 — Dragon fireball targeting.** SHIPPED (see "Done").
 - **v31 — Nether fortress.** SHIPPED (see "Done").
