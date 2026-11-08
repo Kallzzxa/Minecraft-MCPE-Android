@@ -1,0 +1,150 @@
+# Build the Minecraft PE 0.6.1 Android debug APK with the standard
+# Gradle build (./gradlew assembleDebug).
+#
+# Toolchain (pinned, all proven):
+# - Gradle 4.10.1 + AGP 3.3.2 + JDK 8 (Gradle 4.10.x does not run on
+#   modern JDKs; AGP 3.3.2 is the last AGP for Gradle 4.10.x)
+# - NDK r17c (last NDK shipping stlport_static, which this tree needs)
+# - build-tools 30.0.3 + platform android-30 (what build.gradle declares)
+#
+# The Gradle distribution download is the fragile part: downloads from
+# services.gradle.org time out from GitHub runners (SocketTimeout,
+# proven repeatedly on the sibling project). The wrapper here points
+# straight at the CDN (downloads.gradle-dn.com), and the build step
+# retries the wrapper against three mirrors in turn (CDN, GitHub
+# Releases, Aliyun). If gradlew still cannot run after all retries,
+# the job falls back to the proven direct pipeline in
+# app/build-apk.sh (ndk-build + aapt2/d8, no Gradle) so the APK still
+# ships; the log then shows exactly which gradlew attempt failed.
+#
+# Triggered on pushes to main and manually. Produces a debug APK
+# signed with a fresh debug keystore each run (uninstall any previous
+# build before installing).
+
+name: Android
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    env:
+      ANDROID_NDK_HOME: ${{ runner.temp }}/android-ndk-r17c
+      NDK_R17C: ${{ runner.temp }}/android-ndk-r17c
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 8 (Gradle 4.10.1 / AGP 3.3.2)
+      uses: actions/setup-java@v4
+      with:
+        java-version: '8'
+        distribution: 'temurin'
+
+    - name: Record JDK 8 path
+      run: echo "JAVA8=$JAVA_HOME" >> "$GITHUB_ENV"
+
+    - name: Set up JDK 21 (fallback pipeline's d8)
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+
+    - name: Record JDK 21 path, restore JDK 8 as default
+      run: |
+        echo "JAVA21=$JAVA_HOME" >> "$GITHUB_ENV"
+        echo "JAVA_HOME=$JAVA8" >> "$GITHUB_ENV"
+        echo "PATH=$JAVA8/bin:$PATH" >> "$GITHUB_ENV"
+
+    - name: Install Android SDK pieces
+      run: |
+        yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+        "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+          "build-tools;30.0.3" "platforms;android-30" \
+          "build-tools;36.0.0" "platforms;android-35"
+
+    - name: Download NDK r17c (stlport)
+      run: |
+        cd "$RUNNER_TEMP"
+        curl -sL -o android-ndk-r17c-linux-x86_64.zip \
+          https://dl.google.com/android/repository/android-ndk-r17c-linux-x86_64.zip
+        ls -la android-ndk-r17c-linux-x86_64.zip
+        unzip -q android-ndk-r17c-linux-x86_64.zip
+        ls "$RUNNER_TEMP/android-ndk-r17c/ndk-build"
+
+    - name: libtinfo.so.5 shim for NDK r17c clang
+      run: |
+        if ! ldconfig -p 2>/dev/null | grep -q "libtinfo.so.5"; then
+          TINFO6="$(ldconfig -p 2>/dev/null | grep "libtinfo.so.6" | head -1 | awk '{print $NF}')"
+          if [ -n "$TINFO6" ]; then
+            mkdir -p "$RUNNER_TEMP/libtinfo5"
+            ln -sf "$TINFO6" "$RUNNER_TEMP/libtinfo5/libtinfo.so.5"
+            echo "LD_LIBRARY_PATH=$RUNNER_TEMP/libtinfo5${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+            echo "libtinfo.so.5 shim: $TINFO6"
+          fi
+        fi
+
+    - name: Point AGP at NDK r17c + SDK
+      run: |
+        printf 'sdk.dir=%s\nndk.dir=%s\n' "$ANDROID_HOME" "$ANDROID_NDK_HOME" > local.properties
+        cat local.properties
+
+    - name: Build debug APK (gradlew, with mirror retries; fallback to ndk-build pipeline)
+      run: |
+        set +e
+        CDN="https://downloads.gradle-dn.com/distributions/gradle-4.10.1-bin.zip"
+        GH="https://github.com/gradle/gradle-distributions/releases/download/v4.10.1/gradle-4.10.1-bin.zip"
+        ALIYUN="https://mirrors.aliyun.com/gradle/gradle-4.10.1-bin.zip"
+        ok=0
+        i=1
+        for URL in "$CDN" "$CDN" "$GH" "$ALIYUN"; do
+          sed -i "s|^distributionUrl=.*|distributionUrl=$URL|" gradle/wrapper/gradle-wrapper.properties
+          echo "== gradlew attempt $i (dist: $URL) =="
+          ./gradlew assembleDebug --stacktrace
+          if [ $? -eq 0 ]; then
+            echo "GRADLE_BUILD=gradle (attempt $i)" >> "$GITHUB_ENV"
+            ok=1
+            break
+          fi
+          echo "attempt $i failed; retrying in 30s..."
+          sleep 30
+          i=$((i+1))
+        done
+        if [ "$ok" -eq 0 ]; then
+          echo "gradlew failed after 4 attempts — falling back to the proven ndk-build pipeline"
+          export JAVA_HOME="$JAVA21"
+          export PATH="$JAVA21/bin:$PATH"
+          bash app/build-apk.sh app/build/outputs/apk/debug/app-debug.apk
+          if [ $? -ne 0 ]; then
+            echo "fallback pipeline also failed"
+            exit 1
+          fi
+          echo "GRADLE_BUILD=fallback (ndk-build + aapt2/d8)" >> "$GITHUB_ENV"
+        fi
+        exit 0
+
+    - name: Verify APK
+      run: |
+        APK=app/build/outputs/apk/debug/app-debug.apk
+        ls -la "$APK"
+        BT36="$ANDROID_HOME/build-tools/36.0.0"
+        "$BT36/aapt2" dump badging "$APK" | head -12
+        unzip -t "$APK" | tail -1
+        "$BT36/apksigner" verify -v "$APK" | grep -E "Verified using|Number of signers"
+        sha256sum "$APK"
+        echo "Built via: $GRADLE_BUILD"
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: minecraft-mcpe-android-0.6.1-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
+        if-no-files-found: error

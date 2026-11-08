@@ -1,0 +1,23 @@
+// Top-level build file: AGP 3.3.2 (last AGP that works with
+// Gradle 4.10.x and JDK 8) + NDK r17c (last NDK shipping
+// stlport_static, which this tree needs).
+buildscript {
+    repositories {
+        google()
+        maven { url 'https://dl.google.com/dl/android/maven2/' }
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:3.3.2'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
