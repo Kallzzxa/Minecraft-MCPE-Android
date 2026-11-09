@@ -2141,11 +2141,18 @@ Each version is ONE coherent batch of features, shipped as a new APK
     translation unit; armv7 byte-identical size by
     coincidence of layout, Gui.o confirmed rebuilt after the
     edit in both ABIs). CI `./gradlew assembleDebug` SUCCESS
-    (run <RUN>, <DUR>, <DATE>); APK
+    (run 42545637924, ~5m51s, 01:27:05–01:32:56 UTC
+    2026-11-09); APK
     `minecraft-mcpe-android-0.6.1-debug-v37.apk`
-    <SIZE> B, sha256 <SHA>,
+    12,948,178 B, sha256
+    5020cc117ff8ca8f5d7d0f5ed2963f46ea9efc74c2524f2198d65b560bf979e7,
     versionCode 37, `apksigner verify` v1+v2 true, `unzip -t`
-    clean.
+    clean; the APK itself was re-checked to contain the new
+    code in its `libminecraftpe.so` (arm64 10,244,936 B /
+    armv7 8,793,988 B — byte-identical sizes to the local
+    build; the .so is stripped so `nm` shows no symbol table —
+    verified instead via strings: `Wither - Armoured` +
+    `Wither - Charging` present in both ABIs).
   ### Known limits / debts
   - One bar only (see decision above): with 3+ withers the
     player sees only the lowest-HP one, not the whole fight.
