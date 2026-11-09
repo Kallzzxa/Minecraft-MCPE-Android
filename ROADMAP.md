@@ -2674,10 +2674,124 @@ Each version is ONE coherent batch of features, shipped as a new APK
     CI `./gradlew assembleDebug` SUCCESS (run 42554887100, ~5m43s, 03:10:16–03:15:59 UTC 2026-11-09); APK `minecraft-mcpe-android-0.6.1-debug-v42.apk` 12,950,630 B, sha256 a5b862dc9c66bdf89704dbcfc7281ed3f73660aa8722b82d3da0b5a9adc9e6c0, versionCode 42, `apksigner verify` v1+v2 true, `unzip -t` clean; the APK itself was re-checked to contain the new code in its `libminecraftpe.so` (arm64 10,269,512 B / armv7 8,798,084 B — byte-identical sizes to the local build; the .so is stripped so `nm` shows no symbol table — verified instead via the local object files, see above).
   ### Known limits / debts
   - Search is the one unproven-on-device piece: it rides the sign-editing keyboard path, but no one has typed into it on the realme 8 yet. If the soft keyboard does not deliver chars there, the fallback is the chat-style native dialog (`createUserInput`) — same filter, worse UX.
-  - Inventory grid is display-only in stage 1: tapping an inventory item does nothing (no manual grid placement — there is no crafting container in the tree; placing items by hand into the 3x3 grid is the v43 manual-grid job, if the user wants it).
+  - Inventory grid is display-only in stage 1: tapping an inventory item does nothing (no manual grid placement — there is no crafting container in the tree; placing items by hand into the 3x3 grid is the v44 manual-grid job, if the user wants it).
   - No craftable-only toggle (screenshot's green check button) and no recipe-book collapse button (green book icon) yet — both stage-2 polish.
-  - The 2x2 inventory crafting screen is the SAME `PaneCraftingScreen` with `SIZE_2X2`, so it gets the new layout too — but its recipes are only the 2x2 ones, and the grid shown is still the 3x3 auto-fill display (recipes are ≤2x2, so the third row/column stays empty). v43 (inventory 2x2 stage) should decide whether to shrink that display to 2x2.
+  - The 2x2 inventory crafting screen is the SAME `PaneCraftingScreen` with `SIZE_2X2`, so it gets the new layout too — but its recipes are only the 2x2 ones, and the grid shown is still the 3x3 auto-fill display (recipes are ≤2x2, so the third row/column stays empty). v44 (inventory 2x2 stage) should decide whether to shrink that display to 2x2.
   - All of it is build-only until a live test on device (see the "Next" v42 test list).
+- **v43 — Bug-fix batch: 4 user reports 2026-11-09 10:21 (SHIPPED,
+  build-only).** Diagnosed from the code + the user's video
+  (`940b2e0c...mp4`, 20.6 s) + the HUD reference
+  (`1000530336_1_2ubt.jpg`), NOT guessed. One correction to the
+  brief's hypothesis: the black particles at ~11.6 s are NOT the v13
+  sprint dust — the video proves they are reed block-break fragments
+  (see (b) below). The sprint/landing dust is still removed, as the
+  other black-particle source named in the brief.
+  ### Audit (read from code + video frames before writing anything)
+  - **(a) Water entry = fishing.** `Entity::baseTick` spawned TWO
+    particle loops on entering water: vanilla bubbles (`PARTICLETYPE
+    (bubble)`, tex 32 = blue ring in `particles.png`) AND the v13
+    splash loop (`PARTICLETYPE(splash)`, `SplashParticle` tex 33).
+    v13's comment claimed tex 33 is "a small white droplet, next to
+    the bubble sprite" — WRONG. The sheet's cell 33 alpha-map is a
+    white/red bobber with a black hook (the classic fishing-bobber
+    sprite); frame ~3 s of the video shows ~13 of them + blue bubble
+    rings the moment the player enters the water. Entering water
+    therefore looked exactly like casting a fishing rod.
+  - **(b) Black particles near the reeds.** Frame 10.5 s: the player
+    holds the reeds (white touch circle on the cane, D-pad forward
+    held) and a burst of ~15 small green+black squares flies out;
+    11.0–11.6 s: 1–3 leftover squares sit on the sand. Those are
+    `TerrainParticle` fragments from `ParticleEngine::destroy()` —
+    reed-texture squares whose "transparent" background renders
+    opaque black. Same root cause as (c). The v13 sprint dust
+    (`LocalPlayer::tick`, ~35% of sprinting ticks) and landing dust
+    (`Entity::checkFallDamage`, fall > 3) are a SECOND, independent
+    black-particle source: both spawn "smoke" particles whose colour
+    is `random()*0.5` (`SmokeParticle.h`) — near-black, not the grey
+    the v13 entry claimed — so they read as fire/burning smoke.
+  - **(c) Black stripes on the reeds = lost alpha channel.**
+    `terrain.png` cell 73 (reeds) has 115/256 pixels of opaque black
+    where the sprite should be transparent. Root cause, found by
+    `git log` on the file: v39 (commit 8b0af9e, blaze spawner tile)
+    re-saved `terrain.png` as RGB — every version before it was
+    RGBA. The alpha channel (13,519 transparent pixels tree-wide:
+    reeds, flowers, tall grass, crops, saplings, glass, …) was
+    destroyed in that one save; the RGB values under the old
+    transparency survived byte-identical (verified: 0 mismatches),
+    only the alpha was lost. The renderer already handles alpha
+    (`GL_ALPHA_TEST` around terrain, `GL_RGBA` upload when the PNG
+    has alpha — `AppPlatform_android.h:382` decodes PNG → ARGB),
+    so restoring the channel restores stock 0.6.1 behaviour.
+  - **(d) XP bar + inventory.** The video is a CREATIVE world —
+    proven, not assumed: no hearts/hunger/XP strip render above the
+    hotbar at all (pixel scan of the HUD band: no black XP strip, no
+    red hearts), while the render path for survival was verified
+    intact (`blit` inside `beginOverride` appends correctly;
+    `renderExperience` draws its black strip unconditionally when
+    called). In creative `Gui::render` gated `renderExperience()`
+    behind `canHurtPlayer()`, so the bar was missing entirely —
+    while the reference (survival) shows it. Modern MC shows the XP
+    bar + level in creative too; hearts/hunger correctly stay
+    survival-only. Second defect, same screen: the last hotbar slot
+    ("...") renders as an empty dark slot. Its blit samples
+    `gui.png` (242,252,14x4), which is fully transparent in the
+    STOCK 0.6.1 sheet (verified against the initial import too) —
+    and the blit landed inside the `gui_blocks.png` override batch,
+    so it sampled grass pixels instead. The "..." sprite never
+    existed in this tree. NOT fixed by guessing: the hotbar has 8
+    slots (7 usable + "...", `MAX_SELECTION_SIZE` 9) vs the
+    reference's 9 usable + "..." (10 cells) — widening that means
+    changing the selection size everywhere (inventory, touch, MP),
+    so it is left as an open question for the user, not silently
+    changed (see "Next").
+  ### What shipped
+  - **(a)** The v13 splash spawn loop in `Entity::baseTick` is
+    REMOVED (comment records the bobber diagnosis). The vanilla
+    bubble loop and the `random.splash` sound stay — entering water
+    now looks like normal MC (bubbles only), not fishing.
+    `SplashParticle` / `ParticleType::splash` / the `LevelRenderer`
+    dispatch stay: the v24/v25 thrown-potion impact burst still
+    uses them (same bobber sprite, separate trigger — see debts).
+  - **(b)** BOTH v13 dust spawns removed: sprint dust
+    (`LocalPlayer::tick`) and landing dust
+    (`Entity::checkFallDamage`). Sprint exhaustion, hunger drain and
+    fall damage are untouched. Modern MC has neither puff.
+  - **(b)+(c)** `terrain.png` alpha RESTORED: RGB from the current
+    file + alpha from the last RGBA version (v38, 781d31c), cell 251
+    (v39 blaze-spawner sprite, a fully opaque cage texture) forced
+    opaque. Verified: RGB differs from v38 only in cell 251; every
+    restored-transparent pixel keeps its original RGB byte-identical;
+    13,519 transparent pixels back; reeds cell 73 is 115 transparent
+    / 141 opaque. The black bands on the reeds, the black halves of
+    reed break-fragments, and the black backgrounds of every other
+    cutout plant (flowers, tall grass, crops, saplings) are gone in
+    one fix.
+  - **(d)** `renderExperience()` moved out of the `canHurtPlayer()`
+    gate in `Gui::render` — the XP bar + green level number now
+    render in creative too (hearts/hunger/bubbles stay
+    survival-only). The "..." slot now draws "..." as font text
+    (`Font::drawShadow`, centred in the last slot, same visibility
+    rule as the old blit) instead of the dead sprite blit.
+  - Version bump 42 -> 43 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`).
+  ### Known limits / debts
+  - A thrown splash potion (v24/v25) still bursts into bobber
+    sprites on impact — `ThrownPotion` uses the same
+    `ParticleType::splash`. It was left alone (the user never
+    reported it, and the burst needs a real droplet texture, not a
+    spawn removal). Follow-up: give the splash a proper droplet
+    sprite (particles.png has blue droplet cells in row 1) or reuse
+    the bubble sprite.
+  - The level number sits one row above the hearts on the 8-slot
+    (160 px) touch hotbar (v14 rule: hearts 81 px + hunger 81 px =
+    162 px leave no gap on that row). The reference centres it on
+    the hearts row — only possible on a wider hotbar; see the
+    7-vs-9 usable slots question in "Next".
+  - The 2px hearts/hunger overlap on the 160 px hotbar (81+81 >
+    160) is unchanged from v14 — marginal, icons already overlap
+    1 px by design.
+  - All of it is build-only until a live test on device (see the
+    "Next" v43 test list).
 - **v37 — Multi-wither boss bar: lowest-HP wither (SHIPPED,
   build-only).** Pays the v36 "Next" candidate — the last
   wither-only debt. One batch, one file of gameplay code.
@@ -3834,7 +3948,43 @@ Each version is ONE coherent batch of features, shipped as a new APK
   fallback until this stage passes. HONEST LIMIT: if the 3-block
   window proves unhittable on touch in practice, report it — the
   fix is a bigger pick radius, not a proximity auto-reflect.
-- **Next version (v43 candidate): inventory crafting 2x2 (stage 2 of the modern crafting UI) + the v42 device test list.** The crafting table (v42) is done; the same screen opened from the inventory (block-selection screen → Craft button, `SIZE_2X2`) now needs its stage-2 pass: shrink the auto-fill display to a 2x2 grid (v42 still shows the 3x3 frame with an empty third row/column on 2x2 recipes), and decide with the user whether manual grid placement (tap an inventory item → place it in the grid) is wanted — there is no crafting container in the tree, so that is real new work, not a layout tweak. Also in the same batch if cheap: the craftable-only toggle (green check button next to the search bar — needs a drawn checkmark, the font has none) and the recipe-book collapse button (green book icon). V42 DEVICE TEST LIST (do this first, before v43 code): open a crafting table while holding D-pad forward — repeat 5x — the player must stop on the same tick the screen opens; same repro from inventory 2x2, from a chest, and from a furnace; tap the search field, type "pick", check the grid filters live, backspace, Esc/back closes the keyboard (not the screen); switch tabs (All/Tools/Blocks/Food/Redstone) and check Mechanisms recipes finally appear; paginate a full tab with < > and check "N/M"; click a recipe → grid fills with have/need counts, tap the result → the item is crafted and counts refresh; tap an uncraftable recipe → result dimmed, tap does nothing; stonecutter screen still works (single tab); re-check the v31–v41 lists and the old features, no crash. The v41 APK stays the fallback until this stage passes.
+- **Device verification for the v43 bug-fix batch (4 user reports,
+  2026-11-09 10:21 — do this first, before v44 code).** Uninstall
+  the old APK first (fresh CI debug keystore). (a) Walk into water —
+  check NO red-white bobbers appear, only blue bubble rings + the
+  splash sound; (b) sprint across sand/grass and jump off a 4+ block
+  ledge — check NO black smoke puffs trail you or burst on landing;
+  break a reed block — check the fragments are green reed bits with
+  NO black halves; (c) look at reeds, flowers, tall grass, wheat and
+  saplings — check NO black background/bands on any of them
+  (reeds must be green stalks on clear background); (d) in CREATIVE:
+  check the XP bar (dark strip, green fill if any XP) + level number
+  render above the hotbar even with 0 XP (empty dark strip is
+  correct), and the last hotbar slot shows "..."; in SURVIVAL:
+  hearts + hunger + XP bar all render as in v14; re-check the
+  v31–v42 lists (fortress, spawner, boss bar, fireball reflection,
+  crafting UI v42 + the v42 movement-freeze fix) and the old
+  features, no crash. The v42 APK stays the fallback until this
+  stage passes.
+- **Next version (v44 candidate): inventory crafting 2x2 (stage 2 of
+  the modern crafting UI) + the v43 device test list above.** The
+  crafting table (v42) is done; the same screen opened from the
+  inventory (block-selection screen → Craft button, `SIZE_2X2`) now
+  needs its stage-2 pass: shrink the auto-fill display to a 2x2 grid
+  (v42 still shows the 3x3 frame with an empty third row/column on
+  2x2 recipes), and decide with the user whether manual grid
+  placement (tap an inventory item → place it in the grid) is wanted
+  — there is no crafting container in the tree, so that is real new
+  work, not a layout tweak. Also in the same batch if cheap: the
+  craftable-only toggle (green check button next to the search bar —
+  needs a drawn checkmark, the font has none) and the recipe-book
+  collapse button (green book icon). OPEN QUESTION from v43 (ask the
+  user, do not guess): the touch hotbar has 7 usable slots + "..."
+  (`MAX_SELECTION_SIZE` 9) while the modern reference shows 9 usable
+  + "..." — is the narrower hotbar part of "inventory kelihatan
+  aneh", and is widening it to 9 usable slots wanted? That change
+  touches selection size, touch areas and MP, so it needs an
+  explicit yes. V42 DEVICE TEST LIST (do this first, before v43 code): open a crafting table while holding D-pad forward — repeat 5x — the player must stop on the same tick the screen opens; same repro from inventory 2x2, from a chest, and from a furnace; tap the search field, type "pick", check the grid filters live, backspace, Esc/back closes the keyboard (not the screen); switch tabs (All/Tools/Blocks/Food/Redstone) and check Mechanisms recipes finally appear; paginate a full tab with < > and check "N/M"; click a recipe → grid fills with have/need counts, tap the result → the item is crafted and counts refresh; tap an uncraftable recipe → result dimmed, tap does nothing; stonecutter screen still works (single tab); re-check the v31–v41 lists and the old features, no crash. The v41 APK stays the fallback until this stage passes.
   The dragon immunity stays queued right behind crafting: it is
   still the same one-line family as v38/v40
   (`EnderDragon::hurt` rejects fireballs whose ownerId is its

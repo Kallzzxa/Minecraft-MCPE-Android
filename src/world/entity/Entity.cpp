@@ -488,13 +488,15 @@ void Entity::baseTick()
 		        float zo = (sharedRandom.nextFloat() * 2 - 1) * bbWidth;
 		        level->addParticle(PARTICLETYPE(bubble), x + xo, yt + 1, z + zo, xd, yd - sharedRandom.nextFloat() * 0.2f, zd);
 		    }
-		    // v13: splash droplets on entering water (was commented out;
-		    // SplashParticle is a real Particle subclass now).
-		    for (int i = 0; i < 1 + bbWidth * 20; i++) {
-		        float xo = (sharedRandom.nextFloat() * 2 - 1) * bbWidth;
-		        float zo = (sharedRandom.nextFloat() * 2 - 1) * bbWidth;
-		        level->addParticle(PARTICLETYPE(splash), x + xo, yt + 1, z + zo, xd, yd, zd);
-		    }
+		    // v43: the v13 splash-droplet spawn is REMOVED. SplashParticle
+		    // uses particles.png tex 33, which is NOT a water droplet —
+		    // it is the fishing-bobber sprite (white/red bobber + black
+		    // hook, verified from the sheet + the user video: entering
+		    // water spawned a swarm of bobbers + bubbles, i.e. it looked
+		    // like fishing). The vanilla bubble loop above stays, and the
+		    // splash sound above stays; only the bobber spawn goes.
+		    // (SplashParticle + ParticleType::splash stay for the v24/v25
+		    // thrown-potion impact burst — same sprite, separate trigger.)
 		}
 		fallDistance = 0;
 		wasInWater = true;
@@ -557,17 +559,12 @@ void Entity::checkFallDamage( float ya, bool onGround )
 					Tile::tiles[t]->fallOn(level, xt, yt, zt, this, fallDistance);
 				}
 			}
-			// v13: dust puffs on a hard landing (grey smoke particles at
-			// the feet; count grows with the fall, capped at 8).
-			if (fallDistance > 3.0f) {
-				int n = (int) fallDistance;
-				if (n > 8) n = 8;
-				for (int i = 0; i < n; i++) {
-					float ox = (sharedRandom.nextFloat() * 2 - 1) * 0.4f;
-					float oz = (sharedRandom.nextFloat() * 2 - 1) * 0.4f;
-					level->addParticle("smoke", x + ox, y + 0.1f, z + oz, ox * 0.3f, 0.05f, oz * 0.3f);
-				}
-			}
+			// v43: the v13 landing-dust spawn is REMOVED. It spawned
+			// "smoke" particles whose colour is random()*0.5 (near-black,
+			// SmokeParticle.h), so a hard landing puffed black smoke that
+			// reads as fire/burning — the same black-particle complaint as
+			// the sprint dust (LocalPlayer::tick, also removed in v43).
+			// Modern MC has no landing smoke; nothing else uses this.
 			causeFallDamage(fallDistance);
 			fallDistance = 0;
 		}

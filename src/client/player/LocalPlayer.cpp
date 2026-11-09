@@ -168,12 +168,12 @@ void LocalPlayer::tick() {
 				? FoodConstants::EXHAUSTION_SPRINT_PER_BLOCK
 				: FoodConstants::EXHAUSTION_WALK_PER_BLOCK;
 			foodData.addExhaustion(dist * rate);
-			// v13: dust puffs while sprinting on the ground.
-			if (input && input->sprinting && onGround && dist > 0.05f && random.nextFloat() < 0.35f) {
-				float ox = (random.nextFloat() * 2 - 1) * 0.3f;
-				float oz = (random.nextFloat() * 2 - 1) * 0.3f;
-				level->addParticle("smoke", x + ox, y + 0.1f, z + oz, ox * 0.2f, 0.03f, oz * 0.2f);
-			}
+			// v43: the v13 sprint-dust spawn is REMOVED. It spawned "smoke"
+			// particles while sprinting, but SmokeParticle colours itself
+			// random()*0.5 (near-black, SmokeParticle.h) — so walking /
+			// sprinting trailed black puffs that read as fire/burning
+			// smoke (user video ~11.6 s, near the reeds). Modern MC has
+			// no sprint smoke; the exhaustion cost above is untouched.
 		}
 		_prevX = x; _prevZ = z;
 	}

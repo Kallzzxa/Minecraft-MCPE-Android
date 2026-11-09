@@ -93,8 +93,15 @@ void Gui::render(float a, bool mouseFree, int xMouse, int yMouse) {
 		renderHunger();
 		renderBubbles();
 		t.endOverrideAndDraw();
-		renderExperience();
 	}
+
+	// v43: the XP bar + level render in creative too (modern MC shows
+	// them in every mode). They used to sit inside the canHurtPlayer()
+	// gate above, so in creative the bar was missing entirely — the
+	// user video (creative test world) shows no XP bar at all above
+	// the hotbar, while the reference has one. Hearts/hunger/bubbles
+	// stay survival-only (correct: creative hides them).
+	renderExperience();
 
 	// v34: boss bar in every game mode (a creative tester summons
 	// with creative skulls, so hiding it behind canHurtPlayer
@@ -974,9 +981,13 @@ void Gui::renderToolBar( float a, int ySlot, const int screenWidth ) {
 
 	if (isMouseLocked && !minecraft->useTouchscreen()) {
 		renderSlot(getNumSlots()-1, (int)x, ySlot, a);
-	} else {
-		blit(screenWidth / 2 + 10 * getNumSlots() - 20 + 4, ySlot + 6, 242, 252, 14, 4, 14, 4);
 	}
+	// v43: the "..." label is drawn as font text below (after the
+	// override batch), NOT blit here. The old blit sampled gui.png
+	// (242,252,14x4), which is fully transparent in the stock 0.6.1
+	// sheet — and it landed inside this gui_blocks batch, so it
+	// sampled grass pixels instead of dots. The slot rendered as an
+	// empty dark slot.
 
 	minecraft->textures->loadAndBindTexture("gui/gui_blocks.png");
 	t.endOverrideAndDraw();
@@ -996,6 +1007,19 @@ void Gui::renderToolBar( float a, int ySlot, const int screenWidth ) {
 	t.endOverrideAndDraw();
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_TEXTURE_2D);
+
+	// v43: "..." label for the block-selection slot (see the note at
+	// the old blit site above). Font text, centred in the last slot,
+	// like the modern HUD reference. Same visibility rule as before:
+	// shown whenever the last slot is not a real item slot (touch
+	// always; on PC only while the mouse is free).
+	if (!isMouseLocked || minecraft->useTouchscreen()) {
+		Font* dotsFont = minecraft->font;
+		const char* dots = "...";
+		float dotsW = (float)dotsFont->width(dots);
+		float dotsX = (float)(screenWidth / 2 + 10 * getNumSlots() - 10) - dotsW / 2.0f;
+		dotsFont->drawShadow(dots, dotsX, (float)(ySlot + 6), 0xFFFFFFFF);
+	}
 
 	//w.stop();
 	//w.printEvery(100, "gui-slots");
