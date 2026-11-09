@@ -2079,6 +2079,161 @@ Each version is ONE coherent batch of features, shipped as a new APK
     check perch + heal-beam + respawn v27-v29 still work, no
     crash, old features intact).
 
+- **v34 — Wither boss, stage 1 (SHIPPED, build-only).**
+  Pays the v33 "Next" candidate: the skull (v32) + soul sand (v21)
+  already existed, so the ritual had all its ingredients — the boss
+  itself is what was missing. Stage 1 ships the whole loop
+  (ritual → boss → projectiles → boss bar → nether star); stage 2
+  is the fight-feel polish (see debts).
+  ### Audit (read from code before writing anything)
+  - **Wither skull item (v32)**: `Item::witherSkull`, a plain
+    `Item(141)` → id 397, icon (3,11) — NOT placeable
+    (`Item::useOn` defaults to false). A ritual needs placeable
+    skulls, so the item needed a `useOn` (BedItem precedent:
+    face-UP check, `isEmptyTile` + `isSolidBlockingTile`,
+    `setTileAndData`, `count--`).
+  - **Soul sand**: `Tile::hellSand` id 88, tex 171 (v21). Exists.
+  - **Flying-boss patterns**: Ghast (v21 — Monster + gravity-free
+    `travel`, fireball every 3 s within 28) and EnderDragon (v22 —
+    Monster + `steerTo` orbit, `Mob::tick` instead of
+    `Monster::tick` so PEACEFUL never deletes the boss, 48-block
+    `findAttackTarget` override, fireball within 40, `heal`
+    override because `Mob::heal` caps at 20). The wither is the
+    dragon's shape with player-chase steering instead of an orbit.
+  - **Projectile**: Fireball (v21 — Throwable, no gravity,
+    explode r1 + fire on hit) is reusable as a pattern but NOT as
+    the projectile: a wither skull must not set fire, and must
+    apply the wither effect. No wither-skull projectile existed.
+  - **Wither effect (v32)**: `Mob::witherEffectTicks`, 1 HP / 40
+    ticks, no 1-HP floor, black hearts in the HUD — reusable
+    directly from `WitherSkull::onHit` (AABB query like
+    `ThrownPotion::onHit`).
+  - **Nether star**: did NOT exist (zero hits). New item: ctor
+    143 → modern id 399, icon drawn into the free
+    `gui/items.png` cell (4,11), lang `item.netherStar.name`.
+  - **Boss bar**: did NOT exist. But the pattern did — the XP bar
+    (`Gui::renderExperience`: `GuiComponent::fill` + centred
+    `Font::drawShadow`, `hudLayout` for the hotbar width), so a
+    boss bar is ~25 lines scanning `Level::entities` for a live
+    wither. It fits in this batch — no stage-2 deferral needed.
+  - **Skull tile**: did NOT exist. Tile id 144 is free (modern MC
+    skull id). Texture was the one real constraint: `terrain.png`
+    has NO free cells left (v9/v11 used the last magenta ones).
+    Cells 252/253 are referenced ONLY by the never-generated
+    placeholder tiles `info_updateGame1/2` (248/249, not in the
+    creative inventory, never placed by world gen) — so the skull
+    face is drawn over cell 252, same spirit as v9/v11 reusing
+    placeholder cells. The only casualty: those two placeholder
+    tiles would render as skull cubes if ever placed via the fill
+    command.
+  - **Ritual-detection hook**: no precedent for structure
+    detection on placement. The hook is `Tile::setPlacedBy`,
+    which BOTH placement paths call (`TileItem::useOn` and the
+    new `WitherSkullItem::useOn`) — so the check lives in
+    `SkullTile::setPlacedBy` → `Wither::trySummonFromSkull` and
+    covers both items. It runs ONLY on a successful skull
+    placement, and only matches a complete T + 3 skulls, so no
+    other building can false-positive. Server-side only
+    (`!level->isClientSide` — in MP the client also runs the
+    place path; the server summons).
+  - **Save/load**: `Mob` health saves as a short (300 fits);
+    `MobTypes::Wither` 46 < 64; `MobFactory::CreateMob` is the
+    single load path (`EntityFactory` delegates to it).
+  - **Sounds**: no wither audio files exist; the boss reuses the
+    skeleton's registered sounds + `random.explode` for the
+    summon/death (same choice as the dragon's placeholder sounds).
+  ### What shipped
+  - **Skull tile** (`SkullTile`, id 144, tex 252): full cube with
+    the drawn skull face on all sides; breaking it drops the
+    skull item back (`getResource` override — the default would
+    drop the tile itself, id 144). Placed by the skull item or by
+    the auto-registered TileItem (id 144); both run the ritual
+    check via `setPlacedBy`.
+  - **Placeable skull item** (`WitherSkullItem`, BedItem pattern):
+    the v32 item (id 397, same icon/lang) now places the skull
+    tile on the top face of a block. Old worlds keep working: the
+    item id is unchanged (397), only its class changed.
+  - **Ritual summon** (`Wither::trySummonFromSkull`): soul sand
+    in a T (3 in a row + 1 below the middle) with a skull on top
+    of each of the 3, along X or Z, with the fresh skull as the
+    left/middle/right head. The whole structure (4 soul sand + 3
+    skulls) is consumed, an explosion goes off (radius 3, no
+    fire), and the wither appears above it.
+  - **Wither boss** (`MobTypes::Wither` 46): 300 HP, fire-immune,
+    1.0×3.5, hovers ~3 blocks above the nearest player
+    (dragon `steerTo`, capped 0.35/tick), regenerates 1 HP / 20
+    ticks via a direct health increment (NOT `heal()` — that
+    sets `invulnerableTime` and would make the boss unhittable
+    half the time), `heal` override caps at 300, survives
+    PEACEFUL (`Mob::tick`, dragon precedent), never jumps
+    (`updateAi` clears the flag — it flies), 48-block target
+    acquisition (dragon precedent), melee within 4 blocks, one
+    aimed wither skull every 2 s within 40 blocks. Drops 1
+    nether star + 50 XP on a player kill (modern MC values).
+    Model: `WitherModel` (header-only, natural scale like the
+    dragon — 3 heads + ribcage body + tapering tail, 56 units =
+    3.5 blocks; 64×64 texture, `mob/wither.png`, drawn) +
+    `WitherRenderer` (plain `MobRenderer`, dragon precedent).
+  - **Wither-skull projectile** (`EntityTypes::IdWitherSkull`
+    88): Throwable, no gravity, Fireball-shaped; on impact
+    applies Wither I (10 s) to every mob within 2 blocks (the
+    wither itself is immune to its own skulls) + a small
+    explosion (radius 1, no fire). Renderer is a billboarded
+    near-black ball with a purple core (`WitherSkullRenderer`,
+    FireballRenderer pattern, no texture).
+  - **Nether star** (`Item::netherStar`, id 399): icon cell
+    (4,11) drawn, lang added, in the creative inventory.
+  - **Boss health bar** (`Gui::renderBossBar`): "Wither" name +
+    purple bar, hotbar-wide, top-centred (XP-bar pattern), shown
+    whenever a live wither is in the level — in EVERY game mode,
+    so a creative summon test still sees it. Found by scanning
+    `Level::entities`, so a reloaded wither shows its bar again
+    for free.
+  - Version bump 33 -> 34 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,257,224 B / armv7 8,785,796 B, new symbols confirmed
+    (`Wither::trySummonFromSkull`, `SkullTile::getResource/
+    setPlacedBy`, `Gui::renderBossBar`, `WitherModel`,
+    `WitherSkull::onHit`, `WitherRenderer`, `WitherSkullItem`,
+    `WitherSkullRenderer`, `Item::netherStar`). CI
+    `./gradlew assembleDebug` SUCCESS (run 42540797864, ~5m35s,
+    00:33:08–00:38:43 UTC 2026-11-09); APK
+    `minecraft-mcpe-android-0.6.1-debug-v34.apk`
+    12,940,395 B, sha256
+    8ae74e9eec1ef95f5d5441b73c86a1e3635e26ad685c63c7f5324faa8ba9153a,
+    versionCode 34, `apksigner verify` v1+v2 true, `unzip -t`
+    clean; the APK itself was re-checked to contain the new
+    symbols in its `libminecraftpe.so` (arm64 10,257,224 B /
+    armv7 8,785,796 B — byte-identical sizes to the local build)
+    and the new `mob/wither.png` (64×64) + the skull face in
+    terrain.png cell 252 + the nether-star icon in items.png
+    cell (4,11).
+  ### Known limits / debts (stage 2)
+  - **One skull per volley, not three.** Modern MC fires from all
+    three heads (a 3-skull spread). Stage 1 fires a single aimed
+    skull every 2 s — the fight is fair but visibly thinner than
+    modern MC.
+  - **Skull tile is a full cube, top-face placement only.** Modern
+    MC skulls are small heads and mount on walls too. The full
+    cube reads as a black skull block; wall mounting needs a data
+    value + a render shape.
+  - **No wither rose.** Modern MC drops a wither rose where the
+    wither kills a mob — needs a new flower tile + item, not just
+    a drop.
+  - **No armoured phase.** Modern MC gives the wither armour and
+    arrow immunity below half HP. Stage 1 has flat 300 HP with
+    regen all the way down.
+  - **No wither spawn protection / spawn animation.** Modern MC
+    grows the wither over ~2 s with an invulnerable charge-up and
+    a bigger (power 7) summon blast; stage 1 summons instantly
+    with a radius-3 blast.
+  - The boss bar shows the FIRST live wither only (multiple
+    withers share one bar); the bar has no wither icon, just the
+    name + fill.
+  - All of it is build-only until a live test on device (see the
+    "Next" v34 test list: ritual, skulls, boss bar, star drop,
+    no crash, old features intact).
 - **v33 — Village chest loot (SHIPPED, build-only).**
   Pays the v23 debt "no village chest with loot" and the v31/v32
   fortress-chest debt — the oldest standing structure debt.
@@ -2562,16 +2717,33 @@ Each version is ONE coherent batch of features, shipped as a new APK
   until this stage passes.
 - **v32 — Wither skeleton.** SHIPPED (see "Done").
 - **v33 — Village chest loot.** SHIPPED (see "Done").
-- **Next version (v34 candidate): wither boss.** The skull item
-  (v32, 2.5% drop from wither skeletons) and soul sand (v21)
-  already exist, so the summon ritual (3 skulls + 4 soul sand in
-  a T) has all its ingredients — but the boss itself is a
-  multi-version project, not a v-batch: a boss entity (flying,
-  300 HP, explosive wither-skull projectiles) + a boss health bar
-  (no boss-bar UI exists in this tree) + the summon-ritual
-  detection + wither-rose / nether-star drops. It is the last big
-  Nether boss gap and the natural next step now that the fortress
-  has its mobs AND its loot chest.
+- **Device verification for the wither boss, stage 1 (v34's open
+  item).** Uninstall the old APK first (fresh CI debug keystore).
+  Collect 3 wither skulls (2.5% drop from wither skeletons in a
+  fortress — or take them from the creative inventory), build the
+  soul-sand T (3 in a row + 1 below the middle) and place a skull
+  on top of each of the 3 — check the structure is consumed, an
+  explosion goes off and the wither appears above it, flying;
+  check the purple "Wither" boss bar at the top of the screen and
+  that it drains as the boss takes damage; stand under it and
+  check it shoots dark skull projectiles that explode and give the
+  wither effect (black hearts, HP draining, can kill); kill it
+  and check it drops exactly 1 nether star (+ 50 XP); break a
+  placed skull before completing the ritual and check the skull
+  item drops back; check an incomplete T (missing stem, or only 2
+  skulls) does NOT summon; check the boss stays in peaceful
+  (it must not vanish) and the old features still work, no crash.
+  The v33 APK stays the fallback until this stage passes.
+- **Next version (v35 candidate): wither boss, stage 2.** Stage 1
+  shipped the whole loop, so stage 2 is the fight-feel polish
+  from the v34 debts, in this order: (1) three-head volley — one
+  aimed skull per head per volley, the most visible gap versus
+  modern MC; (2) small-head skull shape + wall mounting, so the
+  ritual pieces look like skulls instead of black cubes; (3)
+  wither rose (needs a new flower tile + item). The armoured
+  phase (arrow immunity below half HP) stays after those — it is
+  a balance change that needs device feel first, not more code.
+- **v34 — Wither boss, stage 1.** SHIPPED (see "Done").
 
 ## Queued (priority order — re-evaluate after each version)
 
