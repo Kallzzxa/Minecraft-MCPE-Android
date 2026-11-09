@@ -38,6 +38,12 @@ public:
     // ownerId to the deflector (or clear it), or the reflected ball
     // would still count as the shooter's own.
     int getOwnerId() const { return ownerId; }
+    // v48: network sync only — ClientSideNetworkHandler restores
+    // the owner on the client's copy of a thrown potion from the
+    // AddEntityPacket data (see ThrownPotion::getAuxData), so the
+    // client's copy keeps the owner's early-flight immunity and
+    // does not burst on its thrower.
+    void setOwnerId(int id) { ownerId = id; }
 
     void addAdditonalSaveData(CompoundTag* tag);
     void readAdditionalSaveData(CompoundTag* tag);

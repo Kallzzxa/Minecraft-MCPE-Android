@@ -28,6 +28,7 @@
 #include "../world/entity/EntityFactory.h"
 #include "../world/entity/item/PrimedTnt.h"
 #include "../world/entity/projectile/Arrow.h"
+#include "../world/entity/projectile/ThrownPotion.h"
 #include "../world/level/tile/entity/ChestTileEntity.h"
 #include "../client/player/RemotePlayer.h"
 #include "../world/level/tile/LevelEvent.h"
@@ -211,6 +212,17 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, AddEntit
 			Entity* owner = level->getEntity(packet->data());
 			if (owner && owner->isMob())
 				((Arrow*)e)->ownerId = owner->entityId;
+			break;
+		}
+		case EntityTypes::IdThrownPotion: {
+			// v48: unpack the owner + base potion aux packed by
+			// ThrownPotion::getAuxData (owner low 24 bits, base aux
+			// bits 24..27). Without this the client copy keeps the
+			// default-ctor POISON, so the flying bottle AND the
+			// impact burst tint would always read poison in MP.
+			ThrownPotion* tp = (ThrownPotion*) e;
+			tp->setOwnerId(packet->data() & 0xffffff);
+			tp->setPotionAux((packet->data() >> 24) & 0xf);
 			break;
 		}
 		default:

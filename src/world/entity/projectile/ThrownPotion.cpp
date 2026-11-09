@@ -72,12 +72,18 @@ void ThrownPotion::onHit(const HitResult& res)
 	// v47: the splash sprite is the real blue droplet
 	// (particles.png tex 17, SplashParticle) — tex 33 was the
 	// fishing bobber, so the burst used to explode into bobbers.
+	// v48: the potion aux rides along as the particle `data` int,
+	// so the burst tints per potion type (SplashParticle tex 18,
+	// white droplet shape + bottle-liquid tint — tinting the blue
+	// tex 17 could never make pink/red). Burst count, velocities,
+	// gravity, lifetime and size are unchanged.
 	level->playSound(this, "random.glass", 1.0f, 1.0f);
 	for (int i = 0; i < 8; i++) {
 		level->addParticle(PARTICLETYPE(splash), x, y, z,
 			(level->random.nextFloat() - 0.5f) * 0.2f,
 			level->random.nextFloat() * 0.2f,
-			(level->random.nextFloat() - 0.5f) * 0.2f);
+			(level->random.nextFloat() - 0.5f) * 0.2f,
+			potionAux);
 	}
 	if (!level->isClientSide) remove();
 }
@@ -87,6 +93,20 @@ void ThrownPotion::addAdditonalSaveData(CompoundTag* tag)
 	super::addAdditonalSaveData(tag);
 	tag->putByte("PotionAux", (char) potionAux);
 	tag->putByte("SplashOwner", (char) (splashOwner ? 1 : 0));
+}
+
+// v48: MP sync — pack the base potion aux into the AddEntityPacket
+// data int (see the header comment for the layout). The client's
+// copy is built by the default ctor (POISON), so without this the
+// flying bottle and the burst tint would always read poison.
+int ThrownPotion::getAuxData()
+{
+	return getOwnerId() | ((PotionItem::baseAux(potionAux) & 0xf) << 24);
+}
+
+void ThrownPotion::setPotionAux(int aux)
+{
+	potionAux = PotionItem::stripSplash(aux);
 }
 
 void ThrownPotion::readAdditionalSaveData(CompoundTag* tag)

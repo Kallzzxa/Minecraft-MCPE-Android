@@ -26,18 +26,55 @@
 // water-entry spawn is gone), so this tex change affects ONLY the
 // thrown splash-potion impact burst. Colour stays white (1,1,1) — the
 // sprite pixels are already blue, so no tint is needed.
+// v48: tex 17 -> 18 + per-potion tint. The v47 limit was that every
+// potion burst the same blue — and tinting tex 17 directly CANNOT fix
+// that: Particle::render multiplies the texel by the vertex colour
+// (t.color(rCol*br, ...), Tesselator clamps each channel at 1.0), and
+// tex 17's pixels are blue with max channels (71,106,204)/255 =
+// (0.28, 0.42, 0.80) — so a healing-pink tint could at most render a
+// dark purple (0.25, 0.10, 0.28) and harming-red a near-black maroon.
+// Tex 18 was empty and sits in the same row-1 droplet row, adjacent
+// to 17: it now holds a WHITE copy of tex 17's exact 13-px shape
+// (drawn into particles.png, same PIL precedent as v9/v11/v20/v25),
+// so white texel x tint = the tint itself, and every potion colour
+// renders faithfully. The tint table below is NOT invented: each RGB
+// is the liquid colour of that potion's bottle icon, sampled from
+// gui/items.png row 12 (drinkable icons, 45 px of liquid per cell —
+// the v20/v25 bottle colours), so the burst matches the bottle the
+// player threw. Water keeps its light-blue liquid colour, so the
+// v47 look is preserved for water bottles. The aux arrives as the
+// particle `data` int (ThrownPotion::onHit -> Level::addParticle ->
+// LevelRenderer dispatch); baseAux (& 15) strips the splash /
+// extended / level II flag bits, so variants tint like their base.
 class SplashParticle: public Particle
 {
 	typedef Particle super;
 public:
-    SplashParticle(Level* level, float x, float y, float z, float xa, float ya, float za)
+    SplashParticle(Level* level, float x, float y, float z, float xa, float ya, float za, int potionAux)
 	: super(level, x, y, z, xa, ya, za)
 	{
         gravity = 0.04f;
-        tex = 17;
-        rCol = 1.0f;
-        gCol = 1.0f;
-        bCol = 1.0f;
+        tex = 18;
+        // v48: per-potion burst tint (see header comment). Values are
+        // PotionItem base aux 0..10 -> gui/items.png row-12 liquid RGB.
+        int base = potionAux & 15;
+        int cr = 90, cg = 160, cb = 220; // WATER (default): light blue
+        switch (base) {
+            case 1: cr = 150; cg = 60;  cb = 50;  break; // AWKWARD: brown-red
+            case 2: cr = 230; cg = 60;  cb = 90;  break; // HEALING: pink-red
+            case 3: cr = 80;  cg = 200; cb = 230; break; // SWIFTNESS: cyan
+            case 4: cr = 230; cg = 110; cb = 30;  break; // STRENGTH: orange
+            case 5: cr = 250; cg = 180; cb = 40;  break; // FIRE_RESISTANCE: gold
+            case 6: cr = 230; cg = 110; cb = 180; break; // REGENERATION: pink
+            case 7: cr = 110; cg = 140; cb = 50;  break; // POISON: olive green
+            case 8: cr = 90;  cg = 100; cb = 120; break; // WEAKNESS: grey-blue
+            case 9: cr = 140; cg = 40;  cb = 60;  break; // HARMING: dark red
+            case 10: cr = 70; cg = 110; cb = 170; break; // SLOWNESS: blue
+            default: break; // WATER (0) or out of range: light blue
+        }
+        rCol = cr / 255.0f;
+        gCol = cg / 255.0f;
+        bCol = cb / 255.0f;
         size *= 0.6f;
         lifetime = (int) (8 / (Mth::random() * 0.8 + 0.2));
         if (ya == 0 && (xa != 0 || za != 0)) {

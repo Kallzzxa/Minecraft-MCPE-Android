@@ -40,6 +40,23 @@ public:
 
 	int getPotionAux() const { return potionAux; }
 
+	// v48: MP sync. The server packs the base potion aux into the
+	// AddEntityPacket data int (see getAuxData) so the client's
+	// copy of the potion knows its type — without this the client
+	// copy keeps the default-ctor POISON and both the flying bottle
+	// (ThrownPotionRenderer reads getPotionAux) and the impact
+	// burst tint would always be poison. setPotionAux is only
+	// called from the network handler, never from gameplay.
+	void setPotionAux(int aux);
+	// v48: packet data = ownerId (low 24 bits, as Throwable has
+	// always sent) | base aux in bits 24..27. Base aux only (0..10)
+	// — the tint and the bottle icon both mask to base anyway, and
+	// keeping it to 4 bits leaves bit 31 clear so hasMovementData()
+	// (> 0) behaves exactly as before. Bound: ownerId < 2^24
+	// (entityIds are a per-run counter; the tree already packs
+	// FallingTile tile|data<<16 the same way).
+	int getAuxData();
+
 	void addAdditonalSaveData(CompoundTag* tag);
 	void readAdditionalSaveData(CompoundTag* tag);
 
