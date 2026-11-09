@@ -2505,10 +2505,17 @@ Each version is ONE coherent batch of features, shipped as a new APK
     symbols are confirmed defined in the fresh object files:
     `Ghast::hurt` / `Blaze::hurt` (T) in both ABIs,
     `Fireball::onHit` calling `Level::explode(Entity*,...)`).
-    CI `./gradlew assembleDebug` SUCCESS (run TBD — see the v40
-    report); APK `minecraft-mcpe-android-0.6.1-debug-v40.apk`
-    TBD B, sha256 TBD, versionCode 40, `apksigner verify`
-    v1+v2 true, `unzip -t` clean.
+    CI `./gradlew assembleDebug` SUCCESS (run 42550095935, ~4m59s,
+    02:17:24–02:22:23 UTC 2026-11-09); APK
+    `minecraft-mcpe-android-0.6.1-debug-v40.apk`
+    12,945,623 B, sha256
+    81f42dc1a0b8a78f8c023ae7d32c82daed50024cb594e89085df56f219786395,
+    versionCode 40, `apksigner verify` v1+v2 true, `unzip -t`
+    clean; the APK itself was re-checked to contain the new
+    code in its `libminecraftpe.so` (arm64 10,257,224 B /
+    armv7 8,798,084 B — byte-identical sizes to the local
+    build; the .so is stripped so `nm` shows no symbol table —
+    verified instead via the local object files, see above).
   ### Known limits / debts
   - NO fireball reflection exists in this tree (see Audit) — the
     player cannot punch a fireball back today, so the reflected
