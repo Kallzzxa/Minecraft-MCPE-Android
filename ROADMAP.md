@@ -2183,6 +2183,18 @@ Each version is ONE coherent batch of features, shipped as a new APK
     10,265,416 B / armv7 8,793,988 B (v35: 10,249,032 /
     8,789,892), new strings confirmed in both .so files
     (`Wither - Armoured`, `Wither - Charging`, `WitherCharge`).
+    CI `./gradlew assembleDebug` SUCCESS (run 42544406832,
+    ~4m21s, 01:13:27–01:17:48 UTC 2026-11-09); APK
+    `minecraft-mcpe-android-0.6.1-debug-v36.apk`
+    12,948,705 B, sha256
+    c84bea148caa40776056340c1880a0109b784d7b5f651e4241ee3bbbe2d471b8,
+    versionCode 36, `apksigner verify` v1+v2 true, `unzip -t`
+    clean; the APK itself was re-checked to contain the new
+    code in its `libminecraftpe.so` (arm64 10,265,416 B /
+    armv7 8,793,988 B — byte-identical sizes to the local
+    build; the .so is stripped so `nm` shows no symbol table —
+    verified instead via strings: `Wither - Armoured` +
+    `Wither - Charging` + `WitherCharge` present in both ABIs).
   ### Known limits / debts
   - **All v36 tuning numbers are PROVISIONAL** (see above):
     armour threshold 150, charge 100 ticks (5 s), blast power 7,
