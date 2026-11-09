@@ -128,7 +128,7 @@ PaneCraftingScreen::PaneCraftingScreen(int craftingSize)
 	searchFocused(false),
 	craftableOnly(false),
 	bookCollapsed(false),
-	btnBookToggle(5, 0, 0, 18, 16, "<<"),
+	btnBookToggle(5, ""),
 	gridFilled(false),
 	selectedCategoryButton(NULL),
 	guiBackground(NULL),
@@ -329,11 +329,28 @@ void PaneCraftingScreen::setupPositions() {
 	invGridRect = IntRectangle(rightPanelRect.x + (rightW - invW) / 2, craftY + gs * SlotSize + 26, invW, invH);
 
 	// Collapse/expand toggle: top-left corner of the right panel.
-	// "<<" collapses the book on its left, ">>" re-opens it.
+	// v49: a green book icon (drawn glyph in gui/spritesheet.png cell
+	// (96,96), 32x32 — the sheet's only fully empty 32x32 cell; the
+	// tab icons occupy (0..64, 64..96) and the (96,64) cell holds a
+	// 16x3 strip), drawn by the ImageButton itself at 20x20 — the
+	// same path as the category-tab icons, no button frame, like the
+	// screenshot's bare book icon. One glyph for both states: the
+	// reference shows the closed book while the book is OPEN, and the
+	// panel itself makes the state obvious. renderBg is empty for a
+	// plain ImageButton, so no grey SmallButton frame is drawn.
 	btnBookToggle.x = rightPanelRect.x + 4;
 	btnBookToggle.y = panelY + 4;
-	btnBookToggle.width = 18;
-	btnBookToggle.height = 16;
+	btnBookToggle.width = 20;
+	btnBookToggle.height = 20;
+	{
+		ImageDef bookDef;
+		bookDef.name = "gui/spritesheet.png";
+		bookDef.x = 0;
+		bookDef.y = 0;
+		bookDef.width = bookDef.height = 20;
+		bookDef.setSrc(IntRectangle(96, 96, 32, 32));
+		btnBookToggle.setImageDef(bookDef, false);
+	}
 
 	btnClose.width = btnClose.height = 19;
 	btnClose.x = width - btnClose.width;
@@ -588,14 +605,15 @@ void PaneCraftingScreen::buttonClicked(Button* button) {
 	// v44: collapse/expand the recipe book. The layout is recomputed
 	// from scratch (setupPositions is what Screen::init/setSize call),
 	// so the right panel widens/narrows in place. Unfocus the search
-	// first — its field disappears with the book.
+	// first — its field disappears with the book. v49: the button is
+	// one green book icon in both states (no text to swap); the
+	// panel itself shows whether the book is open.
 	if (button == &btnBookToggle) {
 		if (searchFocused) {
 			searchFocused = false;
 			minecraft->platform()->hideKeyboard();
 		}
 		bookCollapsed = !bookCollapsed;
-		btnBookToggle.msg = bookCollapsed ? ">>" : "<<";
 		setupPositions();
 		return;
 	}

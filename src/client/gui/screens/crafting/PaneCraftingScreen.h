@@ -13,6 +13,20 @@ class CItem;
 class Textures;
 class NinePatchLayer;
 
+// v49: recipe-book collapse toggle — a plain ImageButton would sample
+// the cell to the RIGHT of its glyph as the "second image" while hovered
+// (ImageButton::isSecondImage returns hovered); the book glyph lives in
+// the last column of the 128px sheet, so that cell would be out of the
+// texture. This subclass pins the single glyph, like CategoryButton.
+class BookToggleButton: public ImageButton {
+	typedef ImageButton super;
+public:
+	BookToggleButton(int id, const std::string& msg)
+	:	super(id, msg)
+	{}
+	bool isSecondImage(bool hovered) { return false; }
+};
+
 // v42: modern recipe-book layout (see image-22.png): left dark panel
 // with a search bar, category tabs, a 5x4 recipe grid + pagination;
 // right light panel with a 3x3 crafting grid (auto-filled from the
@@ -86,9 +100,12 @@ private:
 
 	// v44: craftable-only filter (toggle next to the search bar) and
 	// recipe-book collapse (button at the top of the right panel).
+	// v49: the collapse button is a green book icon (spritesheet cell
+	// (96,96), 32x32), not "<<"/">>" text — one glyph for both
+	// states, like the screenshot: the panel itself shows the state.
 	bool craftableOnly;
 	bool bookCollapsed;
-	SmallButton btnBookToggle;
+	BookToggleButton btnBookToggle;
 	IntRectangle craftableToggleRect;
 
 	// v44: display grid size: 2 for the inventory screen (SIZE_2X2),
