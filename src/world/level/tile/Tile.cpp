@@ -131,6 +131,8 @@ Tile* Tile::chest		= NULL;
 Tile* Tile::lightGem    = NULL;
 Tile* Tile::portalTile   = NULL;
 Tile* Tile::hellSand     = NULL;
+// v34: wither skeleton skull tile.
+Tile* Tile::skull         = NULL;
 Tile* Tile::quartzOre    = NULL;
 Tile* Tile::netherWart   = NULL;
 // v22: End tiles.
@@ -284,6 +286,11 @@ void Tile::initTiles() {
 	// v21: soul sand. The original tree had this line commented out
 	// AND no HellSandTile class; the tile is live now (texture 171).
 	hellSand = (new HellSandTile(88, 171))->init()->setDestroyTime(0.5f)->setSoundType(SOUND_SAND)->setCategory(ItemCategory::Structures)->setDescriptionId("hellsand");
+	// v34: wither skeleton skull tile (id 144, modern MC). Texture
+	// 252 (terrain.png cell (12, 15)): referenced only by the
+	// never-generated placeholder tiles info_updateGame1/2, see
+	// SkullTile.h. Breaking it drops the skull item back.
+	skull = (new SkullTile(144, 252))->init()->setDestroyTime(1.0f)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("skull");
 
 	lightGem	= (new LightGemTile(89, 9 + 16 * 6, Material::glass))->init()->setDestroyTime(0.3f)->setCategory(ItemCategory::Structures)->setSoundType(SOUND_GLASS)->setLightEmission(1.0f)->setDescriptionId("lightgem");
 	// v21: Nether portal block (texture 170, the swirl). Tile::

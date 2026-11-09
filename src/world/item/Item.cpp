@@ -180,6 +180,8 @@ Item* Item::chorusFruit = NULL;
 Item* Item::endCrystal = NULL;
 // v32: wither skull (modern MC id 397 = ctor 141 + 256).
 Item* Item::witherSkull = NULL;
+// v34: nether star (modern MC id 399 = ctor 143 + 256).
+Item* Item::netherStar = NULL;
 
 //Item* Item::record_01 = NULL;
 //Item* Item::record_02 = NULL;
@@ -373,7 +375,12 @@ void Item::initItems() {
 	Item::emeraldGem = (new Item(433))->setIcon(2, 13)->setCategory(ItemCategory::Decorations)->setDescriptionId("emeraldGem");
 	// v32: wither skull (modern MC id 397; icon drawn into the blank
 	// gui/items.png cell (3, 11); lang item.skullWither.name added).
-	Item::witherSkull = (new Item(141))->setIcon(3, 11)->setCategory(ItemCategory::Tools)->setDescriptionId("skullWither");
+	// v34: now a WitherSkullItem, so it places the skull tile
+	// (id 144) — the ritual needs placeable skulls.
+	Item::witherSkull = (new WitherSkullItem(141))->setIcon(3, 11)->setCategory(ItemCategory::Tools)->setDescriptionId("skullWither");
+	// v34: nether star (modern MC id 399; icon drawn into the blank
+	// gui/items.png cell (4, 11); lang item.netherStar.name added).
+	Item::netherStar = (new Item(143))->setIcon(4, 11)->setCategory(ItemCategory::Tools)->setDescriptionId("netherStar");
 
 	//Item::record_01 = (new RecordingItem(2000, "13"))->setIcon(0, 15)->setCategory(ItemCategory::Decorations)->setDescriptionId("record");
 	//Item::record_02 = (new RecordingItem(2001, "cat"))->setIcon(1, 15)->setCategory(ItemCategory::Decorations)->setDescriptionId("record");

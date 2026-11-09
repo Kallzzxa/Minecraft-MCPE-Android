@@ -164,6 +164,8 @@ void Inventory::setupDefault() {
 		addItem(new ItemInstance(Item::emeraldGem));
 		// v32: wither skull in the creative inventory.
 		addItem(new ItemInstance(Item::witherSkull));
+		// v34: nether star in the creative inventory.
+		addItem(new ItemInstance(Item::netherStar));
 		addItem(new ItemInstance(Tile::stairs_stone));
 		addItem(new ItemInstance(Tile::stairs_wood));
 		Sel[6] = addItem(new ItemInstance(Tile::stairs_brick));

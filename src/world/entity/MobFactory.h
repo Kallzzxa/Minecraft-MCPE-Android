@@ -54,6 +54,9 @@ public:
 			case MobTypes::WitherSkeleton:
 				mob = new WitherSkeleton(level);
 				break;
+			case MobTypes::Wither:
+				mob = new Wither(level);
+				break;
 			case MobTypes::Enderman:
 				mob = new Enderman(level);
 				break;

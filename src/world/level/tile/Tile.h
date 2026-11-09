@@ -217,6 +217,8 @@ public:
     static Tile* pumpkin;
     static Tile* hellRock;
     static Tile* hellSand;
+	// v34: wither skeleton skull tile (placeable skull, ritual).
+    static Tile* skull;
     static Tile* lightGem;
 	static Tile* portalTile;
 	static Tile* quartzOre;

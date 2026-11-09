@@ -245,6 +245,8 @@ public:
 	// v32: wither skull (modern MC id 397, the wither skeleton's
 	// rare drop; the wither boss itself is a separate project).
 	static Item* witherSkull;
+	// v34: nether star (modern MC id 399, the wither boss's drop).
+	static Item* netherStar;
 
     static Item* record_01;
     static Item* record_02;

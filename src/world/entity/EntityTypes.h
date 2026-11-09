@@ -36,6 +36,8 @@ public:
 	static const int IdThrownPotion = 86;
 	// v27: end crystal (static boss-heal / respawn entity).
 	static const int IdEndCrystal = 87;
+	// v34: wither-skull projectile (fired by the wither boss).
+	static const int IdWitherSkull = 88;
 };
 
 // For now; mobs 0-63
@@ -70,6 +72,8 @@ public:
 	static const int MagmaCube	= 44;
 	// v32: wither skeleton (melee skeleton; lives in Nether fortresses).
 	static const int WitherSkeleton	= 45;
+	// v34: wither boss (flying, 300 HP; summon-only, see Wither.h).
+	static const int Wither	= 46;
 };
 
 struct ParticleType {

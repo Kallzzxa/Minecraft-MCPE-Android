@@ -28,6 +28,8 @@
 #include "BlazeRenderer.h"
 #include "DragonRenderer.h"
 #include "FireballRenderer.h"
+#include "WitherRenderer.h"
+#include "WitherSkullRenderer.h"
 #include "ThrownPotionRenderer.h"
 
 #include "ChickenRenderer.h"
@@ -70,6 +72,9 @@ EntityRenderDispatcher::EntityRenderDispatcher()
 	assign(	ER_WITCH_RENDERER,	new HumanoidMobRenderer(new HumanoidModel(), 0.5f));
 	assign(	ER_THROWN_POTION_RENDERER,	new ThrownPotionRenderer());
 	assign(	ER_FIREBALL_RENDERER,	new FireballRenderer());
+	// v34: wither boss + its skull projectile.
+	assign(	ER_WITHER_RENDERER,		new WitherRenderer());
+	assign(	ER_WITHER_SKULL_RENDERER,	new WitherSkullRenderer());
 	assign(	ER_TNT_RENDERER,		new TntRenderer());
 	assign(	ER_ARROW_RENDERER,		new ArrowRenderer());
 	assign( ER_PLAYER_RENDERER,		new PlayerRenderer(new HumanoidModel(), 0));

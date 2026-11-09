@@ -55,6 +55,8 @@ public:
 	void renderHearts();
 	void renderHunger();
 	void renderExperience();
+	// v34: wither boss health bar (top of the screen).
+	void renderBossBar();
 	void renderDebugInfo();
 
 	void renderProgressIndicator( const bool isTouchInterface, const int screenWidth, const int screenHeight, float a );

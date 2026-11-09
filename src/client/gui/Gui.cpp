@@ -14,6 +14,8 @@
 #include "../renderer/Textures.h"
 #include "../../AppConstants.h"
 #include "../../world/entity/player/Inventory.h"
+#include "../../world/entity/Mob.h"
+#include "../../world/entity/EntityTypes.h"
 #include "../../world/level/material/Material.h"
 #include "../../world/item/Item.h"
 #include "../../world/item/ItemInstance.h"
@@ -92,6 +94,11 @@ void Gui::render(float a, bool mouseFree, int xMouse, int yMouse) {
 		t.endOverrideAndDraw();
 		renderExperience();
 	}
+
+	// v34: boss bar in every game mode (a creative tester summons
+	// with creative skulls, so hiding it behind canHurtPlayer
+	// would hide it from exactly the summon test).
+	renderBossBar();
 
 	if(minecraft->player->getSleepTimer() > 0) {
 		glDisable(GL_DEPTH_TEST);
@@ -697,6 +704,43 @@ void Gui::renderExperience() {
 		// only on a hotbar wider than ~174 px.
 		int numY = (barW - 162 >= 12) ? iconY : iconY - 10;
 		font->drawShadow(buf, (float)(screenWidth / 2 - font->width(buf) / 2), (float)numY, 0xFF80FF20);
+	}
+}
+
+void Gui::renderBossBar() {
+	// v34: wither boss health bar. No boss-bar UI existed before;
+	// this reuses the XP-bar pattern (black background + coloured
+	// fill + centred name, GuiComponent::fill + Font::drawShadow).
+	// The live wither is found by scanning Level::entities — no
+	// tracking state on the boss itself, so a reloaded wither
+	// shows its bar again for free.
+	if (minecraft->level == NULL || minecraft->player == NULL) return;
+	Mob* boss = NULL;
+	for (unsigned int i = 0; i < minecraft->level->entities.size(); i++) {
+		Entity* e = minecraft->level->entities[i];
+		if (e != NULL && e->getEntityTypeId() == MobTypes::Wither && e->isAlive()) {
+			boss = (Mob*)e;
+			break;
+		}
+	}
+	if (boss == NULL) return;
+
+	const int screenWidth = (int)(minecraft->width * InvGuiScale);
+	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+	int hbX0, barW, hbTop, xpY, iconY;
+	hudLayout(getNumSlots(), screenWidth, screenHeight, hbX0, barW, hbTop, xpY, iconY);
+
+	// Name above the bar, bar below it, both top-centred (the
+	// hearts/hunger row sits near the hotbar at the bottom, so
+	// nothing up here collides with it).
+	Font* font = minecraft->font;
+	font->drawShadow("Wither", (float)(screenWidth / 2 - font->width("Wither") / 2), 2.0f, 0xFFFFFFFF);
+	const int barH = 5;
+	const int y0 = 12;
+	fill(hbX0, y0, hbX0 + barW, y0 + barH, 0xFF000000);
+	int filled = (int)(barW * (float)boss->health / (float)boss->getMaxHealth());
+	if (filled > 1) {
+		fill(hbX0 + 1, y0 + 1, hbX0 + filled, y0 + barH - 1, 0xFFC000C0);
 	}
 }
 

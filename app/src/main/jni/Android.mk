@@ -178,6 +178,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/entity/monster/PigZombie.cpp \
 ../../../../src/world/entity/monster/Skeleton.cpp \
 ../../../../src/world/entity/monster/WitherSkeleton.cpp \
+../../../../src/world/entity/monster/Wither.cpp \
 ../../../../src/world/entity/monster/Slime.cpp \
 ../../../../src/world/entity/monster/MagmaCube.cpp \
 ../../../../src/world/entity/monster/Spider.cpp \
@@ -185,6 +186,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/entity/monster/Zombie.cpp \
 ../../../../src/world/entity/projectile/Arrow.cpp \
 ../../../../src/world/entity/projectile/Fireball.cpp \
+../../../../src/world/entity/projectile/WitherSkull.cpp \
 ../../../../src/world/entity/projectile/ThrownPotion.cpp \
 ../../../../src/world/entity/projectile/Throwable.cpp \
 ../../../../src/world/entity/player/Inventory.cpp \
@@ -197,6 +199,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/inventory/BrewingMenu.cpp \
 ../../../../src/world/item/ArmorItem.cpp \
 ../../../../src/world/item/BedItem.cpp \
+../../../../src/world/item/WitherSkullItem.cpp \
 ../../../../src/world/item/DyePowderItem.cpp \
 ../../../../src/world/item/Enchantment.cpp \
 ../../../../src/world/item/Item.cpp \
