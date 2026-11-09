@@ -19,8 +19,11 @@
 // 5 houses (cobblestone or plank walls, log corners, plank roof, open
 // doorway facing the centre, glass windows, glowstone floor lamp),
 // 2 farm plots (wheat + carrots, mature, with a water channel) and
-// 4 lamp posts (fence + glowstone). The ground inside the village
-// radius is flattened to the centre height first, so houses sit level.
+// 4 lamp posts (fence + glowstone). The two 7x5 houses (N and the
+// workbench house S) each hold a loot chest (v33, ChestLoot) with
+// bread/wheat/carrots, apples, coal, iron, string and a rare emerald.
+// The ground inside the village radius is flattened to the centre
+// height first, so houses sit level.
 // Villages only generate in plains/desert, on dry land (centre
 // heightmap >= 65, i.e. above the sea level of 64).
 //

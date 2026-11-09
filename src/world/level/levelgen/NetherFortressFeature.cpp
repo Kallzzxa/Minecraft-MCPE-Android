@@ -1,4 +1,5 @@
 #include "NetherFortressFeature.h"
+#include "ChestLoot.h"
 
 #include "NetherLevelSource.h"
 #include "../Level.h"
@@ -121,7 +122,7 @@ static void placePillar(Level* level, int cx, int cz, int x, int z, int deckY)
 	}
 }
 
-static void placeFortress(Level* level, int cx, int cz, int wx, int wz, int deckY)
+static void placeFortress(Level* level, int cx, int cz, int wx, int wz, int deckY, long fortHash)
 {
 	int D = deckY;
 	int brickId = Tile::netherBrick->id;
@@ -175,6 +176,16 @@ static void placeFortress(Level* level, int cx, int cz, int wx, int wz, int deck
 	setF(level, cx, cz, wx + 18, D + 3, wz + 2, glowId);
 	setF(level, cx, cz, wx + 22, D + 3, wz - 2, glowId);
 	setF(level, cx, cz, wx + 22, D + 3, wz + 2, glowId);
+	// v33: one loot chest in the blaze room (east wall, middle —
+	// clear of the glowstone corners, the west doorway and the
+	// blaze spawn spots). The block place creates the
+	// ChestTileEntity via EntityTile::onPlace; ChestLoot fills it.
+	// Guarded by inChunk so only the owning chunk touches it.
+	if (inChunk(cx, cz, wx + 22, wz)) {
+		setF(level, cx, cz, wx + 22, D + 1, wz, Tile::chest->id);
+		Random chestR((long)(fortHash ^ 0xF0E57A11ULL));
+		ChestLoot::fillFortressChest(level, wx + 22, D + 1, wz, &chestR);
+	}
 
 	// Wart room (west): 7x5, x wx-23..wx-17, z wz-2..wz+2.
 	// Soul sand floor, mature wart in two rows.
@@ -241,7 +252,8 @@ void NetherFortressFeature::tryPlaceFortress(Level* level, int chunkX, int chunk
 			if (wz + FORT_RZ < chunkZ * 16 || wz - FORT_RZ > chunkZ * 16 + 15) continue;
 			int deckY = getDeckY(seed, wx, wz);
 			if (deckY < 36) continue; // lava-sea terrain: skip it
-			placeFortress(level, chunkX, chunkZ, wx, wz, deckY);
+			placeFortress(level, chunkX, chunkZ, wx, wz, deckY,
+				(long)fortressHash(seed, gx, gz));
 		}
 	}
 }

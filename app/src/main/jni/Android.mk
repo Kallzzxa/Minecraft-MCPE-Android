@@ -231,6 +231,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/level/levelgen/LargeCaveFeature.cpp \
 ../../../../src/world/level/levelgen/LargeFeature.cpp \
 ../../../../src/world/level/levelgen/RandomLevelSource.cpp \
+../../../../src/world/level/levelgen/ChestLoot.cpp \
 ../../../../src/world/level/levelgen/VillageFeature.cpp \
 ../../../../src/world/level/levelgen/SwampHutFeature.cpp \
 ../../../../src/world/level/levelgen/NetherFortressFeature.cpp \

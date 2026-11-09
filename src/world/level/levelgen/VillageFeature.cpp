@@ -1,4 +1,5 @@
 #include "VillageFeature.h"
+#include "ChestLoot.h"
 
 #include "../Level.h"
 #include "../chunk/LevelChunk.h"
@@ -175,8 +176,10 @@ static void placeWell(Level* level, int cx, int cz, int wx, int wz, int groundY)
 
 // doorSide: 0 = door on the -z wall, 1 = +z wall, 2 = -x wall, 3 = +x wall
 // (the side facing the village centre).
+// chest: v33 — this house gets a loot chest (corner opposite the
+// floor lamp); lootRandom is seeded per house, see placeVillage.
 static void buildHouse(Level* level, int cx, int cz, int x0, int z0, int w, int d,
-	int groundY, int doorSide, int wallId, bool workbench)
+	int groundY, int doorSide, int wallId, bool workbench, bool chest, Random* lootRandom)
 {
 	int woodId = Tile::wood->id;
 	int logId = Tile::treeTrunk->id;
@@ -234,6 +237,20 @@ static void buildHouse(Level* level, int cx, int cz, int x0, int z0, int w, int 
 	setV(level, cx, cz, x0 + 1, groundY + 1, z0 + 1, lampId);
 	if (workbench)
 		setV(level, cx, cz, x0 + w - 2, groundY + 1, z0 + 1, Tile::workBench->id);
+
+	// v33: loot chest in the corner opposite the floor lamp
+	// (lamp is at x0+1, z0+1; the chest goes to x0+1, z0+d-2).
+	// The block place creates the ChestTileEntity via
+	// EntityTile::onPlace; ChestLoot fills it. Guarded by inChunk
+	// so only the chunk that actually owns the chest touches it
+	// (no cross-chunk getTile during postProcess).
+	if (chest) {
+		int chX = x0 + 1, chZ = z0 + d - 2;
+		if (inChunk(cx, cz, chX, chZ)) {
+			setV(level, cx, cz, chX, groundY + 1, chZ, Tile::chest->id);
+			ChestLoot::fillVillageChest(level, chX, groundY + 1, chZ, lootRandom);
+		}
+	}
 }
 
 static void placeFarms(Level* level, int cx, int cz, int wx, int wz, int groundY)
@@ -276,7 +293,7 @@ static void placeLamps(Level* level, int cx, int cz, int wx, int wz, int groundY
 	}
 }
 
-static void placeVillage(Level* level, int cx, int cz, int wx, int wz, int groundY, Random* vr)
+static void placeVillage(Level* level, int cx, int cz, int wx, int wz, int groundY, Random* vr, long villageHashVal)
 {
 	flattenGround(level, cx, cz, wx, wz, groundY);
 	placePaths(level, cx, cz, wx, wz, groundY);
@@ -297,10 +314,16 @@ static void placeVillage(Level* level, int cx, int cz, int wx, int wz, int groun
 		int jx = vr->nextInt(5) - 2;
 		int jz = vr->nextInt(5) - 2;
 		int wallId = (vr->nextInt(2) == 0) ? Tile::stoneBrick->id : Tile::wood->id;
+		// v33: the two 7x5 houses — N (i=0) and the workbench house
+		// S (i=1) — each get a loot chest. The loot Random is seeded
+		// from the village hash + house index, so each chest's loot
+		// is independent of which chunk triggers the fill.
+		bool chestHouse = (i == 0 || i == 1);
+		Random lootR((long)(villageHashVal ^ (0xC4E57A11ULL + (uint64_t)(i + 7))));
 		buildHouse(level, cx, cz,
 			wx + houses[i].dx + jx, wz + houses[i].dz + jz,
 			houses[i].w, houses[i].d, groundY, houses[i].door, wallId,
-			houses[i].bench);
+			houses[i].bench, chestHouse, &lootR);
 	}
 
 	placeLamps(level, cx, cz, wx, wz, groundY);
@@ -328,7 +351,8 @@ void VillageFeature::tryPlaceVillage(Level* level, int chunkX, int chunkZ)
 			int groundY = level->getHeightmap(wx, wz);
 			if (groundY < 65) continue;
 			Random vr((long)villageHash(seed, gx, gz));
-			placeVillage(level, chunkX, chunkZ, wx, wz, groundY, &vr);
+			placeVillage(level, chunkX, chunkZ, wx, wz, groundY, &vr,
+				(long)villageHash(seed, gx, gz));
 		}
 	}
 }
