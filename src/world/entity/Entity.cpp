@@ -496,7 +496,9 @@ void Entity::baseTick()
 		    // like fishing). The vanilla bubble loop above stays, and the
 		    // splash sound above stays; only the bobber spawn goes.
 		    // (SplashParticle + ParticleType::splash stay for the v24/v25
-		    // thrown-potion impact burst — same sprite, separate trigger.)
+		    // thrown-potion impact burst — v47 re-pointed it at the real
+	    // blue droplet sprite, particles.png tex 17, so the burst no
+	    // longer shows bobbers either.)
 		}
 		fallDistance = 0;
 		wasInWater = true;

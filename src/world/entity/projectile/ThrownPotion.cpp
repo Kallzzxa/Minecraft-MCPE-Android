@@ -69,6 +69,9 @@ void ThrownPotion::onHit(const HitResult& res)
 	}
 	// Glass-break sound (registered in v19) + splash particles,
 	// both sides so the throw is visible on the client too.
+	// v47: the splash sprite is the real blue droplet
+	// (particles.png tex 17, SplashParticle) — tex 33 was the
+	// fishing bobber, so the burst used to explode into bobbers.
 	level->playSound(this, "random.glass", 1.0f, 1.0f);
 	for (int i = 0; i < 8; i++) {
 		level->addParticle(PARTICLETYPE(splash), x, y, z,

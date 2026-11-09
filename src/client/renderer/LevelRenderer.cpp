@@ -1199,7 +1199,8 @@ void LevelRenderer::addParticle(const std::string& name, float x, float y, float
 
     if (name == "bubble") mc->particleEngine->add(new BubbleParticle(level, x, y, z, xa, ya, za));
 	// v13: splash droplets (was commented out; SplashParticle is now a
-	// real Particle subclass — see SplashParticle.h).
+	// real Particle subclass — see SplashParticle.h). v47: tex 17,
+	// the real blue droplet sprite (was tex 33, the bobber).
 	else if (name == "splash") mc->particleEngine->add(new SplashParticle(level, x, y, z, xa, ya, za));
 	else if (name == "crit") mc->particleEngine->add(new CritParticle2(level, x, y, z, xa, ya, za));
 	else if (name == "smoke") mc->particleEngine->add(new SmokeParticle(level, x, y, z, xa, ya, za));
