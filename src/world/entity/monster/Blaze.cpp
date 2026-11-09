@@ -17,6 +17,23 @@ Blaze::Blaze(Level* level)
 	attackDamage = 6;
 }
 
+bool Blaze::hurt(Entity* source, int dmg)
+{
+	// v40: same owner-only rule as Ghast::hurt — immune to its
+	// OWN fireball blasts (a blaze shoots at up to 16 blocks and
+	// its blast can land beside it when the target closes in or
+	// the shot hits the fortress wall), but a fireball from
+	// ANOTHER blaze (different ownerId) still hurts, as do TNT /
+	// creeper / crystal blasts, and a reflected fireball will
+	// hurt once reflection exists and reassigns ownerId (see
+	// Throwable::getOwnerId; no reflection mechanic exists in
+	// this tree yet). Blocked hits return before Mob::hurt, so
+	// no invulnerableTime, knockback or hurt sound is spent.
+	if (source != NULL && source->getEntityTypeId() == EntityTypes::IdFireball
+		&& ((Fireball*)source)->getOwnerId() == entityId) return false;
+	return super::hurt(source, dmg);
+}
+
 void Blaze::checkHurtTarget(Entity* target, float d)
 {
 	// Ranged attack, skeleton-style: one aimed fireball every 3 s

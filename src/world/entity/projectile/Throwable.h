@@ -27,6 +27,18 @@ public:
 	void tick();
     void lerpMotion(float xd, float yd, float zd);
 
+    // v40: the mob that shot this projectile (its runtime entityId,
+    // set by the (Level, Mob) ctor; 0 = no owner, e.g. a fireball
+    // rebuilt from a save). Session-only by design — entityIds are
+    // a per-run counter, NOT saved (a saved id would point at a
+    // different entity after reload), and a fireball only lives a
+    // few seconds anyway. This is what lets a ghast/blaze be immune
+    // to its OWN fireball while still taking damage from a reflected
+    // one or another mob's: any future reflection code MUST reassign
+    // ownerId to the deflector (or clear it), or the reflected ball
+    // would still count as the shooter's own.
+    int getOwnerId() const { return ownerId; }
+
     void addAdditonalSaveData(CompoundTag* tag);
     void readAdditionalSaveData(CompoundTag* tag);
 

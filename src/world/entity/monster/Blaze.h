@@ -19,6 +19,10 @@ public:
 	int getMaxHealth() { return 20; }
 	int getEntityTypeId() const { return MobTypes::Blaze; }
 
+	// v40: immune to its OWN fireballs only (see Blaze::hurt) —
+	// a fireball from another blaze still hurts it.
+	bool hurt(Entity* source, int dmg);
+
 	const char* getAmbientSound() { return NULL; }
 	std::string getHurtSound() { return "random.fizz"; }
 	std::string getDeathSound() { return "random.explode"; }

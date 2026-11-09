@@ -2377,6 +2377,159 @@ Each version is ONE coherent batch of features, shipped as a new APK
     refills after the delay, >16 blocks away it stops, quit/
     reload keeps spawner + blazes, breaking it drops nothing,
     old features intact).
+- **v40 — Ghast/blaze fireball self-damage (SHIPPED, build-only).**
+  Pays the v38 debt "ghast/blaze fireballs keep the NULL-source
+  shape". Same one-line family as v38, but NOT a copy of it — the
+  wither's blanket immunity would kill a real modern-MC mechanic
+  (a reflected fireball hurts the ghast), so v40 is owner-scoped.
+  ### Audit (read from code before writing anything)
+  - **Damage routing today**: `Level::explode(source, ...)`
+    (`Level.cpp:1721`) → `Explosion::explode()`
+    (`Explosion.cpp:70,88`): the entity scan is
+    `level->getEntities(source, AABB...)` (the source is excluded
+    from its own blast) and every hit arrives as
+    `e->hurt(source, dmg)` — so the blast's source IS the damage
+    source `hurt()` sees. `Fireball::onHit` (`Fireball.cpp:27`)
+    called `level->explode(NULL, x, y, z, 1.0f, true)` — radius 1
+    + fire, the modern ghast/blaze values — so NO entity was
+    excluded and the shooter took its own blast like anyone else.
+    The v38 formula gives up to ~9 damage at point blank
+    (`(pow²+pow)/2 × 8 × r + 1`, r=1); a ghast has 10 HP, a blaze
+    20 — one own blast can nearly kill a ghast.
+  - **When it can actually happen**: ghast fires ≤28 blocks
+    (`Ghast::checkHurtTarget`, one aimed ball every 3 s), blaze
+    ≤16 (`Blaze::checkHurtTarget`, same cadence) — both
+    `new Fireball(level, this)` + `shoot(xd, yd, zd, 1.0f, 8)`.
+    The ball flies straight (no gravity, no bounce), so it cannot
+    loop back onto its shooter; the real path is the BLAST
+    landing beside the shooter — the target standing close under
+    it, or the shot hitting a wall in a narrow Nether corridor /
+    fortress room. The ghast's 4x4x4 body catches a radius-1
+    blast from ~2 blocks away; the blaze is 0.6 wide, so it needs
+    the blast almost on top of it. Rare, but real — and unlike
+    the wither volley it needs no wall, just a close target.
+  - **`ownerId` is reliable for this — within a session.**
+    `Throwable` stores `ownerId` (`Throwable.h:53`, protected
+    int): the (Level, Mob) ctor sets it to `mob->entityId`
+    (`Throwable.cpp:20`), the flight code already trusts it
+    (`tick`: skips `entityId == ownerId` while `flightTime < 5`,
+    same shape as `Arrow.cpp:179`). `entityId` is a per-run
+    counter (`Entity.cpp:67`, `++entityCounter` from 0), so 0
+    means "no owner" and can never match a real mob — a fireball
+    rebuilt from a save (`EntityFactory.cpp:23`, the (Level)
+    ctor) has ownerId 0 and simply gets no immunity (safe
+    fallback, not a crash). ownerId is deliberately NOT saved:
+    saving it would be wrong, because entityIds are re-assigned
+    on load and a saved id could point at a different entity;
+    a fireball only lives a few seconds anyway. The only other
+    reader is `PigZombie.cpp:74` (arrow owner lookup), same
+    session-only semantics. No getter existed — only
+    `getAuxData()` returning it, which would have been a hack to
+    call from `hurt()` — so v40 adds an explicit `getOwnerId()`.
+  - **NO reflection mechanic exists in this tree — verified, not
+    assumed.** Zero hits for reflect/deflect/rebound in src
+    (only "reflected back" in a redstone comment and "reflect"
+    in raknet docs). `Entity::isPickable()` returns false by
+    default (`Entity.cpp:721`) and `Fireball` does not override
+    it, so the player cannot even target a fireball today — the
+    crosshair pick skips it and no punch can land on it. The
+    brief's reflected-fireball test therefore CANNOT pass in
+    v40: there is nothing to reflect with. What v40 does is
+    preserve the mechanic for the version that adds reflection:
+    immunity is keyed on ownerId, so a future reflection that
+    reassigns ownerId to the deflector makes the reflected ball
+    hurt the ghast automatically (documented as a contract in
+    `Throwable::getOwnerId`). A v38-style blanket immunity
+    ("ghast takes no damage from any fireball") would have made
+    reflection unimplementable without rework — that is why it
+    was rejected here, explicitly.
+  - **Other immunity patterns checked**: Creeper
+    (`Creeper.cpp:88`) calls `explode(this, ...)` — excluded
+    from its own blast (it `remove()`s anyway). Wither v38
+    (skull as source + `Wither::hurt` rejects type
+    `IdWitherSkull`). Ender dragon ALSO shoots `Fireball`
+    (`EnderDragon.cpp:272`, same (Level, Mob) ctor) — it gets NO
+    immunity in v40 (out of scope: ghast/blaze only, and a dragon
+    orbiting at y=82 fires outward/down, so its own blast
+    landing beside it is even less plausible than the ghast's;
+    noted as a debt, not fixed). `Mob::die(source)` is safe for
+    the source change: `source->awardKillScore` is the base
+    no-op for a fireball, and `Player::isPlayer(source)` is
+    false, so no XP changes.
+  - **Rejected alternatives**: (1) Copying v38 exactly
+    (reject any `IdFireball` source in `hurt()`) — kills the
+    reflected-fireball mechanic; rejected on the brief's
+    explicit warning. (2) Passing the SHOOTER as the blast
+    source (`explode(owner, ...)`) — `getEntities` would exclude
+    the shooter from the blast entirely, which also hides the
+    shooter from knockback/damage bookkeeping and makes
+    `hurt()` see the ghast itself as the source (melee-shaped,
+    wrong for `die()`/kill credit); the fireball-as-source shape
+    keeps the blast honest and the check exact. (3) Skipping the
+    owner inside `Explosion::explode` — touches the generic path
+    shared by TNT/creeper/crystals for a ghast/blaze-only rule.
+  - **Decision (modern MC)**: a ghast/blaze takes no damage
+    from a fireball IT shot. A fireball from ANOTHER ghast/blaze
+    still hurts it (different ownerId), TNT / creeper / crystal
+    blasts still hurt it (NULL or another entity), and a
+    reflected fireball will hurt it once reflection exists and
+    reassigns ownerId.
+  ### What shipped
+  - `Throwable::getOwnerId()` (new, `Throwable.h`): public
+    accessor for the protected `ownerId`, with the session-only
+    + reflection contract documented in the comment.
+  - `Fireball::onHit`: `level->explode(NULL, ...)` →
+    `level->explode(this, ...)` (source = the fireball). Player
+    + other mobs are unaffected by the source change: same damage
+    formula, same radius, same fire; the only difference is
+    knockback — `Mob::hurt` now knocks them away from the blast
+    centre (the fireball sits at it) instead of a random
+    direction with no knockback (the NULL path). The fireball
+    itself is excluded from its own blast by `getEntities`
+    (it was being `remove()`d anyway).
+  - `Ghast::hurt` / `Blaze::hurt` (new overrides): reject exactly
+    `source != NULL && source->getEntityTypeId() ==
+    EntityTypes::IdFireball && ((Fireball*)source)->getOwnerId()
+    == entityId` → return false, before `Mob::hurt`, so no
+    invulnerableTime, knockback or hurt sound is spent on
+    blocked hits. A second ghast's / blaze's fireball lands
+    normally (different ownerId); a fireball with ownerId 0
+    (rebuilt from a save) lands normally too.
+  - Version bump 39 -> 40 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local NDK r17c
+    build (both ABIs) passes: `libminecraftpe.so` arm64
+    10,257,224 B / armv7 8,798,084 B (v39: 10,261,320 /
+    8,798,084 — arm64 is ~4 KiB SMALLER despite the added code;
+    the change is three small code paths, no new strings, so
+    this is codegen noise, not a missing feature — the new
+    symbols are confirmed defined in the fresh object files:
+    `Ghast::hurt` / `Blaze::hurt` (T) in both ABIs,
+    `Fireball::onHit` calling `Level::explode(Entity*,...)`).
+    CI `./gradlew assembleDebug` SUCCESS (run TBD — see the v40
+    report); APK `minecraft-mcpe-android-0.6.1-debug-v40.apk`
+    TBD B, sha256 TBD, versionCode 40, `apksigner verify`
+    v1+v2 true, `unzip -t` clean.
+  ### Known limits / debts
+  - NO fireball reflection exists in this tree (see Audit) — the
+    player cannot punch a fireball back today, so the reflected
+    half of the v40 rule is preserved in code but untestable on
+    device. The natural follow-up is a reflection batch: make
+    the fireball pickable + reverse its velocity on a player hit
+    + reassign ownerId to the player (the contract in
+    `Throwable::getOwnerId`); the attack path
+    (`GameMode`/`Player::attack` vs a non-mob entity) was NOT
+    audited in v40 and must be audited first. See "Next".
+  - The ender dragon's own fireballs can still hurt it (same
+    NULL-source shape v40 just removed for ghast/blaze — the
+    dragon was deliberately out of scope; its orbit makes a
+    self-blast near-impossible in practice). One-line family
+    with v40 if it ever shows up in play.
+  - A fireball rebuilt from a save has ownerId 0 and no immunity
+    (session-only ids — see Audit; a deliberate, safe fallback).
+  - All of it is build-only until a live test on device (see
+    the "Next" v40 test list: own-fireball immunity, cross-ghast/
+    cross-blaze fireballs still hurt, player/mobs still hurt,
+    no crash, old features intact).
 - **v37 — Multi-wither boss bar: lowest-HP wither (SHIPPED,
   build-only).** Pays the v36 "Next" candidate — the last
   wither-only debt. One batch, one file of gameplay code.
@@ -3494,20 +3647,46 @@ Each version is ONE coherent batch of features, shipped as a new APK
   (fortress layout, wart room, loot chest, wither skeletons,
   boss bar, skull self-damage) and the old features, no crash.
   The v38 APK stays the fallback until this stage passes.
-- **Next version (v40 candidate): ghast/blaze fireball
-  self-damage.** The v38 debt, same family as the fix that just
-  shipped: `Fireball::onHit` uses the same NULL-source shape the
-  wither skull had, so a ghast or blaze CAN hurt itself with its
-  own fireball blast. Why this next, and why not the rose dye,
-  the boss-bar icon, or spawner mob-switching: the rose's dye use
-  still needs a dye system first (a whole subsystem, not a
-  batch), the icon is cosmetic, spawner mob-switching needs a
-  spawn-egg system + a tile-entity renderer that do not exist,
-  while the fireball fix is the same one-line shape as v38 (pass
-  the fireball as the blast source + a shooter-immunity check)
-  and closes a real gameplay bug. All spawner tuning stays
-  provisional until the v39 device feel arrives — do NOT re-tune
-  blind.
+- **Device verification for the ghast/blaze fireball self-damage
+  (v40's open item).** Uninstall the old APK first (fresh CI debug
+  keystore). Enter the Nether, find a ghast, let it shoot at you
+  while you stand CLOSE under it / back it against a wall in a
+  narrow corridor so its fireball explodes near itself — check its
+  HP does NOT drop from its own blast (it has only 10 HP, so one
+  own blast would nearly kill it before v40); same for a blaze in
+  a fortress room (fireball exploding beside it must not hurt it).
+  Check a fireball from ANOTHER ghast/blaze DOES hurt the first
+  one (lure two ghasts/blazes so one's shot lands near the other);
+  check the player + nearby mobs STILL take explosion damage +
+  fire from fireball blasts; check TNT/creeper blasts still hurt
+  a ghast/blaze. HONEST LIMIT: the reflected-fireball test in the
+  brief CANNOT be run in v40 — there is NO reflection mechanic in
+  this tree (a fireball is not pickable, the player cannot punch
+  one back), so do not report "reflection works" or "reflection
+  fails"; v40 only preserves the mechanic for the version that
+  adds it. Re-check the v31–v39 lists (fortress, spawner, boss
+  bar, skull self-damage) and the old features, no crash. The v39
+  APK stays the fallback until this stage passes.
+- **Next version (v41 candidate): fireball reflection.** The
+  mechanic v40 deliberately preserved but could not ship: the
+  player punches a ghast fireball back and it hurts the ghast
+  (modern MC's signature ghast fight). Why this next, and why not
+  the rose dye, the boss-bar icon, or spawner mob-switching: the
+  rose's dye use still needs a dye system first (a whole
+  subsystem, not a batch), the icon is cosmetic, spawner
+  mob-switching needs a spawn-egg system + a tile-entity renderer
+  that do not exist, while reflection is the direct follow-up to
+  v40 — the ownerId contract is already in place
+  (`Throwable::getOwnerId`), so the batch is small: make the
+  fireball pickable + reverse its velocity on a player hit +
+  reassign ownerId to the player. The attack path
+  (`GameMode`/`Player::attack` vs a non-mob entity) was NOT
+  audited in v40 and must be audited first — if punching a
+  non-mob entity cannot land a hit at all, the batch is bigger
+  than it looks and should be reported honestly, not ground
+  through. All spawner tuning stays provisional until the v39
+  device feel arrives — do NOT re-tune blind.
+- **v40 — Ghast/blaze fireball self-damage.** SHIPPED (see "Done").
 - **v39 — Blaze spawner tile.** SHIPPED (see "Done").
 - **v38 — Wither skull self-damage.** SHIPPED (see "Done").
 - **v37 — Multi-wither boss bar.** SHIPPED (see "Done").

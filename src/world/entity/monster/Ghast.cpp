@@ -18,6 +18,30 @@ Ghast::Ghast(Level* level)
 	attackDamage = 0;
 }
 
+bool Ghast::hurt(Entity* source, int dmg)
+{
+	// v40: immune to its OWN fireball blasts only (modern MC: a
+	// ghast takes no damage from a fireball it shot itself — its
+	// blast can land close by when the target stands near it or
+	// the shot hits a wall in a narrow Nether corridor, and the
+	// ghast's 4x4x4 body catches a radius-1 blast from ~2 blocks
+	// away). The check is exact, not a blanket fireball immunity:
+	// Fireball::onHit passes the fireball as the blast source
+	// (Explosion.cpp calls hurt(source, dmg)), and the fireball's
+	// ownerId is the shooter — so a fireball shot by ANOTHER
+	// ghast (different ownerId) still hurts, TNT / creeper /
+	// end-crystal blasts (NULL or another entity) still hurt, and
+	// a REFLECTED fireball will hurt too as soon as reflection
+	// exists and reassigns ownerId to the deflector (no reflection
+	// mechanic exists in this tree yet — see ROADMAP v40, so that
+	// half is untestable in this version, only preserved). Blocked
+	// hits return before Mob::hurt, so no invulnerableTime,
+	// knockback or hurt sound is spent on them.
+	if (source != NULL && source->getEntityTypeId() == EntityTypes::IdFireball
+		&& ((Fireball*)source)->getOwnerId() == entityId) return false;
+	return super::hurt(source, dmg);
+}
+
 void Ghast::tick()
 {
 	super::tick();
