@@ -2079,6 +2079,129 @@ Each version is ONE coherent batch of features, shipped as a new APK
     check perch + heal-beam + respawn v27-v29 still work, no
     crash, old features intact).
 
+- **v38 — Wither skull self-damage (SHIPPED, build-only).** Pays the
+  v34/v35/v36 debt "the wither's own skull blasts can still damage
+  it (NULL source)". One batch, two lines of gameplay code.
+  ### Audit (read from code before writing anything)
+  - **Damage routing today**: `Level::explode(source, ...)`
+    (`Level.cpp:1721`) → `Explosion::explode()` (`Explosion.cpp`):
+    the entity scan is `level->getEntities(source, AABB...)`, and
+    `Level::getEntities` EXCLUDES its first argument — so an
+    explosion's source is never hurt by its own blast, and a NULL
+    source means NO exclusion at all. Every hit then arrives as
+    `Mob::hurt(Entity* source, int dmg)` (`Mob.cpp:454`, the
+    single damage gate: i-frames, knockback, death → `die(source)`).
+  - **The bug, exactly**: `WitherSkull::onHit`
+    (`WitherSkull.cpp:45`) called `level->explode(NULL, x, y, z,
+    1.0f, false)`. The WITHER-EFFECT half was already immune —
+    the radius-2 loop skips every entity whose type is
+    `MobTypes::Wither` (v34) — but the explosion half had no
+    exclusion: any wither within the blast's 2-block scan radius
+    took `hurt(NULL, dmg)`, up to ~9 damage at point blank
+    (the `Explosion.cpp` formula `(pow²+pow)/2 × 8 × r + 1`,
+    r=1). `Wither::hurt` (v36) could not stop it: its armour
+    check only rejects PROJECTILE sources, and its header comment
+    admitted the gap ("the wither can still be hurt by its own
+    skulls' blasts, exactly as in v34/v35"). The usual case is a
+    volley fired at a wall / at the player standing close under
+    the boss, or a second wither's skull landing near the first —
+    so the v37 lowest-HP bar could drain from the boss fighting
+    itself, not from the player.
+  - **Summon blast — AUDITED, NOT a bug, unchanged**:
+    `Wither::tick` fires it as `level->explode(this, ...)`
+    (source = the wither), so `getEntities` excludes the wither
+    from its own power-7 blast, AND `hurt()` still blocks
+    everything while the charge counter is 1 on the blast tick.
+    Double protection already; v38 touches nothing there.
+  - **Other mobs' self-immunity patterns**: Creeper
+    (`Creeper.cpp:88`) calls `explode(this, ...)` — excluded
+    from its own blast (it `remove()`s anyway). Ghast/blaze
+    fireballs (`Fireball::onHit`, `Fireball.cpp:27`) use the SAME
+    NULL shape as the skull did — a ghast CAN in principle hurt
+    itself with its own fireball blast; in practice its blast
+    lands at the target up to 28 blocks away, so it almost never
+    happens. NOT fixed here (out of scope, different mob, no
+    wither-immunity rule to apply) — noted as a debt below.
+  - **Rejected alternatives (why the fix is shaped as it is)**:
+    (1) Rejecting NULL-source damage in `Wither::hurt` — cannot
+    distinguish a skull blast from TNT (`PrimedTnt::explode`
+    passes NULL, `PrimedTnt.cpp:78`), and TNT must still hurt
+    the wither (v36 design). (2) Passing the SHOOTER wither as
+    the blast source — `Throwable` stores only an `ownerId`
+    int, no owner pointer, so it would need a
+    `Level::getEntity(ownerId)` lookup, and `getEntities`
+    exclusion would protect only the shooter, not a second
+    wither. (3) Skipping withers inside `Explosion::explode` —
+    touches the generic path shared by TNT/creeper/crystals for
+    a wither-only rule. (4) The chosen shape instead: the blast
+    source becomes the SKULL itself, which identifies the blast
+    by type (88), and `Wither::hurt` rejects exactly that type.
+  - **Decision (modern MC)**: the wither is immune to wither
+    skulls, period — its own volley AND another wither's. The
+    effect half already applied this rule to all withers; the
+    damage half now matches it.
+  ### What shipped
+  - `WitherSkull::onHit`: `level->explode(NULL, ...)` →
+    `level->explode(this, ...)` (source = the skull). Player +
+    other mobs are unaffected by the source change: same damage
+    formula, same radius, same no-fire; the only difference is
+    knockback — `Mob::hurt` now knocks them away from the blast
+    centre (the skull sits at it) instead of a random direction
+    with no knockback (the NULL path). `Player::hurt`'s
+    difficulty-scaling branch is untouched (a skull is neither
+    `BaseEnemy` nor an Arrow); `Mob::die(source = skull)` gives
+    no XP (not a player — same as NULL) and `awardKillScore`
+    is the base no-op for a non-player source.
+    `Tile::getExplosionResistance(source)` ignores its argument,
+    so block damage is identical.
+  - `Wither::hurt`: new check, before the armoured-phase check —
+    `source != NULL && source->getEntityTypeId() ==
+    EntityTypes::IdWitherSkull` → return false, in EVERY phase
+    (charging is already blocked above it; armoured already
+    blocked projectiles, so this only changes the unarmoured
+    phase). Blocked hits return before `Mob::hurt`, so no
+    invulnerableTime, knockback or hurt sound is spent on them.
+    A second wither's skull is rejected the same way, since the
+    blast calls `hurt(skull, dmg)` on every wither in radius.
+  - `Wither.h` header comment updated: the v36 routing paragraph
+    no longer claims the wither can be hurt by its own skulls.
+  - Version bump 37 -> 38 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local NDK r17c
+    build (both ABIs) passes: `libminecraftpe.so` arm64
+    10,244,936 B / armv7 8,793,988 B — byte-identical sizes to
+    v37 (the change is two small code paths, no new strings);
+    the fresh `Wither.o` / `WitherSkull.o` were confirmed
+    rebuilt after the edit and `Wither::hurt` references
+    `getEntityTypeId` (the new skull check alongside the v36
+    projectile check). CI `./gradlew assembleDebug` SUCCESS
+    (run 42547005603, ~4m55s, 01:42:47–01:47:42 UTC
+    2026-11-09); APK
+    `minecraft-mcpe-android-0.6.1-debug-v38.apk`
+    12,947,639 B, sha256
+    b6149ed49c9af847cce60e605e920a8dec8a7b76e80897487d6583b8f2db2cc9,
+    versionCode 38, `apksigner verify` v1+v2 true, `unzip -t`
+    clean; the APK itself was re-checked to contain the new
+    code in its `libminecraftpe.so` (arm64 10,244,936 B /
+    armv7 8,793,988 B — byte-identical sizes to the local
+    build; the .so is stripped so `nm` shows no symbol table —
+    verified instead via the local object files, see above).
+  ### Known limits / debts
+  - Ghast/blaze fireballs keep the NULL-source shape
+    (`Fireball::onHit`): a ghast or blaze CAN still hurt itself
+    with its own fireball blast in principle. Same one-line
+    shape as this fix (pass the fireball as source + a
+    shooter-immunity check), but it is a different mob with no
+    modern-MC immunity rule of its own — a separate batch if
+    it ever shows up in play, not smuggled into this one.
+  - The boss bar still has no wither icon (cosmetic, v34 debt).
+    The wither rose still has no dye use (needs a dye system
+    first — a whole subsystem, not a batch).
+  - All v36 tuning numbers stay PROVISIONAL until the v34/v35/v36
+    device feel arrives — do NOT re-tune blind.
+  - All of it is build-only until a live test on device (see
+    the "Next" v38 test list: self-damage gone, cross-wither
+    skulls harmless, player/mobs still hurt, summon blast still
+    safe, no crash, old features intact).
 - **v37 — Multi-wither boss bar: lowest-HP wither (SHIPPED,
   build-only).** Pays the v36 "Next" candidate — the last
   wither-only debt. One batch, one file of gameplay code.
@@ -3165,23 +3288,36 @@ Each version is ONE coherent batch of features, shipped as a new APK
   (Charging blue during the 5 s charge-up, Armoured grey below
   half HP); re-check the v34–v36 lists and the old features, no
   crash. The v36 APK stays the fallback until this stage passes.
-- **Next version (v38 candidate): wither skull self-damage.** The
-  wither trilogy + the multi-wither bar (v34–v37) are complete, and
-  this is the last wither-fight correctness debt standing: the
-  wither's own skull blasts can still damage it (NULL source,
-  pre-existing v34/v35 behaviour, noted in the v36 debts). In
-  modern MC the boss never hurts itself with its own volley, and
-  the bug is visible in every fight — a volley fired at a wall
-  next to the boss chips its own bar, so the lowest-HP bar in v37
-  can drain from the boss fighting itself, not from the player.
-  Why this next, and why not the rose dye or the boss-bar icon:
-  the rose's black-dye use needs a dye system first (no dye system
-  exists in this tree — a whole subsystem, not a batch), the icon
-  is cosmetic, while the self-damage fix is local (one damage
-  routing decision in `Wither`/`Explosion`) and makes the v37 bar
-  honest. Smaller debts in the same area: the bar has no wither
-  icon (cosmetic, v34 debt). All wither tuning stays provisional
+- **Device verification for wither skull self-damage (v38's open
+  item).** Uninstall the old APK first (fresh CI debug keystore).
+  Summon the wither (same ritual as v34) and let it fire volleys at
+  the player from close range — stand under it, let skulls explode
+  against walls right next to the boss — and check the boss bar
+  does NOT drain unless the player actually hits it (no more
+  self-inflicted chip damage); summon TWO withers close together
+  and check their skulls do not hurt each other (bars stay full
+  until the player engages); check the player + nearby mobs STILL
+  take explosion damage + the wither effect (black hearts, HP
+  draining) from skull blasts; check the summon power-7 blast
+  still does not hurt the newly summoned wither (bar full after
+  the charge-up) while still hurting a player standing on the
+  ritual; re-check the v34–v37 lists (3-skull volley, rose, wall
+  skulls, charge-up, armour, lowest-HP bar) and the old features,
+  no crash. The v37 APK stays the fallback until this stage passes.
+- **Next version (v39 candidate): blaze spawner tile.** The wither
+  trilogy + bar + self-damage (v34–v38) are complete, and this is
+  the oldest open structure debt standing: the fortress blaze room
+  (v31) still refills its blazes by chunk-reload top-up, not by a
+  spawner block — `Tile::mobSpawner` is declared but never defined
+  and no spawner tile entity exists in the tree. Why this next, and
+  why not the rose dye or the bar icon: the rose's black-dye use
+  needs a dye system first (a whole subsystem, not a batch), the
+  icon is cosmetic, while the spawner is bounded (one tile + one
+  tile entity + a spawn tick, on the ChestTileEntity /
+  MobSpawner precedents) and makes the fortress feel alive instead
+  of refilling artificially. All wither tuning stays provisional
   until the v36 device feel arrives — do NOT re-tune blind.
+- **v38 — Wither skull self-damage.** SHIPPED (see "Done").
 - **v37 — Multi-wither boss bar.** SHIPPED (see "Done").
 - **v35 — Wither boss, stage 2.** SHIPPED (see "Done").
 
