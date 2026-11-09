@@ -1,27 +1,48 @@
 #ifndef NET_MINECRAFT_WORLD_ENTITY_MONSTER__Wither_H__
 #define NET_MINECRAFT_WORLD_ENTITY_MONSTER__Wither_H__
 
-// v34: wither boss (MobTypes::Wither = 46), stage 1.
+// v36: wither boss, stage 3 — armoured phase + spawn charge-up.
 //
-// A Monster (old-AI, like the ghast / ender dragon) that flies by
-// steering (dragon's steerTo + ghast's gravity-free travel), chases
-// the nearest player in the air and shoots wither-skull projectiles
-// (WitherSkull). 300 HP, fire-immune, regenerates 1 HP / 20 ticks.
+// Armoured phase (below half HP, 150): the wither is immune to
+// projectiles (arrows and every Throwable — modern MC arrow
+// immunity), melee only. Deliberately NO damage reduction on top:
+// the coordinator's tuning rule for v36 is "do not make the fight
+// harder than v35" (no v34/v35 device feel yet), so the phase is a
+// different second half, not a wall — melee DPS is unchanged, the
+// player just has to close in. Once armoured, always armoured
+// (derived from health, no flag to clear).
 //
-// Spawning: summon-only — never in any spawn list. The ritual is
-// detected in trySummonFromSkull (called from SkullTile::setPlacedBy
-// when a skull is placed): soul sand in a T (3 in a row + 1 below
-// the middle) with a wither skull on top of each of the 3, in either
-// the X or the Z orientation. The structure is consumed, an
-// explosion goes off, and the wither appears above it.
+// Spawn charge-up: a summoned wither does not fight at once — it
+// grows for WITHER_SPAWN_CHARGE_TICKS (5 s), fully invulnerable
+// (hurt() returns false), hovering in place without chasing or
+// attacking, then a power-7 explosion goes off (modern MC summon
+// blast, was radius 3 in v34/v35) and the fight starts. The 5 s
+// window is the dodge time: walk ~20 blocks away in it. The blast
+// is centred on the wither (source = the wither, so the explosion
+// itself never hurts it, and hurt() still blocks while the counter
+// is 1 on the blast tick).
 //
-// Boss-bar: Gui::renderBossBar finds the live wither in
-// Level::entities (no tracking state on the boss itself).
+// Visuals: the renderer grows the wither from half-size to full
+// during the charge and bulks it ~8% while armoured; the boss bar
+// shows "Wither - Charging" / "Wither - Armoured" with a changed
+// fill colour; smoke puffs rise off the wither while charging or
+// armoured. The charge counter survives save/load ("WitherCharge");
+// the armoured state needs no save (derived from health).
 //
-// Like the dragon, tick() calls Mob::tick(), NOT Monster::tick() —
-// Monster::tick removes the mob on PEACEFUL, which would delete the
-// boss mid-fight. Sounds reuse the skeleton's (no wither audio
-// files exist in this tree).
+// Damage routing (audit): every hit in this tree arrives as
+// Mob::hurt(Entity* source, int dmg) — Player::attack passes the
+// player (melee), Arrow::tick passes the Arrow entity (type 80),
+// explosions pass their source entity or NULL. So the armour check
+// is a source-type check in this one override; NULL-source damage
+// (explosions, wither-effect ticks) is NOT blocked in the armoured
+// phase — TNT stays a valid weapon and the wither can still be
+// hurt by its own skulls' blasts, exactly as in v34/v35.
+//
+// No phase/invulnerable pattern existed to copy: the EnderDragon
+// (v22/v28) has a perch STATE MACHINE (ORBIT/DESCEND/PERCHED/
+// ASCEND) but no damage-phase and no invulnerability — the dragon
+// is always hittable, even perched. The charge counter here is a
+// plain countdown in tick(), not a dragon-style state machine.
 
 #include "Monster.h"
 
@@ -39,6 +60,13 @@ public:
 	// override shape as the dragon's 200).
 	void heal(int amount);
 
+	// v36: damage gate — charge-up invulnerability + armoured
+	// projectile immunity (see header comment). Blocked hits
+	// return false before Mob::hurt, so no invulnerableTime,
+	// knockback or hurt sound is spent on them; an arrow that
+	// fails here bounces off (Arrow::tick's hurt==false path).
+	bool hurt(Entity* source, int dmg);
+
 	void tick();
 	void travel(float xa, float ya);
 
@@ -47,6 +75,24 @@ public:
 	// (same fix shape as the dragon's perch-hop suppression,
 	// but unconditional: the wither is airborne everywhere).
 	void updateAi();
+
+	// v36: armoured phase — live, below half HP (150). Derived
+	// from health, so it survives save/load for free and can
+	// never be "turned off" once entered.
+	bool isArmoured() { return health > 0 && health < WITHER_ARMOUR_HEALTH; }
+	// v36: still growing after the summon (charge counter > 0).
+	bool isCharging() { return spawnChargeTicks > 0; }
+	int getSpawnChargeTicks() { return spawnChargeTicks; }
+	// v36: 0.0 just summoned, 1.0 fully grown (renderer scale).
+	float getSpawnChargeFraction() {
+		return 1.0f - (float)spawnChargeTicks / (float)WITHER_SPAWN_CHARGE_TICKS;
+	}
+	// v36: called by trySummonFromSkull — starts the 5 s
+	// charge-up instead of exploding at once (v34/v35).
+	void startSpawnCharge() { spawnChargeTicks = WITHER_SPAWN_CHARGE_TICKS; }
+
+	void addAdditonalSaveData(CompoundTag* tag);
+	void readAdditionalSaveData(CompoundTag* tag);
 
 	const char* getAmbientSound() { return "mob.skeleton"; }
 	std::string getHurtSound() { return "mob.skeletonhurt"; }
@@ -83,6 +129,24 @@ private:
 	static const int WITHER_MAX_HEALTH = 300;
 	static const int WITHER_TARGET_RANGE = 48;
 	static const int WITHER_HOVER_HEIGHT = 3; // blocks above the player
+	// v36 tuning (PROVISIONAL — no v34/v35 device feel yet, see
+	// ROADMAP v36): armour below half HP; 5 s charge-up; power-7
+	// summon blast (modern MC value, was radius 3 in v34/v35).
+	static const int WITHER_ARMOUR_HEALTH = 150;
+	static const int WITHER_SPAWN_CHARGE_TICKS = 100;
+	static const float WITHER_SUMMON_BLAST_POWER;
+
+	// v36: charge-up countdown (ticks left). 0 = fighting.
+	// Set only by startSpawnCharge() at summon; persisted in
+	// the save tag so a quit mid-charge resumes the charge.
+	int spawnChargeTicks;
+
+	// v36: is this damage source a projectile? Arrow (80),
+	// snowball (81), egg (82), fireball (85), splash potion
+	// (86), wither skull (88) — every EntityTypes projectile
+	// id. Melee (a Mob/Player source) and explosions (source =
+	// the exploding entity, or NULL) are NOT projectiles.
+	static bool isProjectileSource(Entity* source);
 
 	// Steer the velocity toward a fixed point (the dragon's orbit
 	// steering, reused exactly: ease toward the point, capped

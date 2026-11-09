@@ -5,11 +5,16 @@
 #include "../../level/tile/Tile.h"
 #include "../../../util/Mth.h"
 #include "../../../SharedConstants.h"
+#include "../../../nbt/CompoundTag.h"
+#include "../EntityTypes.h"
 #include "../player/Player.h"
 #include "../projectile/WitherSkull.h"
 
+const float Wither::WITHER_SUMMON_BLAST_POWER = 7.0f;
+
 Wither::Wither(Level* level)
-:	super(level)
+:	super(level),
+	spawnChargeTicks(0)
 {
 	entityRendererId = ER_WITHER_RENDERER;
 	textureName = "mob/wither.png";
@@ -26,6 +31,49 @@ void Wither::heal(int amount)
 	health += amount;
 	if (health > WITHER_MAX_HEALTH) health = WITHER_MAX_HEALTH;
 	invulnerableTime = invulnerableDuration / 2;
+}
+
+bool Wither::isProjectileSource(Entity* source)
+{
+	if (source == NULL) return false;
+	switch (source->getEntityTypeId()) {
+	case EntityTypes::IdArrow:
+	case EntityTypes::IdSnowball:
+	case EntityTypes::IdThrownEgg:
+	case EntityTypes::IdFireball:
+	case EntityTypes::IdThrownPotion:
+	case EntityTypes::IdWitherSkull:
+		return true;
+	default:
+		return false;
+	}
+}
+
+bool Wither::hurt(Entity* source, int dmg)
+{
+	// v36: spawn charge-up — fully invulnerable while growing.
+	if (spawnChargeTicks > 0) return false;
+	// v36: armoured phase — projectile-immune, melee only. No
+	// damage reduction on top (conservative tuning: melee DPS
+	// is unchanged, the phase forces closing in, not a wall).
+	// NULL-source damage (explosions, wither-effect ticks)
+	// still lands — TNT stays a valid weapon.
+	if (isArmoured() && isProjectileSource(source)) return false;
+	return super::hurt(source, dmg);
+}
+
+void Wither::addAdditonalSaveData(CompoundTag* tag)
+{
+	super::addAdditonalSaveData(tag);
+	tag->putShort("WitherCharge", (short)spawnChargeTicks);
+}
+
+void Wither::readAdditionalSaveData(CompoundTag* tag)
+{
+	super::readAdditionalSaveData(tag);
+	// Missing on old saves (v34/v35) -> getShort returns 0,
+	// i.e. a fighting wither, which is exactly right.
+	spawnChargeTicks = tag->getShort("WitherCharge");
 }
 
 void Wither::steerTo(float tx, float ty, float tz)
@@ -55,20 +103,50 @@ void Wither::tick()
 		// Regenerate 1 HP / 20 ticks (modern MC). Direct health
 		// increment, NOT heal(): heal() sets invulnerableTime,
 		// which would make the boss unhittable half the time.
+		// (A no-op during the charge-up: it spawns at full HP
+		// and hurt() blocks everything while charging.)
 		if (health > 0 && health < WITHER_MAX_HEALTH && tickCount % 20 == 0) {
 			health++;
 		}
-		// Chase: hover above the nearest player. No target in
-		// range: hover in place with a gentle bob (ghast pattern).
-		Player* p = level->getNearestPlayer(this, (float)WITHER_TARGET_RANGE);
-		if (p != NULL) {
-			steerTo(p->x, p->y + (float)WITHER_HOVER_HEIGHT, p->z);
-		} else if (!onGround) {
-			yd += Mth::sin(tickCount * 0.06f) * 0.002f;
+		if (spawnChargeTicks > 0) {
+			// v36: charge-up — hover in place, bobbing, no
+			// chase, no attack (checkHurtTarget also gates).
+			// On the last charge tick the power-7 summon blast
+			// goes off (modern MC), THEN the counter clears so
+			// the fight starts. The blast's source is the
+			// wither itself (excluded from its own explosion)
+			// and the counter is still 1 during the blast, so
+			// hurt() would block it even if it were included.
+			if (spawnChargeTicks == 1) {
+				level->explode(this, x, y + 1.0f, z, WITHER_SUMMON_BLAST_POWER, false);
+				level->playSound(x, y, z, "random.explode", 1.0f, 0.5f);
+			}
+			spawnChargeTicks--;
+			if (!onGround) {
+				yd += Mth::sin(tickCount * 0.06f) * 0.002f;
+			}
+		} else {
+			// Chase: hover above the nearest player. No target in
+			// range: hover in place with a gentle bob (ghast pattern).
+			Player* p = level->getNearestPlayer(this, (float)WITHER_TARGET_RANGE);
+			if (p != NULL) {
+				steerTo(p->x, p->y + (float)WITHER_HOVER_HEIGHT, p->z);
+			} else if (!onGround) {
+				yd += Mth::sin(tickCount * 0.06f) * 0.002f;
+			}
+			// Face the direction of travel.
+			if (xd * xd + zd * zd > 0.001f) {
+				yRot = (float)(std::atan2(zd, xd) * Mth::RADDEG) - 90;
+			}
 		}
-		// Face the direction of travel.
-		if (xd * xd + zd * zd > 0.001f) {
-			yRot = (float)(std::atan2(zd, xd) * Mth::RADDEG) - 90;
+		// v36: smoke puffs while charging or armoured — the
+		// in-world tell for both phases (Mob::tick's wither
+		// smoke precedent, same call shape).
+		if ((spawnChargeTicks > 0 || isArmoured()) && tickCount % 10 == 0) {
+			level->addParticle(PARTICLETYPE(smoke),
+				x + (random.nextFloat() - 0.5f) * bbWidth,
+				y + random.nextFloat() * bbHeight,
+				z + (random.nextFloat() - 0.5f) * bbWidth, 0, 0.02f, 0);
 		}
 	}
 
@@ -155,6 +233,9 @@ Entity* Wither::findAttackTarget()
 
 void Wither::checkHurtTarget(Entity* target, float d)
 {
+	// v36: no attacks during the spawn charge-up — the wither
+	// grows for 5 s before the fight starts.
+	if (spawnChargeTicks > 0) return;
 	// Up close, the normal melee attack.
 	if (d < 4.0f) {
 		super::checkHurtTarget(target, d);
@@ -261,13 +342,17 @@ bool Wither::trySummonFromSkull(Level* level, int x, int y, int z)
 			}
 			level->setTile(cx, y - 2, cz, 0);
 
-			// Summon with an explosion, modern MC style (radius 3,
-			// no fire — stage 1 keeps the blast modest).
+			// v36: no instant explosion any more. The wither
+			// appears and grows for 5 s (charge-up, fully
+			// invulnerable, not attacking), then a power-7 blast
+			// goes off from Wither::tick and the fight starts.
+			// The 5 s window is the player's time to get clear
+			// of the blast (power 7 is modern MC; v34/v35 used
+			// radius 3 here).
 			float sx = cx + 0.5f, sy = (float)(y + 1), sz = cz + 0.5f;
-			level->explode(NULL, sx, sy + 1.0f, sz, 3.0f, false);
-			level->playSound(sx, sy, sz, "random.explode", 1.0f, 0.5f);
 			Wither* wither = new Wither(level);
 			wither->setPos(sx, sy, sz);
+			wither->startSpawnCharge();
 			level->addEntity(wither);
 			return true;
 		}

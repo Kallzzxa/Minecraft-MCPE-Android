@@ -20,6 +20,22 @@ public:
 	:	super(new WitherModel(), 0.5f)
 	{
 	}
+
+protected:
+	// v36: phase tell in the world — the wither grows from
+	// half-size to full while charging after the summon, and
+	// bulks up ~8% once armoured (below half HP). Render scale
+	// only; the hitbox is unchanged.
+	void scale(Mob* mob, float a) {
+		(void) a;
+		Wither* wither = (Wither*)mob;
+		if (wither->isCharging()) {
+			float s = 0.5f + 0.5f * wither->getSpawnChargeFraction();
+			glScalef(s, s, s);
+		} else if (wither->isArmoured()) {
+			glScalef(1.08f, 1.08f, 1.08f);
+		}
+	}
 };
 
 #endif /*NET_MINECRAFT_CLIENT_RENDERER_ENTITY__WitherRenderer_H__*/

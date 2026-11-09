@@ -14,6 +14,7 @@
 #include "../renderer/Textures.h"
 #include "../../AppConstants.h"
 #include "../../world/entity/player/Inventory.h"
+#include "../../world/entity/monster/Wither.h"
 #include "../../world/entity/Mob.h"
 #include "../../world/entity/EntityTypes.h"
 #include "../../world/level/material/Material.h"
@@ -733,14 +734,28 @@ void Gui::renderBossBar() {
 	// Name above the bar, bar below it, both top-centred (the
 	// hearts/hunger row sits near the hotbar at the bottom, so
 	// nothing up here collides with it).
+	// v36: the bar names the phase — "Charging" while the
+	// wither grows after the summon (blue fill), "Armoured"
+	// below half HP (steel-grey fill, arrows bounce off),
+	// plain purple while it fights normally.
+	Wither* wither = (Wither*)boss;
+	const char* barName = "Wither";
+	int fillColor = 0xFFC000C0;
+	if (wither->isCharging()) {
+		barName = "Wither - Charging";
+		fillColor = 0xFF8080FF;
+	} else if (wither->isArmoured()) {
+		barName = "Wither - Armoured";
+		fillColor = 0xFF909090;
+	}
 	Font* font = minecraft->font;
-	font->drawShadow("Wither", (float)(screenWidth / 2 - font->width("Wither") / 2), 2.0f, 0xFFFFFFFF);
+	font->drawShadow(barName, (float)(screenWidth / 2 - font->width(barName) / 2), 2.0f, 0xFFFFFFFF);
 	const int barH = 5;
 	const int y0 = 12;
 	fill(hbX0, y0, hbX0 + barW, y0 + barH, 0xFF000000);
 	int filled = (int)(barW * (float)boss->health / (float)boss->getMaxHealth());
 	if (filled > 1) {
-		fill(hbX0 + 1, y0 + 1, hbX0 + filled, y0 + barH - 1, 0xFFC000C0);
+		fill(hbX0 + 1, y0 + 1, hbX0 + filled, y0 + barH - 1, fillColor);
 	}
 }
 

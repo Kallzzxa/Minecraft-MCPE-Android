@@ -2079,6 +2079,127 @@ Each version is ONE coherent batch of features, shipped as a new APK
     check perch + heal-beam + respawn v27-v29 still work, no
     crash, old features intact).
 
+- **v36 — Wither boss, stage 3: armoured phase + spawn charge-up
+  (SHIPPED, build-only).** Pays the v35 "Next" candidate. The
+  coordinator's ruling on the v35 note ("wait for the v34/v35
+  device test — if the fight already feels too hard, tune DOWN"):
+  no device test has arrived yet, so stage 3 ships with
+  CONSERVATIVE tuning — all three parts are implemented, but none
+  makes the fight harder than v35. The armour phase adds no damage
+  reduction and no extra damage; the charge-up is a generous 5 s;
+  the power-7 blast is the modern-MC value but is telegraphed by
+  the whole charge-up. Every v36 number below is PROVISIONAL until
+  there is device feel from the v34/v35/v36 test.
+  ### Audit (read from code before writing anything)
+  - **Wither today**: `Wither` (Wither.cpp) — 300 HP, regen 1 HP /
+    20 ticks by DIRECT health increment, NOT `heal()` (`heal()`
+    sets `invulnerableTime` = 10 ticks, which would make the boss
+    unhittable half the time — the v34 comment says so explicitly).
+    Volley 3 skulls / 3 s (`checkHurtTarget`, v35), melee + Wither
+    I 10 s (`doHurtTarget`, virtual since the v35 `Monster.h` fix),
+    `heal()` override caps at 300 (same shape as the dragon's 200).
+    `invulnerableTime`/`invulnerableDuration` (20) live on
+    `Mob`/`Entity`; `Mob::hurt` is the single damage gate and it
+    already does the i-frames bookkeeping (lastHurt, hurtTime,
+    knockback, death → `die(source)`).
+  - **Damage routing — the armour hook**: EVERY hit in this tree
+    arrives as `Mob::hurt(Entity* source, int dmg)`. Player melee
+    is `Player::attack` → `entity->hurt(this, dmg)` (source = the
+    player, a Mob); mob melee is `Monster::doHurtTarget` →
+    `target->hurt(this, dmg)` (source = the mob); arrows are
+    `Arrow::tick` → `res.entity->hurt(this, dmg)` (source = the
+    Arrow entity, type id 80); explosions are `Explosion::explode`
+    → `e->hurt(source, dmg)` with source = the exploding entity
+    or NULL (ritual/skull blasts pass NULL). So a source-TYPE check
+    in one `Wither::hurt` override separates melee from projectiles
+    exactly — no DamageSource system exists in this tree (the
+    commented-out `DamageSource` in Monster.h/Player.cpp confirms
+    it was never built), and none needs building for this.
+  - **Ritual today**: `trySummonFromSkull` consumes the T + 3
+    floor skulls, then `level->explode(NULL, sx, sy+1, sz, 3.0f,
+    false)` and spawns the wither at full HP, already fighting.
+    The blast's damage formula (`Explosion.cpp`: `(pow²+pow)/2 ×
+    8 × r + 1` at the centre) means radius 3 hits ~25 at point
+    blank; power 7 hits ~57 — the modern-MC value, and the reason
+    the charge-up must give real time to get away.
+  - **Phase/invulnerable pattern in other bosses**: NONE. The
+    EnderDragon (v22/v28) has a perch STATE MACHINE (ORBIT /
+    DESCEND / PERCHED / ASCEND, `perchState` + `perchTimer` in
+    EnderDragon.cpp) but NO damage phase and NO invulnerability —
+    the dragon is always hittable, even perched. The wither's
+    charge is therefore a plain countdown in `tick()`, not a
+    dragon-style state machine; the armour phase is derived from
+    health, not a flag.
+  - **Save/load**: `Mob` saves health as a short (300 fits) via
+    `addAdditonalSaveData` (note the tree's typo) /
+    `readAdditionalSaveData`; `CompoundTag::getShort` returns 0
+    for a missing key, so a new tag defaults cleanly on old saves.
+  - **Visual hooks that already exist**: `MobRenderer::scale`
+    is virtual (`SlimeRenderer` overrides it for squash-and-
+    stretch); the boss bar (`Gui::renderBossBar`, v34) already
+    scans `Level::entities` for the live wither and draws name +
+    fill, so phase text/colour is a local change there; smoke
+    puffs have a precedent (`Mob::tick` spawns one every 20 ticks
+    while withered; `Enderman` teleports with them).
+  ### What shipped
+  - **Armoured phase** (`Wither::hurt` override, `isArmoured()`):
+    below half HP (health < 150) the wither is immune to
+    projectiles — Arrow (80), snowball (81), egg (82), fireball
+    (85), splash potion (86), wither skull (88); a blocked arrow
+    bounces off (`Arrow::tick`'s `hurt == false` path) instead of
+    sticking. Melee (player/mob source) is unchanged, and
+    NULL-source damage (explosions, wither-effect ticks) still
+    lands, so TNT stays a valid weapon and the wither's own
+    skull blasts still hurt it exactly as in v34/v35. NO damage
+    reduction on top — the phase forces the player to close in,
+    it does not raise the boss's effective HP. Once armoured,
+    always armoured (derived from health, no flag to clear).
+  - **Spawn charge-up + power-7 blast** (`startSpawnCharge`,
+    `spawnChargeTicks`, `WITHER_SPAWN_CHARGE_TICKS = 100` = 5 s):
+    `trySummonFromSkull` no longer explodes at once — the wither
+    appears and grows for 5 s, fully invulnerable (`hurt()`
+    returns false), hovering in place without chasing or
+    attacking (`tick()` skips steering, `checkHurtTarget` returns
+    early), then a power-7 explosion goes off at the wither
+    (`level->explode(this, ...)` — source = the wither, so its
+    own blast never hurts it, and the counter is still 1 on the
+    blast tick so `hurt()` would block it anyway) and the fight
+    starts. 5 s at walk speed is ~20 blocks — the blast is
+    dodgeable by distance, but standing on the ritual at the
+    blast is ~40 damage: run. The counter is saved
+    (`"WitherCharge"` short) so quitting mid-charge resumes the
+    charge on reload; old saves read 0 = a fighting wither.
+  - **Phase visuals** (three tells, all cheap): the renderer
+    grows the wither from half-size to full during the charge
+    (`WitherRenderer::scale`, `getSpawnChargeFraction()`) and
+    bulks it ~8% while armoured (render scale only, hitbox
+    unchanged); the boss bar shows "Wither - Charging" (blue
+    fill) / "Wither - Armoured" (steel-grey fill) instead of
+    plain "Wither" (purple); smoke puffs rise off the wither
+    every 10 ticks while charging or armoured.
+  - Version bump 35 -> 36 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,265,416 B / armv7 8,793,988 B (v35: 10,249,032 /
+    8,789,892), new strings confirmed in both .so files
+    (`Wither - Armoured`, `Wither - Charging`, `WitherCharge`).
+  ### Known limits / debts
+  - **All v36 tuning numbers are PROVISIONAL** (see above):
+    armour threshold 150, charge 100 ticks (5 s), blast power 7,
+    no damage reduction. If the device test says the fight is
+    too hard, the next version tunes DOWN (e.g. shorter charge
+    is NOT the lever — the levers are a smaller blast, a higher
+    armour threshold, or partial projectile resistance instead of
+    full immunity); if it says too easy, the levers are damage
+    reduction in the armoured phase or a shorter charge. Do not
+    re-tune blind.
+  - The boss bar still shows the FIRST live wither only
+    (multiple withers share one bar); the bar has no wither icon.
+  - The wither's own skull blasts can still damage it (NULL
+    source, pre-existing v34/v35 behaviour — unchanged here).
+  - All of it is build-only until a live test on device (see
+    the "Next" v36 test list: charge-up, blast, armour, star,
+    fairness, no crash, old features intact).
 - **v35 — Wither boss, stage 2 (SHIPPED, build-only).**
   Pays the v34 stage-2 debts in the ROADMAP "Next" order: the
   three-head volley, the small-head skull + wall mounting, and
@@ -2907,21 +3028,47 @@ Each version is ONE coherent batch of features, shipped as a new APK
   1 nether star + 50 XP, incomplete T does not summon, peaceful
   keeps the boss) and the old features, no crash. The v34 APK
   stays the fallback until this stage passes.
-- **Next version (v36 candidate): wither boss, stage 3 — armoured
-  phase + spawn charge-up.** Stage 2 closed the visible gaps
-  (volley, head shape, wall mounting, rose), so what is left is
-  the fight's second half: below half HP the wither gains armour
-  + arrow immunity (modern MC), and the summon grows over ~2 s
-  with an invulnerable charge-up and a power-7 blast instead of
-  the instant radius-3 one. Why this next, and why not yet: it is
-  the biggest remaining wither debt, but it is a balance change
-  that can only be tuned from device feel — the v34/v35 device
-  test above is the input (is the volley fair? is the boss too
-  easy to bow down?). If that test says the fight is already too
-  hard, stage 3 tunes down instead of adding armour. Smaller
-  debts in the same area: multi-wither boss bar (one bar per
-  wither, or the lowest-HP one), wither-rose black dye (needs a
-  dye system first — no dye system exists in this tree).
+- **Device verification for the wither boss, stage 3 (v36's open
+  item).** Uninstall the old APK first (fresh CI debug keystore).
+  Summon the wither (same ritual as v34) and check the wither
+  appears but does NOT attack for ~5 s — it grows from half-size
+  (boss bar reads "Wither - Charging", blue fill, smoke puffs)
+  and cannot be hurt (sword and bow both bounce off / do nothing,
+  no damage numbers on the bar); use those 5 s to walk away, then
+  check the big explosion goes off (power 7 — terrain damage in a
+  wide radius, much bigger than v34/v35) and the fight starts
+  (bar back to plain "Wither", purple); check standing on the
+  ritual at the blast hurts a LOT (~40 damage — run, don't tank
+  it) while standing ~8+ blocks away is safe; fight it down below
+  half HP and check the bar reads "Wither - Armoured" (grey fill),
+  the wither looks slightly bigger with smoke puffs, arrows now
+  bounce off and do NO damage while sword hits still land and the
+  bar still drains; kill it and check 1 nether star + 50 XP;
+  check the fight feels fair, not impossible (melee-only second
+  half, same damage as before); quit mid-charge and reload and
+  check the charge resumes instead of the fight starting instantly;
+  re-check the v34/v35 lists (ritual consumes the T, 3-skull
+  volley, rose, wall skulls, peaceful keeps the boss) and the old
+  features, no crash. The v35 APK stays the fallback until this
+  stage passes. **TUNING FEEDBACK NEEDED — this is the point of
+  the test:** is 5 s too long / too short to get clear? Is the
+  power-7 blast fair at distance? Is the armoured phase a fun
+  second half or a wall (too hard to reach in melee)? Report the
+  feel and the v37 numbers follow from it — do NOT re-tune blind.
+- **Next version (v37 candidate): multi-wither boss bar.** The
+  wither trilogy (v34 ritual + boss, v35 volley + rose, v36 armour
+  + charge-up) is complete, and this is the last wither-only debt
+  standing: the bar still shows the FIRST live wither, so a second
+  summon hides the fight that matters. v37 shows the lowest-HP
+  live wither (the one closest to dying — the fight the player is
+  actually winning) instead of the first, or one bar per wither if
+  that fits the HUD. Why this next, and why not the rose dye: the
+  rose's black-dye use needs a dye system first (no dye system
+  exists in this tree — a whole subsystem, not a batch), while the
+  bar fix is local to `Gui::renderBossBar` and closes the boss
+  loop. Smaller debts in the same area: none left on the wither
+  itself until the v36 device feel arrives.
+- **v36 — Wither boss, stage 3.** SHIPPED (see "Done").
 - **v35 — Wither boss, stage 2.** SHIPPED (see "Done").
 
 ## Queued (priority order — re-evaluate after each version)
