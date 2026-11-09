@@ -53,6 +53,15 @@ bool Wither::hurt(Entity* source, int dmg)
 {
 	// v36: spawn charge-up — fully invulnerable while growing.
 	if (spawnChargeTicks > 0) return false;
+	// v38: immune to wither-skull blast damage — own volley or
+	// another wither's (modern MC: the wither takes no damage
+	// from wither skulls). The skull blast passes the skull as
+	// its source (WitherSkull::onHit), so the check is exact:
+	// TNT / creeper / end-crystal blasts pass NULL or another
+	// entity and still land. The wither-effect part of a skull
+	// hit was already skipped for withers in WitherSkull::onHit;
+	// this closes the explosion-damage half of the same bug.
+	if (source != NULL && source->getEntityTypeId() == EntityTypes::IdWitherSkull) return false;
 	// v36: armoured phase — projectile-immune, melee only. No
 	// damage reduction on top (conservative tuning: melee DPS
 	// is unchanged, the phase forces closing in, not a wall).

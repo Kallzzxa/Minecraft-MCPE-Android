@@ -41,8 +41,18 @@ void WitherSkull::onHit(const HitResult& res)
 		}
 		// Small explosion (radius 1, no fire — modern MC wither
 		// skull). Level::explode handles the blast, particles and
-		// sound.
-		level->explode(NULL, x, y, z, 1.0f, false);
+		// sound. v38: the blast's source is the skull itself (not
+		// NULL) — Explosion excludes its source from the blast
+		// and, more importantly, the source identifies the blast
+		// as a wither skull, so Wither::hurt can reject it
+		// (modern MC: the wither takes no damage from wither
+		// skulls, its own or another wither's). NULL would be
+		// indistinguishable from TNT/creeper/crystal blasts,
+		// which must still hurt the wither. Player + other mobs
+		// are unaffected by the source change: same damage
+		// formula, knockback now away from the blast centre
+		// (the skull sits at it) instead of random.
+		level->explode(this, x, y, z, 1.0f, false);
 	}
 	remove();
 }

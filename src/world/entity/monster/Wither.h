@@ -35,8 +35,14 @@
 // explosions pass their source entity or NULL. So the armour check
 // is a source-type check in this one override; NULL-source damage
 // (explosions, wither-effect ticks) is NOT blocked in the armoured
-// phase — TNT stays a valid weapon and the wither can still be
-// hurt by its own skulls' blasts, exactly as in v34/v35.
+// phase — TNT stays a valid weapon. v38: the wither-skull blast
+// passes the skull itself as its source (WitherSkull::onHit), so
+// hurt() rejects skull-source damage in every phase (modern MC:
+// the wither takes no damage from wither skulls, its own or
+// another wither's) — the v34/v35 self-damage bug is closed; the
+// summon blast never needed this (source = the wither, excluded
+// from its own explosion by Level::getEntities, and hurt() blocks
+// everything while the charge counter is still 1).
 //
 // No phase/invulnerable pattern existed to copy: the EnderDragon
 // (v22/v28) has a perch STATE MACHINE (ORBIT/DESCEND/PERCHED/
