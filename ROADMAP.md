@@ -2851,7 +2851,7 @@ Each version is ONE coherent batch of features, shipped as a new APK
   ### What shipped
   - `SplashParticle` tex 33 -> 17 (`SplashParticle.h`), with the audit (cell pixel counts, why tex 17, why not tex 32 / 16 / 19-22) recorded in the header comment. Comments in `ThrownPotion.cpp` (`onHit`), `Entity.cpp` (v43 note) and `LevelRenderer.cpp` (dispatch) updated to the new sprite; no gameplay code changed.
   - Version bump 46 -> 47 (`app/build.gradle`, `AndroidManifest.xml`, `build-apk.sh`). No local NDK build in this VM (no NDK installed; Gradle local does not run here) — CI is the build verification for this version.
-    CI `./gradlew assembleDebug` SUCCESS (run TBD, ~XmXXs, HH:MM:SS–HH:MM:SS UTC 2026-11-09); APK `minecraft-mcpe-android-0.6.1-debug-v47.apk` TBD B, sha256 TBD, versionCode 47, `apksigner verify` v1+v2 true, `unzip -t` clean.
+    CI `./gradlew assembleDebug` SUCCESS (run 42563020663, ~4m17s, 04:39:25–04:43:42 UTC 2026-11-09); APK `minecraft-mcpe-android-0.6.1-debug-v47.apk` 12,958,761 B, sha256 6b20e9964571cf10f20e8f7377a70656885fa9a1c25b12d9a46abe78daa0f420, versionCode 47, `apksigner verify` v1+v2 true, `unzip -t` clean; the APK's `libminecraftpe.so` is arm64 10,261,320 B / armv7 8,802,180 B — byte-identical sizes to v45/v46, expected for a one-constant change in a header-only particle ctor (same pattern as v46); the APK's `particles.png` was re-checked to still carry the tex 17 droplet (13 opaque px) and the change itself is in the built commit da29b7e.
   ### Known limits / debts
   - The burst is the same blue droplet for every potion type (healing, poison, harming, …) — no per-potion tint yet (see audit above).
   - All of it is build-only until a live test on device (see the "Next" v47 test list).
