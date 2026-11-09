@@ -48,9 +48,9 @@ bool EnderDragon::hurt(Entity* source, int dmg)
 	// damage. A REFLECTED fireball will hurt it too once
 	// reflection is enabled for dragon balls and reassigns
 	// ownerId to the deflector (v41 deliberately excluded the
-	// dragon because this immunity did not exist yet; enabling
-	// it is a separate batch/decision, NOT this one — see
-	// ROADMAP v45). Blocked hits return before Mob::hurt, so no
+	// dragon because this immunity did not exist yet; v46 enabled
+	// reflection for dragon balls now that it does — see ROADMAP
+	// v46). Blocked hits return before Mob::hurt, so no
 	// invulnerableTime, knockback or hurt sound is spent.
 	if (source != NULL && source->getEntityTypeId() == EntityTypes::IdFireball
 		&& ((Fireball*)source)->getOwnerId() == entityId) return false;

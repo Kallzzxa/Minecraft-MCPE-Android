@@ -57,19 +57,21 @@ bool Fireball::hurt(Entity* source, int damage)
 	// Throwable::tick now protects the DEFLECTOR for its first
 	// ticks, not the shooter.
 	//
-	// Scope: only ghast/blaze fireballs reflect. The owner is
+	// Scope: ghast/blaze/dragon fireballs reflect. The owner is
 	// resolved through Level::getEntity (session-only ids, same
-	// semantics as v40); a dragon-owned ball is left alone — the
-	// dragon has no v40 owner immunity, so a reflected dragon ball
-	// could hurt the dragon itself, a change to the End fight this
-	// batch does not make. ownerId 0 (rebuilt from a save) or an
-	// owner that no longer exists reflects anyway: the ball was
-	// almost certainly ghast/blaze-shot, and reflecting it breaks
-	// nobody's rules.
+	// semantics as v40); a dragon-owned ball reflects too since
+	// v46 — v45 gave the dragon the v40 owner immunity, so a
+	// reflected dragon ball (ownerId reassigned to the deflector
+	// below) is no longer its own and hurts it, exactly like a
+	// reflected ghast ball hurts its ghast. ownerId 0 (rebuilt
+	// from a save) or an owner that no longer exists reflects
+	// anyway: the ball was almost certainly ghast/blaze/dragon-
+	// shot, and reflecting it breaks nobody's rules.
 	Entity* owner = (ownerId != 0) ? level->getEntity(ownerId) : NULL;
 	if (owner != NULL) {
 		int type = owner->getEntityTypeId();
-		if (type != MobTypes::Ghast && type != MobTypes::Blaze) return super::hurt(source, damage);
+		if (type != MobTypes::Ghast && type != MobTypes::Blaze
+			&& type != MobTypes::EnderDragon) return super::hurt(source, damage);
 	}
 
 	markHurt();

@@ -13,10 +13,9 @@
 // (see Fireball::hurt): it flies back along the player's look
 // direction and its ownerId is reassigned to the deflector, so the
 // v40 owner-only immunity lets the reflected ball hurt the ghast /
-// blaze that shot it (modern MC's ghast fight). Only ghast/blaze
-// fireballs reflect; a dragon fireball is left alone (the dragon has
-// no v40 owner immunity, so reflecting its ball would let it hurt
-// the dragon — a change to the End fight this batch does not make).
+// blaze / dragon that shot it (modern MC's ghast fight; v46 lifted
+// the v41 dragon exclusion now that v45 gave the dragon the same
+// owner immunity).
 
 #include "Throwable.h"
 #include "../EntityTypes.h"
