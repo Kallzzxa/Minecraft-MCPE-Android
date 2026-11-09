@@ -52,6 +52,13 @@ public:
 	}
 
 	virtual int getCraftingSize() = 0;
+
+	// v42: 3x3 grid layout for the recipe book (PaneCraftingScreen).
+	// Shaped recipes return their authored cell (x, y); shapeless
+	// recipes fill row-major. Base returns an empty grid.
+	virtual int getGridWidth() const { return 0; }
+	virtual int getGridHeight() const { return 0; }
+	virtual ItemInstance getGridItem(int x, int y) const { return ItemInstance(); }
 private:
 	static bool isAnyAuxValue(int id);
 protected:

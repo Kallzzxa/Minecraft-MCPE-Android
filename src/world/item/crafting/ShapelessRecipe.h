@@ -74,6 +74,23 @@ public:
 		return (ingredients.size() > 4)? SIZE_3X3 : SIZE_2X2;
 	}
 
+	// v42: grid layout for the recipe book (see Recipe.h).
+	// Shapeless ingredients fill the grid row-major.
+	int getGridWidth() const {
+		int n = (int)ingredients.size();
+		return n == 0 ? 0 : (n < 3 ? n : 3);
+	}
+	int getGridHeight() const {
+		int n = (int)ingredients.size();
+		return (n + 2) / 3;
+	}
+	ItemInstance getGridItem(int x, int y) const {
+		int idx = y * 3 + x;
+		if (x < 0 || y < 0 || x >= 3 || idx >= (int)ingredients.size())
+			return ItemInstance();
+		return ingredients[idx];
+	}
+
 private:
 	const ItemInstance result;
 	const Ingredients ingredients;

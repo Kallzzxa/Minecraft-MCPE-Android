@@ -1582,11 +1582,20 @@ void Minecraft::setScreen( Screen* screen )
 	if (platform()) {
 		static_cast<AppPlatform_uwp*>(platform())->clearInputBuffer();
 	}
-	
+#endif
+
+	// v42: release held movement keys on EVERY platform, not just UWP.
+	// On Android this call was compiled out, so TouchscreenInput::xa/ya
+	// kept their last values while a screen covered the game
+	// (LocalPlayer::aiStep skips input->tick() while covered) and
+	// updateAi() kept copying the frozen values into xxa/yya, so the
+	// player kept walking with the crafting (or any other) screen open
+	// until it closed. releaseAllKeys() is a no-op on the IMoveInput
+	// base; the touch override also clears sprint + the tracked
+	// forward pointer, so no phantom sprint on close.
 	if (inputHolder && inputHolder->getMoveInput()) {
 		inputHolder->getMoveInput()->releaseAllKeys();
 	}
-#endif
 
 	if (screenMutex) {
 		hasScheduledScreen = true;

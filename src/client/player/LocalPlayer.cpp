@@ -258,6 +258,19 @@ void LocalPlayer::aiStep() {
     bool screenCovering = minecraft->screen && !minecraft->screen->passEvents;
 	if (!screenCovering)
 		input->tick(this);
+	else {
+		// v42: a covering screen freezes movement. input->tick() is
+		// skipped while covered, so xa/ya would keep whatever value
+		// they had when the screen opened (the finger-up event is
+		// never needed to stop now) — zero them here so updateAi()
+		// copies 0 into xxa/yya and the player halts on the same
+		// tick the screen opens, even if setScreen's releaseAllKeys
+		// ran before a stray tick re-derived them. Also clears a
+		// held jump so the player can't keep jumping behind a screen.
+		input->xa = 0;
+		input->ya = 0;
+		input->jumping = false;
+	}
 
     if (input->sneaking) {
         if (ySlideOffset < 0.2f) ySlideOffset = 0.2f;

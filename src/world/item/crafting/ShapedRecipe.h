@@ -92,6 +92,15 @@ private:
 		return (width <= 2 && height <= 2)? SIZE_2X2 : SIZE_3X3;
 	}
 
+	// v42: grid layout for the recipe book (see Recipe.h).
+	int getGridWidth() const { return width; }
+	int getGridHeight() const { return height; }
+	ItemInstance getGridItem(int x, int y) const {
+		if (x < 0 || y < 0 || x >= width || y >= height)
+			return ItemInstance();
+		return recipeItems[x + y * width];
+	}
+
 
 public:
 	const int resultId;
