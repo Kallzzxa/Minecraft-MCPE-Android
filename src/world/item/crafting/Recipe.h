@@ -59,6 +59,15 @@ public:
 	virtual int getGridWidth() const { return 0; }
 	virtual int getGridHeight() const { return 0; }
 	virtual ItemInstance getGridItem(int x, int y) const { return ItemInstance(); }
+
+	// v44: same layout, but at a given display width. Shaped recipes
+	// ignore gridW (authored cells); shapeless recipes reflow
+	// row-major at gridW, so a 4-ingredient shapeless recipe
+	// (SIZE_2X2) lays out 2x2 instead of spilling into a 3rd column
+	// of a 2x2 display. Default = the v42 accessors above.
+	virtual int getGridWidthFor(int gridW) const { return getGridWidth(); }
+	virtual int getGridHeightFor(int gridW) const { return getGridHeight(); }
+	virtual ItemInstance getGridItemFor(int x, int y, int gridW) const { return getGridItem(x, y); }
 private:
 	static bool isAnyAuxValue(int id);
 protected:

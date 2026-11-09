@@ -32,6 +32,17 @@ const int rgbSearchField = 0xFF1E1E1E;
 const int rgbSearchHint = 0xFF808080;
 const int rgbTitleDark = 0xFF3F3F3F;
 const int rgbDimOverlay = 0x80000000;
+// v44: craftable-only toggle (green = on, like the screenshot's check).
+const int rgbToggleOn = 0xFF3FA33F;
+const int rgbToggleCheck = 0xFFFFFFFF;
+const int rgbToggleCheckOff = 0xFF808080;
+
+// v44: checkmark drawn from 2px squares — the font has no check glyph.
+// Short arm down-right, long arm up-right; spans x 1..13, y 4..12.
+static const int checkOffsets[][2] = {
+	{1, 7}, {2, 8}, {3, 9}, {4, 10}, {5, 11},
+	{6, 10}, {7, 9}, {8, 8}, {9, 7}, {10, 6}, {11, 5}, {12, 4}
+};
 
 // v42: case-insensitive substring match for the live search box.
 static bool containsIgnoreCase(const std::string& haystack, const std::string& needle) {
@@ -115,6 +126,9 @@ PaneCraftingScreen::PaneCraftingScreen(int craftingSize)
 	btnPagePrev(3, 0, 0, 18, 16, "<"),
 	btnPageNext(4, 0, 0, 18, 16, ">"),
 	searchFocused(false),
+	craftableOnly(false),
+	bookCollapsed(false),
+	btnBookToggle(5, 0, 0, 18, 16, "<<"),
 	gridFilled(false),
 	selectedCategoryButton(NULL),
 	guiBackground(NULL),
@@ -176,6 +190,7 @@ void PaneCraftingScreen::init() {
 	buttons.push_back(&btnClose);
 	buttons.push_back(&btnPagePrev);
 	buttons.push_back(&btnPageNext);
+	buttons.push_back(&btnBookToggle);
 
 	// GUI patches
 	NinePatchFactory builder(minecraft->textures, "gui/spritesheet.png");
@@ -227,13 +242,14 @@ void PaneCraftingScreen::initCategories() {
 }
 
 void PaneCraftingScreen::setupPositions() {
-	// Tabs column on the far left
+	// Tabs column on the far left (hidden off-screen when the book is
+	// collapsed, so they are neither drawn nor clickable).
 	const int tabW = 26;
 	const int tabH = 26;
 	const int tabGap = 2;
 	for (unsigned c = 0; c < _categoryButtons.size(); ++c) {
 		ImageButton* button = _categoryButtons[c];
-		button->x = (int)BorderPixels;
+		button->x = bookCollapsed ? -100 : (int)BorderPixels;
 		button->y = (int)BorderPixels + c * (tabH + tabGap);
 		button->width = tabW;
 		button->height = tabH;
@@ -252,46 +268,72 @@ void PaneCraftingScreen::setupPositions() {
 		}
 	}
 
-	// Panels: left (dark recipe book) ~46%, right (light crafting) rest.
+	// Panels: left (dark recipe book) ~46%, right (light crafting)
+	// rest. Collapsed: the book is gone and the right panel takes
+	// the whole width (the tab column stays — it is outside the
+	// panels — so the collapsed book can still be re-opened via the
+	// toggle button at the top of the right panel).
 	const int availX = (int)BorderPixels + tabW + 2;
 	const int availW = width - availX - (int)BorderPixels;
-	const int leftW = availW * 46 / 100;
-	const int rightW = availW - leftW - 6;
+	const int leftW = bookCollapsed ? 0 : availW * 46 / 100;
+	const int rightX = bookCollapsed ? availX : availX + leftW + 6;
+	const int rightW = bookCollapsed ? availW : availW - leftW - 6;
 	const int panelY = (int)BorderPixels;
 	const int panelH = height - 2 * (int)BorderPixels;
 	leftPanelRect = IntRectangle(availX, panelY, leftW, panelH);
-	rightPanelRect = IntRectangle(availX + leftW + 6, panelY, rightW, panelH);
+	rightPanelRect = IntRectangle(rightX, panelY, rightW, panelH);
 
-	// Left panel: search bar, 5x4 recipe grid, pagination.
-	searchRect = IntRectangle(leftPanelRect.x + 6, panelY + 6, leftW - 12, 18);
-	const int gridW = GridCols * SlotSize;
-	const int gridH = GridRows * SlotSize;
-	const int gridX = leftPanelRect.x + (leftW - gridW) / 2;
-	const int gridY = searchRect.y + searchRect.h + 6;
-	recipeGridRect = IntRectangle(gridX, gridY, gridW, gridH);
+	// Left panel: search bar (+ craftable-only toggle at its right
+	// end), 5x4 recipe grid, pagination. Empty/off-screen when
+	// collapsed.
+	if (bookCollapsed) {
+		searchRect = IntRectangle(0, 0, 0, 0);
+		craftableToggleRect = IntRectangle(0, 0, 0, 0);
+		recipeGridRect = IntRectangle(0, 0, 0, 0);
+		pageLabelRect = IntRectangle(0, 0, 0, 0);
+		btnPagePrev.x = btnPageNext.x = -100;
+		btnPagePrev.y = btnPageNext.y = -100;
+	} else {
+		searchRect = IntRectangle(leftPanelRect.x + 6, panelY + 6, leftW - 12 - 26, 18);
+		craftableToggleRect = IntRectangle(leftPanelRect.x + leftW - 6 - 20, panelY + 6, 20, 18);
+		const int gridW = GridCols * SlotSize;
+		const int gridH = GridRows * SlotSize;
+		const int gridX = leftPanelRect.x + (leftW - gridW) / 2;
+		const int gridY = searchRect.y + searchRect.h + 6;
+		recipeGridRect = IntRectangle(gridX, gridY, gridW, gridH);
 
-	const int pageY = gridY + gridH + 6;
-	btnPagePrev.x = gridX;
-	btnPagePrev.y = pageY;
-	btnPagePrev.width = 18;
-	btnPagePrev.height = 16;
-	btnPageNext.x = gridX + gridW - 18;
-	btnPageNext.y = pageY;
-	btnPageNext.width = 18;
-	btnPageNext.height = 16;
-	pageLabelRect = IntRectangle(gridX + 20, pageY, gridW - 40, 16);
+		const int pageY = gridY + gridH + 6;
+		btnPagePrev.x = gridX;
+		btnPagePrev.y = pageY;
+		btnPagePrev.width = 18;
+		btnPagePrev.height = 16;
+		btnPageNext.x = gridX + gridW - 18;
+		btnPageNext.y = pageY;
+		btnPageNext.width = 18;
+		btnPageNext.height = 16;
+		pageLabelRect = IntRectangle(gridX + 20, pageY, gridW - 40, 16);
+	}
 
-	// Right panel: "Crafting" 3x3 grid + arrow + result slot, then
+	// Right panel: "Crafting" grid (v44: 2x2 on the inventory screen,
+	// 3x3 on the table/stonecutter) + arrow + result slot, then
 	// "Inventory" 9x4 grid.
-	const int craftBlockW = 3 * SlotSize + 6 + 20 + 6 + SlotSize;
+	const int gs = gridSize();
+	const int craftBlockW = gs * SlotSize + 6 + 20 + 6 + SlotSize;
 	const int craftBlockX = rightPanelRect.x + (rightW - craftBlockW) / 2;
 	const int craftY = panelY + 24;
-	craftGridRect = IntRectangle(craftBlockX, craftY, 3 * SlotSize, 3 * SlotSize);
-	resultRect = IntRectangle(craftBlockX + 3 * SlotSize + 6 + 20 + 6, craftY, SlotSize, SlotSize);
+	craftGridRect = IntRectangle(craftBlockX, craftY, gs * SlotSize, gs * SlotSize);
+	resultRect = IntRectangle(craftBlockX + gs * SlotSize + 6 + 20 + 6, craftY, SlotSize, SlotSize);
 
 	const int invW = 9 * SlotSize;
 	const int invH = 4 * SlotSize;
-	invGridRect = IntRectangle(rightPanelRect.x + (rightW - invW) / 2, craftY + 3 * SlotSize + 26, invW, invH);
+	invGridRect = IntRectangle(rightPanelRect.x + (rightW - invW) / 2, craftY + gs * SlotSize + 26, invW, invH);
+
+	// Collapse/expand toggle: top-left corner of the right panel.
+	// "<<" collapses the book on its left, ">>" re-opens it.
+	btnBookToggle.x = rightPanelRect.x + 4;
+	btnBookToggle.y = panelY + 4;
+	btnBookToggle.width = 18;
+	btnBookToggle.height = 16;
 
 	btnClose.width = btnClose.height = 19;
 	btnClose.x = width - btnClose.width;
@@ -306,16 +348,19 @@ void PaneCraftingScreen::render(int xm, int ym, float a) {
 	glEnable2(GL_ALPHA_TEST);
 
 	// Panels: dark recipe book on the left, light crafting on the right.
-	fill(leftPanelRect.x, leftPanelRect.y,
-		leftPanelRect.x + leftPanelRect.w, leftPanelRect.y + leftPanelRect.h, rgbPanelDark);
-	fill(leftPanelRect.x, leftPanelRect.y,
-		leftPanelRect.x + leftPanelRect.w, leftPanelRect.y + 1, rgbPanelBorder);
-	fill(leftPanelRect.x, leftPanelRect.y + leftPanelRect.h - 1,
-		leftPanelRect.x + leftPanelRect.w, leftPanelRect.y + leftPanelRect.h, rgbPanelBorder);
-	fill(leftPanelRect.x, leftPanelRect.y,
-		leftPanelRect.x + 1, leftPanelRect.y + leftPanelRect.h, rgbPanelBorder);
-	fill(leftPanelRect.x + leftPanelRect.w - 1, leftPanelRect.y,
-		leftPanelRect.x + leftPanelRect.w, leftPanelRect.y + leftPanelRect.h, rgbPanelBorder);
+	// (Left panel skipped entirely when the book is collapsed.)
+	if (!bookCollapsed) {
+		fill(leftPanelRect.x, leftPanelRect.y,
+			leftPanelRect.x + leftPanelRect.w, leftPanelRect.y + leftPanelRect.h, rgbPanelDark);
+		fill(leftPanelRect.x, leftPanelRect.y,
+			leftPanelRect.x + leftPanelRect.w, leftPanelRect.y + 1, rgbPanelBorder);
+		fill(leftPanelRect.x, leftPanelRect.y + leftPanelRect.h - 1,
+			leftPanelRect.x + leftPanelRect.w, leftPanelRect.y + leftPanelRect.h, rgbPanelBorder);
+		fill(leftPanelRect.x, leftPanelRect.y,
+			leftPanelRect.x + 1, leftPanelRect.y + leftPanelRect.h, rgbPanelBorder);
+		fill(leftPanelRect.x + leftPanelRect.w - 1, leftPanelRect.y,
+			leftPanelRect.x + leftPanelRect.w, leftPanelRect.y + leftPanelRect.h, rgbPanelBorder);
+	}
 	fill(rightPanelRect.x, rightPanelRect.y,
 		rightPanelRect.x + rightPanelRect.w, rightPanelRect.y + 1, rgbPanelBorder);
 	fill(rightPanelRect.x, rightPanelRect.y + rightPanelRect.h - 1,
@@ -325,9 +370,10 @@ void PaneCraftingScreen::render(int xm, int ym, float a) {
 	fill(rightPanelRect.x + rightPanelRect.w - 1, rightPanelRect.y,
 		rightPanelRect.x + rightPanelRect.w, rightPanelRect.y + rightPanelRect.h, rgbPanelBorder);
 
-	// Buttons (tabs + close + pagination)
+	// Buttons (tabs + close + pagination + book collapse)
 	super::render(xm, ym, a);
 
+	if (!bookCollapsed) {
 	// Search bar
 	fill(searchRect.x, searchRect.y,
 		searchRect.x + searchRect.w, searchRect.y + searchRect.h, rgbSearchField);
@@ -346,6 +392,28 @@ void PaneCraftingScreen::render(int xm, int ym, float a) {
 		if (searchFocused)
 			shown += "_";
 		font->drawShadow(shown, (float)(searchRect.x + 4), (float)(searchRect.y + 5), rgbActive);
+	}
+
+	// v44: craftable-only toggle (green fill + white check when on,
+	// dark fill + grey check when off).
+	fill(craftableToggleRect.x, craftableToggleRect.y,
+		craftableToggleRect.x + craftableToggleRect.w, craftableToggleRect.y + craftableToggleRect.h,
+		craftableOnly ? rgbToggleOn : rgbSearchField);
+	fill(craftableToggleRect.x, craftableToggleRect.y,
+		craftableToggleRect.x + craftableToggleRect.w, craftableToggleRect.y + 1, rgbPanelBorder);
+	fill(craftableToggleRect.x, craftableToggleRect.y + craftableToggleRect.h - 1,
+		craftableToggleRect.x + craftableToggleRect.w, craftableToggleRect.y + craftableToggleRect.h, rgbPanelBorder);
+	fill(craftableToggleRect.x, craftableToggleRect.y,
+		craftableToggleRect.x + 1, craftableToggleRect.y + craftableToggleRect.h, rgbPanelBorder);
+	fill(craftableToggleRect.x + craftableToggleRect.w - 1, craftableToggleRect.y,
+		craftableToggleRect.x + craftableToggleRect.w, craftableToggleRect.y + craftableToggleRect.h, rgbPanelBorder);
+	{
+		const int checkCol = craftableOnly ? rgbToggleCheck : rgbToggleCheckOff;
+		const int tx = craftableToggleRect.x + 3;
+		const int ty = craftableToggleRect.y + 2;
+		for (unsigned i = 0; i < sizeof(checkOffsets) / sizeof(checkOffsets[0]); ++i)
+			fill(tx + checkOffsets[i][0], ty + checkOffsets[i][1],
+				tx + checkOffsets[i][0] + 2, ty + checkOffsets[i][1] + 2, checkCol);
 	}
 
 	// Recipe grid (current page, 5x4 icons)
@@ -396,53 +464,65 @@ void PaneCraftingScreen::render(int xm, int ym, float a) {
 			(float)(leftPanelRect.x + 6), (float)(pageLabelRect.y + 36),
 			(float)(leftPanelRect.w - 12), rgbActive);
 	}
+	} // !bookCollapsed — the whole left (recipe book) panel
 
 	// Right panel titles
 	font->drawShadow("Crafting", (float)craftGridRect.x, (float)(craftGridRect.y - 16), rgbTitleDark);
 	font->drawShadow("Inventory", (float)invGridRect.x, (float)(invGridRect.y - 14), rgbTitleDark);
 
-	// 3x3 crafting grid (auto-filled from the selected recipe)
+	// v44: crafting grid (2x2 on the inventory screen, 3x3 on the
+	// table/stonecutter), auto-filled from the selected recipe.
+	// gridCells is stored 3-stride (y*3+x) regardless of display size.
+	const int gs = gridSize();
 	t.beginOverride();
-	for (int i = 0; i < 9; ++i) {
-		const int cx = craftGridRect.x + (i % 3) * SlotSize;
-		const int cy = craftGridRect.y + (i / 3) * SlotSize;
-		guiSlotCategory->draw(t, (float)cx, (float)cy);
+	for (int gy = 0; gy < gs; ++gy) {
+		for (int gx = 0; gx < gs; ++gx) {
+			const int cx = craftGridRect.x + gx * SlotSize;
+			const int cy = craftGridRect.y + gy * SlotSize;
+			guiSlotCategory->draw(t, (float)cx, (float)cy);
+		}
 	}
 	guiSlotCategory->draw(t, (float)resultRect.x, (float)resultRect.y);
 	t.endOverrideAndDraw();
 	if (gridFilled) {
 		t.beginOverride();
-		for (int i = 0; i < 9; ++i) {
-			if (gridCells[i].isNull())
-				continue;
-			const int cx = craftGridRect.x + (i % 3) * SlotSize;
-			const int cy = craftGridRect.y + (i / 3) * SlotSize;
-			ItemRenderer::renderGuiItem(NULL, minecraft->textures, &gridCells[i],
-				(float)(cx + 2), (float)(cy + 2), 16, 16, false);
+		for (int gy = 0; gy < gs; ++gy) {
+			for (int gx = 0; gx < gs; ++gx) {
+				const int i = gy * 3 + gx;
+				if (gridCells[i].isNull())
+					continue;
+				const int cx = craftGridRect.x + gx * SlotSize;
+				const int cy = craftGridRect.y + gy * SlotSize;
+				ItemRenderer::renderGuiItem(NULL, minecraft->textures, &gridCells[i],
+					(float)(cx + 2), (float)(cy + 2), 16, 16, false);
+			}
 		}
 		t.endOverrideAndDraw();
 		// have/need under each filled cell
-		for (int i = 0; i < 9; ++i) {
-			if (gridCells[i].isNull())
-				continue;
-			const int cx = craftGridRect.x + (i % 3) * SlotSize;
-			const int cy = craftGridRect.y + (i / 3) * SlotSize;
-			char buf[16];
-			int n = 0;
-			n += Gui::itemCountItoa(&buf[n], gridHas[i]);
-			strcpy(&buf[n], "/"); n += 1;
-			n += Gui::itemCountItoa(&buf[n], gridCells[i].count);
-			buf[n] = 0;
-			drawSmallText(font, buf, (float)(cx + 2), (float)(cy + SlotSize - 6),
-				gridHas[i] >= gridCells[i].count ? rgbActive : rgbInactive);
+		for (int gy = 0; gy < gs; ++gy) {
+			for (int gx = 0; gx < gs; ++gx) {
+				const int i = gy * 3 + gx;
+				if (gridCells[i].isNull())
+					continue;
+				const int cx = craftGridRect.x + gx * SlotSize;
+				const int cy = craftGridRect.y + gy * SlotSize;
+				char buf[16];
+				int n = 0;
+				n += Gui::itemCountItoa(&buf[n], gridHas[i]);
+				strcpy(&buf[n], "/"); n += 1;
+				n += Gui::itemCountItoa(&buf[n], gridCells[i].count);
+				buf[n] = 0;
+				drawSmallText(font, buf, (float)(cx + 2), (float)(cy + SlotSize - 6),
+					gridHas[i] >= gridCells[i].count ? rgbActive : rgbInactive);
+			}
 		}
 	}
 	// Arrow grid -> result
 	{
 		t.beginOverride();
 		t.scale2d(2.0f, 2.0f);
-		const float ax = 0.5f * (float)(craftGridRect.x + 3 * SlotSize + 8);
-		const float ay = 0.5f * (float)(craftGridRect.y + (3 * SlotSize - 16) / 2);
+		const float ax = 0.5f * (float)(craftGridRect.x + gs * SlotSize + 8);
+		const float ay = 0.5f * (float)(craftGridRect.y + (gs * SlotSize - 16) / 2);
 		font->drawShadow(">", ax, ay, rgbTitleDark);
 		t.resetScale();
 		t.endOverrideAndDraw();
@@ -505,6 +585,21 @@ void PaneCraftingScreen::buttonClicked(Button* button) {
 		return;
 	}
 
+	// v44: collapse/expand the recipe book. The layout is recomputed
+	// from scratch (setupPositions is what Screen::init/setSize call),
+	// so the right panel widens/narrows in place. Unfocus the search
+	// first — its field disappears with the book.
+	if (button == &btnBookToggle) {
+		if (searchFocused) {
+			searchFocused = false;
+			minecraft->platform()->hideKeyboard();
+		}
+		bookCollapsed = !bookCollapsed;
+		btnBookToggle.msg = bookCollapsed ? ">>" : "<<";
+		setupPositions();
+		return;
+	}
+
 	if (button == &btnPagePrev) {
 		if (currentPage > 0)
 			--currentPage;
@@ -532,6 +627,25 @@ void PaneCraftingScreen::mouseReleased(int x, int y, int buttonNum) {
 	super::mouseReleased(x, y, buttonNum);
 	if (buttonNum != MouseAction::ACTION_LEFT)
 		return;
+
+	// The book toggle is a Button (handled above via buttonClicked),
+	// but its click point would otherwise fall through to the
+	// left-panel checks below after setupPositions() moved the rects.
+	if (btnBookToggle.isInside(x, y))
+		return;
+
+	if (bookCollapsed)
+		return;
+
+	// v44: craftable-only toggle next to the search bar.
+	if (x >= craftableToggleRect.x && y >= craftableToggleRect.y
+		&& x < craftableToggleRect.x + craftableToggleRect.w && y < craftableToggleRect.y + craftableToggleRect.h) {
+		craftableOnly = !craftableOnly;
+		applyFilter();
+		if (!currentItem && !_filteredItems.empty())
+			onItemSelected(currentCategory, _filteredItems[0]);
+		return;
+	}
 
 	// Search bar: tap to focus (opens the soft keyboard), tap
 	// elsewhere to unfocus.
@@ -709,6 +823,11 @@ void PaneCraftingScreen::applyFilter() {
 	_filteredItems.clear();
 	const ItemList& src = _categories[currentCategory];
 	for (unsigned int i = 0; i < src.size(); ++i) {
+		// v44: craftable-only toggle — hide recipes the player
+		// cannot currently craft (canCraft is computed by
+		// recheckRecipes at init and after each craft).
+		if (craftableOnly && !src[i]->canCraft())
+			continue;
 		if (searchQuery.empty() || containsIgnoreCase(src[i]->text, searchQuery))
 			_filteredItems.push_back(src[i]);
 	}
@@ -745,11 +864,15 @@ void PaneCraftingScreen::fillCraftGrid() {
 	ItemPack ip;
 	buildInventoryPack(ip);
 
-	int w = recipe->getGridWidth();
-	int h = recipe->getGridHeight();
-	for (int y = 0; y < h && y < 3; ++y) {
-		for (int x = 0; x < w && x < 3; ++x) {
-			ItemInstance cell = recipe->getGridItem(x, y);
+	// v44: lay the recipe out at the DISPLAY grid size — a shapeless
+	// recipe reflows row-major at 2-wide in the inventory screen
+	// (Recipe::getGridItemFor), so nothing spills into a 3rd column.
+	const int gs = gridSize();
+	int w = recipe->getGridWidthFor(gs);
+	int h = recipe->getGridHeightFor(gs);
+	for (int y = 0; y < h && y < gs; ++y) {
+		for (int x = 0; x < w && x < gs; ++x) {
+			ItemInstance cell = recipe->getGridItemFor(x, y, gs);
 			if (cell.isNull())
 				continue;
 			gridCells[y * 3 + x] = cell;

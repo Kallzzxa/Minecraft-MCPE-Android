@@ -91,6 +91,24 @@ public:
 		return ingredients[idx];
 	}
 
+	// v44: reflow row-major at the display width, so a shapeless
+	// recipe with <= 4 ingredients (SIZE_2X2) lays out 2-wide in the
+	// inventory 2x2 grid instead of spilling into a 3rd column.
+	int getGridWidthFor(int gridW) const {
+		int n = (int)ingredients.size();
+		return n == 0 ? 0 : (n < gridW ? n : gridW);
+	}
+	int getGridHeightFor(int gridW) const {
+		int n = (int)ingredients.size();
+		return gridW > 0 ? (n + gridW - 1) / gridW : 0;
+	}
+	ItemInstance getGridItemFor(int x, int y, int gridW) const {
+		int idx = y * gridW + x;
+		if (x < 0 || y < 0 || x >= gridW || idx >= (int)ingredients.size())
+			return ItemInstance();
+		return ingredients[idx];
+	}
+
 private:
 	const ItemInstance result;
 	const Ingredients ingredients;

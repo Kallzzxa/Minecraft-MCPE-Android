@@ -19,6 +19,10 @@ class NinePatchLayer;
 // selected recipe), an arrow + result slot (click to craft), and the
 // player inventory grid below. Replaces the old scrolling text list
 // (ItemPane) — the click-a-recipe-to-craft flow itself is unchanged.
+// v44: the inventory screen (SIZE_2X2) shows a 2x2 grid instead of a
+// 3x3 frame with an empty third row/column (shapeless recipes reflow
+// 2-wide via Recipe::getGridItemFor); plus a craftable-only toggle
+// next to the search bar and a recipe-book collapse button.
 class PaneCraftingScreen: public Screen
 {
 	typedef Screen super;
@@ -80,7 +84,23 @@ private:
 	std::string searchQuery;
 	bool searchFocused;
 
-	// v42: auto-filled 3x3 grid for the selected recipe.
+	// v44: craftable-only filter (toggle next to the search bar) and
+	// recipe-book collapse (button at the top of the right panel).
+	bool craftableOnly;
+	bool bookCollapsed;
+	SmallButton btnBookToggle;
+	IntRectangle craftableToggleRect;
+
+	// v44: display grid size: 2 for the inventory screen (SIZE_2X2),
+	// 3 for the crafting table / stonecutter (SIZE_3X3). The recipe
+	// list itself is already size-filtered in initCategories
+	// (craftingSize >= recipe->getCraftingSize()), so a 2x2 screen
+	// only ever lists 2x2 recipes.
+	int gridSize() const { return craftingSize == Recipe::SIZE_2X2 ? 2 : 3; }
+
+	// v42: auto-filled crafting grid for the selected recipe
+	// (v44: displayed 2x2 on the inventory screen, 3x3 on the
+	// table/stonecutter; storage is always 9 cells, 3-stride).
 	ItemInstance gridCells[9];
 	int gridHas[9];
 	bool gridFilled;
