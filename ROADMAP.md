@@ -2079,6 +2079,146 @@ Each version is ONE coherent batch of features, shipped as a new APK
     check perch + heal-beam + respawn v27-v29 still work, no
     crash, old features intact).
 
+- **v35 — Wither boss, stage 2 (SHIPPED, build-only).**
+  Pays the v34 stage-2 debts in the ROADMAP "Next" order: the
+  three-head volley, the small-head skull + wall mounting, and
+  the wither rose. The armoured phase stays deferred (needs
+  device feel first, see below).
+  ### Audit (read from code before writing anything)
+  - **Volley today**: `Wither::checkHurtTarget` (Wither.cpp) —
+    1 aimed skull every 2 s (`attackTime = TicksPerSecond * 2`),
+    `WitherSkull` is a `Throwable` (no gravity, Fireball-shaped)
+    whose ctor spawns at the mob's head height and whose
+    `shoot(xd, yd, zd, 1.0, 8)` is re-called after creation, so
+    extra skulls are just more `new WitherSkull` + `shoot` calls
+    with rotated aims and sideways offsets — no new projectile
+    class needed. Modern MC fires one skull per head per volley.
+  - **Skull tile today**: full cube (`SHAPE_BLOCK`, default
+    shape), top-face placement only (WitherSkullItem rejects any
+    face but UP). The wall-mount pattern exists twice:
+    `TorchTile::getPlacedOnFaceDataValue` (data 1–5 by face) +
+    `mayPlace(level,x,y,z,face)`; `LeverTile` the same, with an
+    ON bit. The small-shape pattern exists too: `TileRenderer::
+    tesselateInWorld` calls `tt->updateShape(level,x,y,z)` before
+    rendering a SHAPE_BLOCK tile, `Tile::clip` calls it before
+    the hit test, and `SignTile`/`StairTile` override it per data
+    value (SignTile also overrides `getTileAABB` the same way) —
+    so a per-data small head box covers render + hit +
+    collision with one override, and `Tile::init` derives
+    lightBlock 0 from `isSolidRender() == false`, so the head
+    blocks no light. `Tile::getAABB` uses the shape bounds, so
+    the head gets a small collision box for free.
+  - **Plant pattern for the rose**: `Bush` (flower 37 / rose
+    38) — cross texture, small plant box, no collision AABB,
+    `entityInside` precedent is `CactusTile` (hurts any entity
+    whose AABB overlaps the cell; `Entity::move` calls it for
+    every tile in the mover's AABB). No flower-specific item
+    plumbing is needed: `Tile.cpp:368` auto-creates a TileItem
+    for every registered tile, so a rose tile gets its placeable
+    item (id 431) for free.
+  - **Rose attribution**: `Mob::die(Entity* source)` gets
+    `source == NULL` for wither-effect deaths (`Mob::tick`
+    calls `hurt(NULL, 1)` every 40 ticks), so "killed by the
+    wither" cannot be read from the death source — it needs a
+    marker. The wither applies the effect in exactly two places
+    (`WitherSkull::onHit`, blast radius; `Wither::doHurtTarget`,
+    melee), so a `Mob::witheredByWither` bool set there and
+    cleared when the effect expires is sufficient and precise.
+  - **AUDIT FIND — v32 bug, fixed here**: `Monster::
+    checkHurtTarget` calls `doHurtTarget(target)` on a
+    `Monster*`, but `Monster::doHurtTarget` was NOT virtual, so
+    `WitherSkeleton::doHurtTarget` (v32 — the wither-on-melee
+    effect, documented as shipped) was NEVER dispatched: the
+    skeleton's melee never withered anything. `PathfinderMob::
+    checkHurtTarget` IS virtual (PathfinderMob.h:44), so the
+    wither's own `checkHurtTarget` override (and the ghast's /
+    dragon's) always ran — only `doHurtTarget` was dead. Fix:
+    one word (`virtual` in Monster.h); no other mob overrides
+    it, so no other melee behaviour changes — and the fix makes
+    the documented v32 feature actually work.
+  - **Texture**: `terrain.png` has no free cells left (v34 used
+    252, the last one, for the skull face). Cell 253 is
+    referenced ONLY by the never-generated placeholder tile
+    `info_updateGame2` (249) — same situation as 252, so the
+    rose sprite is drawn over it; those placeholder tiles would
+    render as rose crosses if ever placed via the fill command.
+  ### What shipped
+  - **Three-head volley** (`Wither::checkHurtTarget`): 3 skulls
+    per volley — centre head dead-on, side heads fanned
+    ±0.15 rad (~8.6°) from ±0.55-block head offsets
+    perpendicular to the aim, all with the same damage
+    (explosion r1 + Wither I 10 s). Cooldown 2 s → 3 s to
+    compensate (3 skulls / 3 s vs 1 / 2 s): the volley is more
+    dangerous but the spread keeps it dodgeable at range.
+  - **Small-head skull + wall mounting** (`SkullTile`, data
+    0–4): floor = centred 8×8×8 px head in the bottom half of
+    the cell; walls = same head hugged against the supporting
+    wall, mid-cell height. Data: 0 floor, 1 north wall (support
+    z+1), 2 south (z-1), 3 west (x+1), 4 east (x-1). Both item
+    paths (skull item 397 + TileItem 144) use
+    `getPlacedOnFaceDataValue` + face-aware `mayPlace`, so they
+    agree; DOWN is still rejected. A skull whose support is
+    broken pops off and drops the item (TorchTile shape). The
+    skull is no longer solid-render (neighbours keep their
+    faces, light passes).
+  - **Ritual safety**: `setPlacedBy` only tries the summon for
+    floor skulls (data 0), and `trySummonFromSkull` requires
+    data 0 on all three skulls — a wall-mounted row can never
+    complete or false-positive a ritual. The ritual consumption
+    order (skulls first, soul sand after) is unchanged, so no
+    floor skull is ever left standing on removed support.
+  - **Wither rose** (`WitherRoseTile`, id 175, tex 253, Bush):
+    grows on ANY solid block (not just grass/dirt/farmland) and
+    needs no light — it only needs solid support, so it survives
+    in the Nether/End where the wither fights. Touching it gives
+    any mob Wither I for 2 s, refreshed while standing in it
+    (`entityInside`, cactus precedent, server-side only); the
+    wither boss itself is immune. A mob that dies while
+    withered BY THE BOSS (`witheredByWither`, set by the boss's
+    skulls/melee only — never by skeletons or roses) leaves a
+    rose where it died (`Mob::die`: planted as a tile when the
+    spot is air over solid ground, dropped as an item
+    otherwise). The rose sprite (dark-red bloom, black centre,
+    dark stem) is drawn into terrain.png cell 253; lang
+    `tile.witherRose.name`; in the creative inventory.
+  - **Boss melee withers** (`Wither::doHurtTarget`, new
+    override): the wither's close-range swing now also applies
+    Wither I (10 s) + the rose marker (modern MC). This works
+    only because of the `virtual` fix above — without it, this
+    override would have been dead code like the skeleton's was.
+  - Version bump 34 -> 35 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs, libtinfo.so.5 shim) passes: `libminecraftpe.so`
+    arm64 10,249,032 B / armv7 8,789,892 B, `Tile::witherRose`
+    symbol confirmed in the built .so. CI `./gradlew
+    assembleDebug` (run + APK details in the follow-up commit).
+  ### Known limits / debts (stage 3 and beyond)
+  - **No armoured phase — STILL DEFERRED, deliberately.** Modern
+    MC gives the wither armour + arrow immunity below half HP.
+    It is a balance change, not a code gap, and the fight has
+    never been felt on device yet (v34 + v35 are both
+    build-only). Tuning it blind risks an unkillable or trivial
+    boss; it waits on the v34/v35 device test below.
+  - **No wither spawn protection / spawn animation.** Modern MC
+    grows the wither over ~2 s with an invulnerable charge-up
+    and a bigger (power 7) summon blast; stage 1/2 still summon
+    instantly with a radius-3 blast.
+  - The boss bar shows the FIRST live wither only (multiple
+    withers share one bar); the bar has no wither icon, just the
+    name + fill.
+  - **Rose attribution is "died while withered by the boss",
+    not "killed by the boss's damage".** If the player lands
+    the finishing blow on a mob the wither withered, a rose
+    still grows — a deliberate simplification (the death source
+    is NULL for wither-effect deaths, so the exact killing blow
+    is not attributable in this tree). The common case (the
+    wither fighting mobs) is exact.
+  - The wither rose has no crafting / compost use (modern MC
+    has none either — it is a dye/black-dye source there; no
+    dye system exists in this tree, so nothing to wire it to).
+  - All of it is build-only until a live test on device (see
+    the "Next" v35 test list: volley, wall skulls, rose, ritual
+    still works, no crash, old features intact).
 - **v34 — Wither boss, stage 1 (SHIPPED, build-only).**
   Pays the v33 "Next" candidate: the skull (v32) + soul sand (v21)
   already existed, so the ritual had all its ingredients — the boss
@@ -2734,16 +2874,42 @@ Each version is ONE coherent batch of features, shipped as a new APK
   skulls) does NOT summon; check the boss stays in peaceful
   (it must not vanish) and the old features still work, no crash.
   The v33 APK stays the fallback until this stage passes.
-- **Next version (v35 candidate): wither boss, stage 2.** Stage 1
-  shipped the whole loop, so stage 2 is the fight-feel polish
-  from the v34 debts, in this order: (1) three-head volley — one
-  aimed skull per head per volley, the most visible gap versus
-  modern MC; (2) small-head skull shape + wall mounting, so the
-  ritual pieces look like skulls instead of black cubes; (3)
-  wither rose (needs a new flower tile + item). The armoured
-  phase (arrow immunity below half HP) stays after those — it is
-  a balance change that needs device feel first, not more code.
-- **v34 — Wither boss, stage 1.** SHIPPED (see "Done").
+- **Device verification for the wither boss, stage 2 (v35's open
+  item).** Uninstall the old APK first (fresh CI debug keystore).
+  Summon the wither (same ritual as v34) and check it now fires
+  a 3-skull volley every ~3 s — centre skull on target, side
+  skulls fanning out — more dangerous than v34 but still
+  dodgeable at range, and it never spams; let it kill a mob
+  (spawn one near it, or lure a zombie) and check a wither rose
+  grows where the mob died (or drops as an item if the spot is
+  mid-air); walk into the rose and check it withers you (black
+  hearts, HP draining) for ~2 s; check a wither skeleton's melee
+  now withers too (v32 fix — its swing should blacken the
+  hearts); place a skull on a WALL (side face of a block) and
+  check it renders as a small head hugged to the wall, pops off
+  when the wall is broken, and does NOT summon when three wall
+  skulls are stuck to the sides of a soul-sand T; place a skull
+  on the floor and check it is a small head, not a full cube;
+  re-check the v34 list (ritual consumes the T, boss bar drains,
+  1 nether star + 50 XP, incomplete T does not summon, peaceful
+  keeps the boss) and the old features, no crash. The v34 APK
+  stays the fallback until this stage passes.
+- **Next version (v36 candidate): wither boss, stage 3 — armoured
+  phase + spawn charge-up.** Stage 2 closed the visible gaps
+  (volley, head shape, wall mounting, rose), so what is left is
+  the fight's second half: below half HP the wither gains armour
+  + arrow immunity (modern MC), and the summon grows over ~2 s
+  with an invulnerable charge-up and a power-7 blast instead of
+  the instant radius-3 one. Why this next, and why not yet: it is
+  the biggest remaining wither debt, but it is a balance change
+  that can only be tuned from device feel — the v34/v35 device
+  test above is the input (is the volley fair? is the boss too
+  easy to bow down?). If that test says the fight is already too
+  hard, stage 3 tunes down instead of adding armour. Smaller
+  debts in the same area: multi-wither boss bar (one bar per
+  wither, or the lowest-HP one), wither-rose black dye (needs a
+  dye system first — no dye system exists in this tree).
+- **v35 — Wither boss, stage 2.** SHIPPED (see "Done").
 
 ## Queued (priority order — re-evaluate after each version)
 

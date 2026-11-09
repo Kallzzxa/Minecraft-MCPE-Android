@@ -133,6 +133,8 @@ Tile* Tile::portalTile   = NULL;
 Tile* Tile::hellSand     = NULL;
 // v34: wither skeleton skull tile.
 Tile* Tile::skull         = NULL;
+// v35: wither rose tile.
+Tile* Tile::witherRose    = NULL;
 Tile* Tile::quartzOre    = NULL;
 Tile* Tile::netherWart   = NULL;
 // v22: End tiles.
@@ -291,6 +293,13 @@ void Tile::initTiles() {
 	// never-generated placeholder tiles info_updateGame1/2, see
 	// SkullTile.h. Breaking it drops the skull item back.
 	skull = (new SkullTile(144, 252))->init()->setDestroyTime(1.0f)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("skull");
+	// v35: wither rose (id 175, modern MC). Bush shape (cross
+	// texture, small plant box), texture 253 (terrain.png cell
+	// (13, 15)): referenced only by the never-generated
+	// placeholder tile info_updateGame2 (249), see
+	// WitherRoseTile.h. Breaking it drops the rose itself (Bush
+	// default: the tile's own item).
+	witherRose = (new WitherRoseTile(175, 253))->init()->setDestroyTime(0.0f)->setSoundType(SOUND_GRASS)->setCategory(ItemCategory::Decorations)->setDescriptionId("witherRose");
 
 	lightGem	= (new LightGemTile(89, 9 + 16 * 6, Material::glass))->init()->setDestroyTime(0.3f)->setCategory(ItemCategory::Structures)->setSoundType(SOUND_GLASS)->setLightEmission(1.0f)->setDescriptionId("lightgem");
 	// v21: Nether portal block (texture 170, the swirl). Tile::

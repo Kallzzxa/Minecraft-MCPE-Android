@@ -35,6 +35,9 @@ void WitherSkull::onHit(const HitResult& res)
 			if (!e->isMob()) continue;
 			if (e->getEntityTypeId() == MobTypes::Wither) continue;
 			((Mob*)e)->witherEffectTicks = 10 * 20;
+			// v35: withered BY THE BOSS — if this mob dies while
+			// the effect lasts, Mob::die plants a wither rose.
+			((Mob*)e)->witheredByWither = true;
 		}
 		// Small explosion (radius 1, no fire — modern MC wither
 		// skull). Level::explode handles the blast, particles and

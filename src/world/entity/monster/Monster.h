@@ -27,7 +27,14 @@ public:
 
 	int getCreatureBaseType() const;
 
-	bool doHurtTarget(Entity* target);
+	// v35: virtual — audit find: Monster::checkHurtTarget calls
+	// this non-virtually, so WitherSkeleton::doHurtTarget (v32,
+	// the wither-on-melee effect) was NEVER dispatched and the
+	// skeleton's melee never withered. Making it virtual makes
+	// the skeleton's override — and Wither's — actually run. No
+	// other mob overrides it, so no other melee behaviour
+	// changes.
+	virtual bool doHurtTarget(Entity* target);
 	void setTarget(Mob* mob);
 	Mob* getTarget();
 

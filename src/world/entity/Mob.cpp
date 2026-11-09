@@ -313,6 +313,10 @@ void Mob::tick()
 				z + (random.nextFloat() - 0.5f) * bbWidth, 0, 0.02f, 0);
 		}
 		witherEffectTicks--;
+		// v35: the wither-rose marker dies with the effect — a
+		// mob that survives its withering and dies later of
+		// something else must not grow a rose.
+		if (witherEffectTicks == 0) witheredByWither = false;
 	}
 
 	super::tick();
@@ -556,6 +560,23 @@ void Mob::die( Entity* source )
 			if (source != NULL && Player::isPlayer(source)) {
 				dropExperience(getExperienceReward((Player*) source));
 			}
+			// v35: wither rose — a mob that dies while withered by
+			// the wither boss leaves a wither rose where it died
+			// (modern MC). Planted as a tile when the spot can
+			// hold it (air cell over any solid block, any
+			// dimension — the rose accepts any solid soil), else
+			// dropped as an item so it is never lost. The flag is
+			// only ever set by the boss (skulls / melee), never by
+			// skeletons or roses, so boss kills are the only ones
+			// that grow roses.
+			if (witheredByWither) {
+				int bx = Mth::floor(x), by = Mth::floor(y), bz = Mth::floor(z);
+				if (level->getTile(bx, by, bz) == 0 && level->isSolidBlockingTile(bx, by - 1, bz)) {
+					level->setTile(bx, by, bz, Tile::witherRose->id);
+				} else {
+					spawnAtLocation(new ItemInstance(Tile::witherRose), 0);
+				}
+			}
 		}
 		level->broadcastEntityEvent(this, EntityEvent::DEATH);
 	}
@@ -629,6 +650,7 @@ void Mob::_init() {
 	regenerationEffectTicks = 0;
 	poisonEffectTicks = 0;
 	witherEffectTicks = 0; // v32: no wither active on spawn.
+	witheredByWither = false; // v35: not withered by the boss.
 	// v26: no level II effect active on spawn either.
 	speedEffectLevel = 0;
 	strengthEffectLevel = 0;

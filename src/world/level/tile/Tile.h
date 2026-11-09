@@ -219,6 +219,8 @@ public:
     static Tile* hellSand;
 	// v34: wither skeleton skull tile (placeable skull, ritual).
     static Tile* skull;
+	// v35: wither rose tile (wither kill drops / plants it).
+    static Tile* witherRose;
     static Tile* lightGem;
 	static Tile* portalTile;
 	static Tile* quartzOre;

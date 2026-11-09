@@ -3,10 +3,14 @@
 
 // v34: placeable wither skull item (modern MC id 397). The v32
 // skull was a plain Item (not placeable); this subclass places the
-// skull tile (id 144) on the BedItem pattern — top face only, the
-// cell above must be empty, the block below solid — and the ritual
-// check runs from SkullTile::setPlacedBy, so it fires no matter
-// which item placed the last skull.
+// skull tile (id 144) on the BedItem pattern — the cell above must
+// be empty, the block below solid — and the ritual check runs from
+// SkullTile::setPlacedBy, so it fires no matter which item placed
+// the last skull.
+// v35: floor AND wall mounting (modern MC) — the target cell is
+// the neighbour in the clicked face's direction and the data
+// value comes from SkullTile::getPlacedOnFaceDataValue; DOWN is
+// still rejected and the ritual only fires for floor skulls.
 
 #include "Item.h"
 

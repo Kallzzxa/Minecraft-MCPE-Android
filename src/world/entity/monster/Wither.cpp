@@ -160,23 +160,52 @@ void Wither::checkHurtTarget(Entity* target, float d)
 		super::checkHurtTarget(target, d);
 		return;
 	}
-	// Ranged attack, ghast-style: one aimed wither skull every 2 s
-	// while the target is within 40 blocks. (Modern MC fires from
-	// all three heads; stage 1 fires one skull per volley — the
-	// three-head volley is stage 2.)
+	// Ranged attack, ghast-style, modern MC volley: one aimed
+	// wither skull per head — three skulls at once, the centre
+	// head dead-on and the side heads fanned out +/-0.15 rad
+	// (~8.6 deg) from head offsets +/-0.55 blocks perpendicular
+	// to the aim, so the spread is dodgeable at range but the
+	// volley is visibly (and actually) more dangerous than
+	// stage 1's single skull. The cooldown grows 2 s -> 3 s to
+	// compensate: 3 skulls / 3 s instead of 1 / 2 s.
 	if (d < 40) {
 		float xd = target->x - x;
 		float zd = target->z - z;
 		if (attackTime == 0) {
-			WitherSkull* ws = new WitherSkull(level, this);
-			float yd = (target->y + target->getHeadHeight() - 0.7f) - ws->y;
+			float len = Mth::sqrt(xd * xd + zd * zd);
+			float px = 0, pz = 0;
+			if (len > 0.001f) { px = -zd / len; pz = xd / len; }
+			float yd = (target->y + target->getHeadHeight() - 0.7f);
+			static const float SPREAD[3] = {-0.15f, 0.0f, 0.15f};
+			static const float SIDE[3] = {-0.55f, 0.0f, 0.55f};
+			for (int i = 0; i < 3; i++) {
+				WitherSkull* ws = new WitherSkull(level, this);
+				ws->x += px * SIDE[i];
+				ws->z += pz * SIDE[i];
+				float cs = Mth::cos(SPREAD[i]), sn = Mth::sin(SPREAD[i]);
+				float sxd = xd * cs - zd * sn;
+				float szd = xd * sn + zd * cs;
+				level->addEntity(ws);
+				ws->shoot(sxd, yd - ws->y, szd, 1.0f, 8);
+			}
 			level->playSound(this, "random.bow", 1.0f, 0.6f);
-			level->addEntity(ws);
-			ws->shoot(xd, yd, zd, 1.0f, 8);
-			attackTime = SharedConstants::TicksPerSecond * 2;
+			attackTime = SharedConstants::TicksPerSecond * 3;
 		}
 		yRot = (float)(std::atan2(zd, xd) * Mth::RADDEG) - 90;
 	}
+}
+
+bool Wither::doHurtTarget(Entity* target)
+{
+	bool hit = super::doHurtTarget(target);
+	if (hit && target != NULL && target->isMob()
+		&& target->getEntityTypeId() != MobTypes::Wither) {
+		// Modern MC: the boss's melee withers for 10 s, and the
+		// victim counts as killed-by-the-wither for the rose.
+		((Mob*)target)->witherEffectTicks = 10 * 20;
+		((Mob*)target)->witheredByWither = true;
+	}
+	return hit;
 }
 
 int Wither::getExperienceReward(Player* killedBy)
@@ -213,8 +242,12 @@ bool Wither::trySummonFromSkull(Level* level, int x, int y, int z)
 			bool ok = true;
 			for (int i = -1; i <= 1 && ok; i++) {
 				int bx = cx + i * ax, bz = cz + i * az;
-				if (level->getTile(bx, y - 1, bz) != Tile::hellSand->id) ok = false;
 				if (level->getTile(bx, y, bz) != Tile::skull->id) ok = false;
+				// v35: only FLOOR skulls (data 0) count — a wall
+				// skull stuck to the side of a soul-sand bar must
+				// never complete (or false-positive) the ritual.
+				if (level->getData(bx, y, bz) != 0) ok = false;
+				if (level->getTile(bx, y - 1, bz) != Tile::hellSand->id) ok = false;
 			}
 			if (!ok) continue;
 			// The stem: one soul sand below the middle of the bar.

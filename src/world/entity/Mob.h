@@ -201,6 +201,14 @@ public:
 	// melee hit (WitherSkeleton::doHurtTarget); the HUD draws black
 	// hearts while this is > 0 (Gui::renderHearts).
 	int witherEffectTicks;
+	// v35: true while this mob is withered BY THE WITHER BOSS
+	// (its skulls or its melee — set next to witherEffectTicks in
+	// WitherSkull::onHit / Wither::doHurtTarget, cleared when the
+	// effect runs out). Mob::die plants a wither rose for a mob
+	// that dies while this is set (modern MC). Deliberately NOT
+	// set by wither skeletons or wither roses, so only boss kills
+	// grow roses. Session-only like the timer — never saved.
+	bool witheredByWither;
 
 	// v26: potion effect amplifier (1 = normal, 2 = level II from
 	// glowstone brewing). Only meaningful while the matching timer

@@ -65,6 +65,14 @@ protected:
 	void checkHurtTarget(Entity* target, float d);
 	void dropDeathLoot();
 
+	// Melee (d < 4, via Monster::checkHurtTarget): the boss's
+	// swing also withers for 10 s and marks the victim as
+	// withered-by-the-boss (modern MC melee wither; the rose
+	// marker). Another wither is never withered (boss immunity,
+	// same rule as its own skulls). Needs Monster::doHurtTarget
+	// virtual (v35 audit fix — see Monster.h).
+	bool doHurtTarget(Entity* target);
+
 	// Dragon-only wide target acquisition, same reason: a flying
 	// boss hovers well outside Monster's 16-block range, so the
 	// 16-block findAttackTarget would almost never acquire while

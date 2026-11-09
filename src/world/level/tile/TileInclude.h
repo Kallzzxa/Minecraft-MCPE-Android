@@ -43,6 +43,7 @@
 #include "NetherReactor.h"
 #include "HellSandTile.h"
 #include "SkullTile.h"
+#include "WitherRoseTile.h"
 #include "PortalTile.h"
 #include "EndPortalTile.h"
 #include "EndPortalFrameTile.h"
