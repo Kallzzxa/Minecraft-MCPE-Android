@@ -2344,13 +2344,17 @@ Each version is ONE coherent batch of features, shipped as a new APK
     (`MobSpawnerTileEntity::tick/save/load/shouldSave`,
     `MobSpawnerTile::getResource/newTileEntity`,
     `Tile::mobSpawner`). CI
-    `./gradlew assembleDebug` __CI_STATUS__ (run __CI_RUN__,
-    __CI_DUR__); APK
+    `./gradlew assembleDebug` SUCCESS (run 42548892653, ~4m05s,
+    02:04:33–02:08:38 UTC 2026-11-09); APK
     `minecraft-mcpe-android-0.6.1-debug-v39.apk`
-    __APK_SIZE__ B, sha256
-    __APK_SHA256__,
+    12,945,352 B, sha256
+    fa8358e7b94690015f705cf22be47620d2ed30833e05bf10e04bc75d6b10a630,
     versionCode 39, `apksigner verify` v1+v2 true, `unzip -t`
-    clean.
+    clean; the APK itself was re-checked to contain the new
+    code in its `libminecraftpe.so` (arm64 10,261,320 B /
+    armv7 8,798,084 B — byte-identical sizes to the local
+    build) and the new cage texture in `terrain.png` cell 251
+    (changed vs the v38 atlas).
   ### Known limits / debts
   - No spinning blaze model inside the cage (no custom tile-entity
     renderer exists in this tree) — the orange glow in the cage
@@ -3475,19 +3479,36 @@ Each version is ONE coherent batch of features, shipped as a new APK
   ritual; re-check the v34–v37 lists (3-skull volley, rose, wall
   skulls, charge-up, armour, lowest-HP bar) and the old features,
   no crash. The v37 APK stays the fallback until this stage passes.
-- **Next version (v39 candidate): blaze spawner tile.** The wither
-  trilogy + bar + self-damage (v34–v38) are complete, and this is
-  the oldest open structure debt standing: the fortress blaze room
-  (v31) still refills its blazes by chunk-reload top-up, not by a
-  spawner block — `Tile::mobSpawner` is declared but never defined
-  and no spawner tile entity exists in the tree. Why this next, and
-  why not the rose dye or the bar icon: the rose's black-dye use
-  needs a dye system first (a whole subsystem, not a batch), the
-  icon is cosmetic, while the spawner is bounded (one tile + one
-  tile entity + a spawn tick, on the ChestTileEntity /
-  MobSpawner precedents) and makes the fortress feel alive instead
-  of refilling artificially. All wither tuning stays provisional
-  until the v36 device feel arrives — do NOT re-tune blind.
+- **Device verification for the blaze spawner tile (v39's open
+  item).** Uninstall the old APK first (fresh CI debug keystore).
+  Enter the Nether, walk ~320+ blocks and find a fortress BARU
+  (new chunks — an old-world fortress has no spawner, only the
+  top-up): check the blaze room has a cage block at its centre
+  (dark bars + orange glow), wait near it — blazes spawn over
+  time up to ~4 around the room; kill them — check they refill
+  after the 10–20 s delay; walk >16 blocks away — check the
+  spawner stops (no new blazes); quit/reload — check the spawner
+  block + its blazes are still there; break the spawner — check
+  it drops nothing; check the creative inventory has the spawner
+  and a placed one spawns blazes; re-check the v31–v38 lists
+  (fortress layout, wart room, loot chest, wither skeletons,
+  boss bar, skull self-damage) and the old features, no crash.
+  The v38 APK stays the fallback until this stage passes.
+- **Next version (v40 candidate): ghast/blaze fireball
+  self-damage.** The v38 debt, same family as the fix that just
+  shipped: `Fireball::onHit` uses the same NULL-source shape the
+  wither skull had, so a ghast or blaze CAN hurt itself with its
+  own fireball blast. Why this next, and why not the rose dye,
+  the boss-bar icon, or spawner mob-switching: the rose's dye use
+  still needs a dye system first (a whole subsystem, not a
+  batch), the icon is cosmetic, spawner mob-switching needs a
+  spawn-egg system + a tile-entity renderer that do not exist,
+  while the fireball fix is the same one-line shape as v38 (pass
+  the fireball as the blast source + a shooter-immunity check)
+  and closes a real gameplay bug. All spawner tuning stays
+  provisional until the v39 device feel arrives — do NOT re-tune
+  blind.
+- **v39 — Blaze spawner tile.** SHIPPED (see "Done").
 - **v38 — Wither skull self-damage.** SHIPPED (see "Done").
 - **v37 — Multi-wither boss bar.** SHIPPED (see "Done").
 - **v35 — Wither boss, stage 2.** SHIPPED (see "Done").
