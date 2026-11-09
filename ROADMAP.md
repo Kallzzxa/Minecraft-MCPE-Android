@@ -2774,6 +2774,14 @@ Each version is ONE coherent batch of features, shipped as a new APK
     rule as the old blit) instead of the dead sprite blit.
   - Version bump 42 -> 43 (`app/build.gradle`,
     `AndroidManifest.xml`, `build-apk.sh`).
+    CI `./gradlew assembleDebug` SUCCESS (run 42557339101, ~4m09s,
+    03:36:35–03:40:44 UTC 2026-11-09); APK
+    `minecraft-mcpe-android-0.6.1-debug-v43.apk` 12,956,345 B, sha256
+    5279ded0669344f2c7d428b7e0dbd6f9528cca7ce392de51f89f70a10d844eed,
+    versionCode 43, `apksigner verify` v1+v2 true, `unzip -t` clean;
+    the APK itself was re-checked to contain the restored RGBA
+    `terrain.png` (reeds cell 73: 115 transparent / 141 opaque) and
+    `libminecraftpe.so` arm64 10,281,800 B / armv7 8,798,084 B.
   ### Known limits / debts
   - A thrown splash potion (v24/v25) still bursts into bobber
     sprites on impact — `ThrownPotion` uses the same
