@@ -1253,6 +1253,9 @@ Each version is ONE coherent batch of features, shipped as a new APK
     the dungeon spawner/chest feature is `#if 0`'d out — so the
     first emerald comes from selling wheat/coal, and the village
     farms grow mature wheat/carrots for exactly that loop).
+    (PAID in v33 — the precedent is the normal block-place path:
+    `LevelChunk::setTile` -> `EntityTile::onPlace` ->
+    `setTileEntity`; see v33.)
   - No per-villager professions or randomised offers (all villagers
     share the 6 fixed trades); no trade XP, no restocking limits.
   - Villagers do NOT go home at night (no such goal exists in this
@@ -2076,6 +2079,116 @@ Each version is ONE coherent batch of features, shipped as a new APK
     check perch + heal-beam + respawn v27-v29 still work, no
     crash, old features intact).
 
+- **v33 — Village chest loot (SHIPPED, build-only).**
+  Pays the v23 debt "no village chest with loot" and the v31/v32
+  fortress-chest debt — the oldest standing structure debt.
+  ### Audit (read from code before writing anything)
+  - The v23 worry ("placing a tile entity during postProcess has no
+    precedent") turned out to be unfounded:
+    `LevelChunk::setTile` / `setTileAndData` (server side) call
+    `Tile::onPlace` for the placed tile (`LevelChunk.cpp:96,136`),
+    and `ChestTile` extends `EntityTile`, whose `onPlace`
+    (`EntityTile.cpp:6-10`) calls `level->setTileEntity(x, y, z,
+    newTileEntity())` — so placing a chest block via
+    `level->setTile` during postProcess creates the
+    `ChestTileEntity` synchronously and registers it in
+    `Level::tileEntities` + the chunk map. The mechanism is the
+    normal block-place path, not a special tile-entity constructor
+    call. `ChestTile::newTileEntity()` returns a `ChestTileEntity`
+    via the factory; `Tile::chest` is id 54.
+  - Save/load + eviction come free from the v17 machinery:
+    `ChestTileEntity::shouldSave()` is true while any slot is
+    non-empty, so a filled chest is written to the global
+    `entities.dat` (`ExternalFileLevelStorage::saveEntities`);
+    `TileEntity::loadStatic` rebuilds it on load (`"Chest"` id
+    string); `ChunkCache::reattachTileEntities` re-attaches the
+    ORIGINAL entity before postProcess (guarded by
+    `hasTileEntityAt`, no duplicate); disk-loaded chunks have
+    `terrainPopulated=true`, so postProcess never re-runs and never
+    places a second chest. Eviction detaches (chunk map cleared,
+    object lives on in `Level::tileEntities`) and saves. An emptied
+    chest reports `shouldSave()==false` and is simply re-created
+    empty on reload — empty is empty, nothing is lost.
+  - One real trap found by the audit (shaped the design):
+    `Level::getTileEntity` goes through
+    `LevelChunk::getTileEntity`, which LAZY-CREATES a fresh empty
+    tile entity when the chunk map has none — and during a game
+    tick the onPlace-created entity may still sit in
+    `Level::pendingTileEntities` (`updatingTileEntities`), so the
+    lazy twin would be created, filled with the loot, and then
+    DELETED by the pending-flush dedup (which keeps the first,
+    empty, entity). The fill helper therefore NEVER calls
+    `getTileEntity`: it scans `Level::tileEntities` +
+    `Level::pendingTileEntities` directly (both public,
+    `Level.h:306-307`) for the entity at (x,y,z) and fills only if
+    found; if neither list has it the chest stays empty rather than
+    risking a duplicate.
+  - Determinism: loot Randoms are re-seeded per village/fortress
+    hash + house index on every `tryPlace*` call, so every chunk
+    overlapping a structure computes the same loot; the chest block
+    lands in exactly one chunk (clipped setters + an `inChunk`
+    guard, so no cross-chunk `getTile` during postProcess), and
+    postProcess runs once per chunk (`terrainPopulated` guard).
+  - Loot items all already existed: bread/wheat/carrot/apple/coal/
+    iron ingot/string/emeraldGem (v23 currency) for villages;
+    iron/gold ingot/coal/bread/obsidian/diamond (`Item::emerald` IS
+    the diamond gem in this tree's old naming)/flint & steel for
+    the fortress. `FillingContainer::setItem` COPIES the instance,
+    so stack temporaries are safe.
+  ### What shipped
+  - **Village loot chests** (2 per village): the two 7x5 houses —
+    N (i=0) and the workbench house S (i=1) — each hold a chest in
+    the corner opposite the floor lamp (x0+1, groundY+1, z0+d-2),
+    on the wood floor with air above (opens normally). 3–5 stacks
+    from the village table: bread 2–4, wheat 3–6, carrot 2–4,
+    apple 1–3, coal 2–4, iron ingot 1–3, string 1–3, emerald 1–2
+    (rare — seeds the trading loop).
+  - **Fortress loot chest** (1 per fortress): in the blaze room,
+    east wall middle (wx+22, D+1, wz) — clear of the glowstone
+    corners, the west doorway and the blaze spawn spots. 3–4
+    stacks: iron ingot 1–3, gold ingot 1–3, coal 1–3, bread 1–3,
+    obsidian 1–2, diamond 1 (rare), flint & steel 1 (rare). No blaze
+    rods / nether wart: the fortress already has blazes and a wart
+    room next door.
+  - **Shared helper** (`ChestLoot`, new
+    `src/world/level/levelgen/ChestLoot.{h,cpp}`, added to
+    `Android.mk`): `fillChest` (weighted table, random empty
+    slots) + `fillVillageChest` / `fillFortressChest` tables.
+    `VillageFeature::buildHouse` gains a chest flag + per-house
+    loot Random; `NetherFortressFeature::placeFortress` gains the
+    fortress hash.
+  - Version bump 32 -> 33 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local `ndk-build`
+    (r17c, both ABIs) passes: `libminecraftpe.so` arm64
+    10,224,456 B / armv7 8,773,508 B, new symbols confirmed
+    (`ChestLoot::fillChest/fillVillageChest/fillFortressChest`).
+    CI `./gradlew assembleDebug` SUCCESS (run 42538696263,
+    ~4m08s, 00:10:03–00:14:11 UTC 2026-11-09); APK
+    `minecraft-mcpe-android-0.6.1-debug-v33.apk`
+    12,928,993 B, sha256
+    f24f41cdfc547f0ecb58301fb51e593a62c77028641038d2c2d00cebacde13b4,
+    versionCode 33, `apksigner verify` v1+v2 true, `unzip -t`
+    clean; the APK itself was re-checked to contain the new
+    symbols in its `libminecraftpe.so` (arm64 10,224,456 B /
+    armv7 8,773,508 B — byte-identical sizes to the local build).
+  ### Known limits / debts
+  - Chests only exist in villages/fortresses generated AFTER v33:
+    chunks already populated in v23–v32 worlds never re-run
+    postProcess, so old villages/fortresses do not gain chests
+    retroactively (same rule as the v25 swamp-hut cauldron).
+  - No per-village loot variety beyond the two tables (same table
+    for every village/fortress, only the rolls differ); no double
+    chests (adjacent chests are refused by
+    `ChestTile::mayPlace`, and the layout keeps them apart).
+  - All of it is build-only until a live test on device (find a
+    village in plains/desert — NEW chunks only, walk ~384+ blocks
+    from spawn if the old area is already generated — check the N
+    house and the workbench house each have a chest with 3–5
+    sensible stacks, open it, take some loot, quit, reload — the
+    taken loot stays gone and the rest stays; walk away >16 chunks
+    and back — the chest is still there, contents intact, no
+    duplicate chest; enter the Nether, find a fortress, check the
+    blaze-room chest; no crash, old features intact).
 - **v32 — Wither skeleton (SHIPPED, build-only).**
   Pays the v31 debt "no wither skeleton".
   ### Audit (read from code before writing anything)
@@ -2183,6 +2296,8 @@ Each version is ONE coherent batch of features, shipped as a new APK
   - No fortress loot chest (the v23 village-chest debt stands —
     placing a tile entity during postProcess still has no
     precedent); no blaze spawner tile (v31 debt stands).
+    (PAID in v33 for the chest — see v33; the blaze spawner tile
+    still stands.)
   - The wither skeleton has no ranged attack at all (modern MC
     neither — melee only) and no skull-helmet rendering (it
     carries the sword; no head-slot item exists in this tree).
@@ -2315,7 +2430,7 @@ Each version is ONE coherent batch of features, shipped as a new APK
     chunk reloads (same deliberate top-up as villagers/witch).
   - No fortress loot chest (placing a tile entity during
     postProcess has no precedent in this tree — the v23 village
-    chest debt stands, same reason).
+    chest debt stands, same reason). (PAID in v33 — see v33.)
   - No nether-brick fence (no such tile exists — the bridge
     curbs are full nether-brick blocks, not fences); flat roofs,
     not gabled; one fixed fortress layout (no rotation/variants);
@@ -2433,18 +2548,30 @@ Each version is ONE coherent batch of features, shipped as a new APK
   alone, check a skull drops rarely (2.5% — kill several), check
   the plain skeleton still shoots arrows, no crash. The v31 APK
   stays the fallback until this stage passes.
+- **Device verification for village + fortress chest loot (v33's
+  open item).** Find a village in plains/desert — NEW chunks only,
+  walk ~384+ blocks from spawn if the old area is already generated
+  — check the N house and the workbench house each have a chest
+  with 3–5 sensible stacks (bread/wheat/carrot/apple/coal/iron/
+  string, rarely an emerald); open a chest, take some loot, quit,
+  reload — the taken loot stays gone and the rest stays; walk away
+  >16 chunks and back — the chest is still there, contents intact,
+  no duplicate chest; enter the Nether, find a fortress, check the
+  blaze-room chest (iron/gold/coal/bread/obsidian, rarely diamond
+  or flint & steel); no crash. The v32 APK stays the fallback
+  until this stage passes.
 - **v32 — Wither skeleton.** SHIPPED (see "Done").
-- **Next version (v33 candidate): village chest loot.** v32
-  closed the fortress's last signature mob, so the oldest
-  standing structure debt is next: village houses (v23) still
-  have no loot chests, and the fortress has none either — both
-  wait on the same missing precedent (placing a tile entity
-  with loot during postProcess). It is a small, bounded batch
-  (one chest-placement precedent + a loot table reusing the
-  reactor/village trade items), and it pays off two structures
-  at once. The wither boss stays queued behind it: it needs a
-  boss entity + health bar + summon ritual, a multi-version
-  project, not a v-batch.
+- **v33 — Village chest loot.** SHIPPED (see "Done").
+- **Next version (v34 candidate): wither boss.** The skull item
+  (v32, 2.5% drop from wither skeletons) and soul sand (v21)
+  already exist, so the summon ritual (3 skulls + 4 soul sand in
+  a T) has all its ingredients — but the boss itself is a
+  multi-version project, not a v-batch: a boss entity (flying,
+  300 HP, explosive wither-skull projectiles) + a boss health bar
+  (no boss-bar UI exists in this tree) + the summon-ritual
+  detection + wither-rose / nether-star drops. It is the last big
+  Nether boss gap and the natural next step now that the fortress
+  has its mobs AND its loot chest.
 
 ## Queued (priority order — re-evaluate after each version)
 
