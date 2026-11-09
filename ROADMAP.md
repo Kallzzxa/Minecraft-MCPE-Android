@@ -2537,6 +2537,117 @@ Each version is ONE coherent batch of features, shipped as a new APK
     the "Next" v40 test list: own-fireball immunity, cross-ghast/
     cross-blaze fireballs still hurt, player/mobs still hurt,
     no crash, old features intact).
+- **v41 — Fireball reflection (SHIPPED, build-only).** Pays the
+  v40 "Next" candidate — the mechanic v40 deliberately preserved.
+  ### Audit (read from code before writing anything)
+  - **The attack path CAN hit a non-mob entity — no pick-system
+    rework needed.** `Minecraft::handleBuildAction`
+    (`Minecraft.cpp:1489`) → `GameMode::attack(player,
+    hitResult.entity)` (`GameMode.cpp:39`) → `Player::attack`
+    (`Player.cpp:786`) → `entity->hurt(this, dmg)`.
+    `GameMode::attack`'s only guards are `noPvP` (player targets)
+    and `noPvM` (mob targets) — a Fireball is neither, so a punch
+    reaches it. The exact precedent is `EndCrystal` (v27):
+    pickable + a `hurt()` override is the whole punch path
+    (`EndCrystal.h:8-9`).
+  - **Pick range is the real constraint, and it is survivable.**
+    `GameRenderer::pick` (`GameRenderer.cpp:656`): the entity ray
+    in survival is clamped to 3 blocks (`dist > 3` → 3;
+    `getPickRange()` is 5.0, creative 12), target box =
+    `bb.grow(getPickRadius())` (default 0.1). A ghast/blaze/
+    dragon fireball is 0.5×0.5 and flies ~1 block/tick
+    (`shoot(..., 1.0f, 8)` in `Ghast.cpp:119`, `Blaze.cpp:50`,
+    `EnderDragon.cpp:276`, inertia 0.99), so it crosses the
+    3-block punch window in ~3 ticks (~150 ms) — tight, but that
+    is the skill timing modern MC has too. The crosshair must be
+    on the ball at tap time; the ball is pickable only via the
+    ray, there is no proximity auto-hit anywhere in this tree.
+  - **Arrows must NOT reflect.** `Arrow.cpp:213` calls
+    `res.entity->hurt(this, dmg)` with the Arrow as source, and
+    on a `false` return the arrow bounces off (velocity × −0.1).
+    A `source->isPlayer()` guard in `Fireball::hurt` therefore
+    keeps arrows bouncing exactly as before, and explosion
+    blasts (source = a fireball/TNT/creeper) likewise never
+    reflect. `Player::attack` only calls `hurtEnemy` (weapon
+    durability) when `entity->isMob()`, so reflecting costs no
+    sword durability.
+  - **`ownerId` contract (v40) holds.** `Throwable::getOwnerId`
+    exists; `Level::getEntity(id)` resolves an owner through
+    the `entityIdLookup` map (`Level.cpp:1037`), so the
+    reflection can check WHAT shot the ball. `Throwable::tick`
+    already skips `entityId == ownerId` while `flightTime < 5`
+    — after reassignment that skip protects the DEFLECTOR for
+    its first ticks, not the shooter. `flightTime` is private
+    in `Throwable` and is NOT reset on reflect: in any realistic
+    reflect the ball already flew >5 ticks to get within 3
+    blocks of the player, and resetting is unnecessary. `shoot()`
+    normalises its direction and takes an uncertainty argument,
+    so a reflect is one call: `shoot(dir, pow, 0)`.
+  - **No other projectile is reflectable today.** Snowball /
+    ThrownEgg / ThrownPotion are `Throwable`s but not pickable
+    either, and none has a `hurt()` override — reflection is a
+    Fireball-only mechanic in this batch, by design.
+  ### What shipped
+  - `Fireball::isPickable()` (new): `return !removed`
+    (the `EndCrystal` precedent) — the crosshair can now target
+    a flying fireball.
+  - `Fireball::getPickRadius()` (new): 0.3f instead of the
+    default 0.1f — the same 0.3 `Throwable`/`Arrow` use for
+    their own hit tests, so the crosshair target is ~1.1 blocks
+    (close to modern MC's 1-block fireball) instead of 0.7.
+  - `Fireball::hurt()` (new): a player punch reflects the ball
+    — it flies back along the player's look direction
+    (`Player::getViewVector(1.0f)`, `Player : public Mob`),
+    at 1.5 blocks/tick (faster than the 1.0 it arrived at, so it
+    can catch a flying ghast) with zero spread
+    (`shoot(dir, 1.5f, 0)`), and `ownerId` is reassigned to the
+    deflector — the v40 contract, so `Ghast::hurt` /
+    `Blaze::hurt` no longer reject it and the reflected ball
+    hurts the ghast that shot it (10 HP — one clean reflected
+    hit kills it). It still explodes (radius 1 + fire) on any
+    block/mob it reaches. The mutation is guarded by
+    `!level->isClientSide` (the `EndCrystal::hurt` pattern —
+    the server is authoritative in MP) but returns true either
+    way, so the punch always counts as landed.
+  - Scope, decided and recorded: ONLY ghast/blaze fireballs
+    reflect. The owner is resolved first; a dragon-owned ball
+    is left alone (`hurt` falls through to the base, which
+    returns false) because the dragon has no v40 owner
+    immunity — a reflected dragon ball could hurt the dragon
+    itself, a change to the End fight this batch does not make.
+    `ownerId` 0 (rebuilt from a save) or a vanished owner
+    reflects anyway: the ball was almost certainly
+    ghast/blaze-shot. Blaze fireballs reflect exactly like
+    ghast ones (same class, same code path).
+  - Version bump 40 -> 41 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local NDK r17c
+    build (both ABIs) passes: `libminecraftpe.so` arm64
+    10,261,320 B / armv7 8,798,084 B (v40: 10,257,224 /
+    8,798,084 — arm64 +4 KiB for the new code; armv7
+    byte-identical in size, which is codegen coincidence — the
+    new symbols are confirmed defined in the FRESH object
+    files: `Fireball::hurt` / `Fireball::isPickable` /
+    `Fireball::getPickRadius` (T) in both ABIs).
+    CI `./gradlew assembleDebug` SUCCESS (see run in the v41
+    report).
+  ### Known limits / debts
+  - The 3-block survival pick window is the whole skill check:
+    a fireball at 20 blocks/s gives the player ~150 ms of
+    hittable time per approach. If the device test finds it
+    unhittable in practice (touch aim + fast ball), the honest
+    fixes are a bigger pick radius or a slower reflected-ball
+    rule — NOT a proximity auto-reflect, which would change
+    the mechanic.
+  - Dragon fireballs are deliberately NOT reflectable (see
+    above). If the dragon ever needs the same treatment, the
+    one-line family is: give the dragon the v40 owner immunity
+    first, then drop the owner-type check here.
+  - A reflected ball that misses the ghast flies on until it
+    hits a block/mob — it never turns around again on its own.
+  - All of it is build-only until a live test on device (see
+    the "Next" v41 test list: reflect kills the ghast, blaze
+    balls reflect too, unreflected balls still hurt the player,
+    no crash, old features intact).
 - **v37 — Multi-wither boss bar: lowest-HP wither (SHIPPED,
   build-only).** Pays the v36 "Next" candidate — the last
   wither-only debt. One batch, one file of gameplay code.
@@ -3674,25 +3785,41 @@ Each version is ONE coherent batch of features, shipped as a new APK
   adds it. Re-check the v31–v39 lists (fortress, spawner, boss
   bar, skull self-damage) and the old features, no crash. The v39
   APK stays the fallback until this stage passes.
-- **Next version (v41 candidate): fireball reflection.** The
-  mechanic v40 deliberately preserved but could not ship: the
-  player punches a ghast fireball back and it hurts the ghast
-  (modern MC's signature ghast fight). Why this next, and why not
-  the rose dye, the boss-bar icon, or spawner mob-switching: the
-  rose's dye use still needs a dye system first (a whole
-  subsystem, not a batch), the icon is cosmetic, spawner
-  mob-switching needs a spawn-egg system + a tile-entity renderer
-  that do not exist, while reflection is the direct follow-up to
-  v40 — the ownerId contract is already in place
-  (`Throwable::getOwnerId`), so the batch is small: make the
-  fireball pickable + reverse its velocity on a player hit +
-  reassign ownerId to the player. The attack path
-  (`GameMode`/`Player::attack` vs a non-mob entity) was NOT
-  audited in v40 and must be audited first — if punching a
-  non-mob entity cannot land a hit at all, the batch is bigger
-  than it looks and should be reported honestly, not ground
-  through. All spawner tuning stays provisional until the v39
+- **Device verification for fireball reflection (v41's open
+  item).** Uninstall the old APK first (fresh CI debug keystore).
+  Enter the Nether, find a ghast, let it shoot at you — punch the
+  incoming fireball when it is CLOSE (within ~3 blocks, the
+  survival pick window — the ball crosses it in ~150 ms, so time
+  the tap as it approaches) and check it flies back along where
+  you are looking, faster than it came; aim at the ghast and check
+  the reflected ball explodes on it and the ghast takes damage
+  (10 HP — one clean reflected hit kills it); check a blaze
+  fireball in a fortress room reflects the same way; check a
+  fireball you do NOT punch still hurts you like before; check
+  arrows shot at a fireball still bounce off (no reflect); check
+  the dragon's fireballs still cannot be reflected (punching one
+  does nothing, it keeps flying); re-check the v31–v40 lists
+  (fortress, spawner, boss bar, skull self-damage, own-fireball
+  immunity) and the old features, no crash. The v40 APK stays the
+  fallback until this stage passes. HONEST LIMIT: if the 3-block
+  window proves unhittable on touch in practice, report it — the
+  fix is a bigger pick radius, not a proximity auto-reflect.
+- **Next version (v42 candidate): ender dragon own-fireball
+  immunity.** The last v40 debt, and the key that would unlock
+  dragon-fireball reflection later: the dragon is the only
+  fireball shooter with no owner immunity, so its own blast can
+  still hurt it. Why this next, and why not the rose dye, the
+  boss-bar icon, or spawner mob-switching: the rose's dye use
+  still needs a dye system first (a whole subsystem, not a batch),
+  the icon is cosmetic, spawner mob-switching needs a spawn-egg
+  system + a tile-entity renderer that do not exist, while the
+  dragon immunity is the same one-line family as v38/v40
+  (`EnderDragon::hurt` rejects fireballs whose ownerId is its
+  own) — small, safe, and it closes the fireball-immunity set so
+  v41's dragon-reflection exclusion can be revisited on its own
+  merits. All spawner tuning stays provisional until the v39
   device feel arrives — do NOT re-tune blind.
+- **v41 — Fireball reflection.** SHIPPED (see "Done").
 - **v40 — Ghast/blaze fireball self-damage.** SHIPPED (see "Done").
 - **v39 — Blaze spawner tile.** SHIPPED (see "Done").
 - **v38 — Wither skull self-damage.** SHIPPED (see "Done").
