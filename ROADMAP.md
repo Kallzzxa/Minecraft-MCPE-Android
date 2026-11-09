@@ -2800,6 +2800,22 @@ Each version is ONE coherent batch of features, shipped as a new APK
     1 px by design.
   - All of it is build-only until a live test on device (see the
     "Next" v43 test list).
+- **v44 — Inventory crafting 2x2, stage 2 (SHIPPED, build-only).** Pays the v44 "Next" candidate (user request 2026-11-09 09:38, second half: inventory 2x2 same modern look as the v42 table).
+  ### Audit (read from code before writing anything)
+  - **The recipe list was ALREADY 2x2-only.** `initCategories` filters `craftingSize >= recipe->getCraftingSize()` (`SIZE_2X2 = 0`, `SIZE_3X3 = 1`), and `ShapedRecipe::getCraftingSize` returns 2x2 iff width/height ≤ 2, `ShapelessRecipe` iff ≤ 4 ingredients — so the inventory screen (`WorkbenchScreen(SIZE_2X2)`, from the inventory Craft button / `startCrafting(..., SIZE_2X2)`) never listed 3x3 recipes. No list change was needed; v44 only fixes the DISPLAY.
+  - **One real trap: shapeless reflow.** A 4-ingredient shapeless recipe IS size-2x2, but its v42 `getGridWidth()` returns 3 (row-major 3-wide) — laid out as authored it would spill into the 3rd column of a 2x2 display and the 4th ingredient would be invisible (filled into storage but never drawn). New `Recipe::getGridWidthFor/HeightFor/ItemFor(gridW)` virtuals (default = v42 accessors); `ShapelessRecipe` overrides them to reflow row-major at the display width (4 ingredients → 2x2). Shaped recipes ignore gridW (authored cells, always ≤ 2x2 here by the size filter).
+  - **Toggle/collapse were both cheap, so both shipped** (the brief's "if cheap" condition): the craftable-only toggle needs no font glyph — the checkmark is drawn from 2px squares; the collapse button is a `SmallButton` ("<<"/">>") that re-runs `setupPositions()` (the same function `Screen::init`/`setSize` call), so no new layout code path exists.
+  ### What shipped
+  - Inventory 2x2 screen now shows a 2x2 auto-fill grid (title "Crafting", arrow + result slot, inventory 9x4 below) instead of the v42 3x3 frame with an empty third row/column; the table and stonecutter keep their 3x3 grid (`gridSize()` = 2 iff `craftingSize == SIZE_2X2`). Click a recipe → grid fills (shaped as authored, shapeless reflowed 2-wide) with have/need counts; tap the result → craft, same unchanged `craftSelectedItem` path. `gridCells` storage stays 9 cells, 3-stride — only the drawn/iterated extent changes.
+  - Craftable-only toggle: green check button at the right end of the search bar (drawn checkmark — the font has no check glyph); when on, `applyFilter` hides recipes `canCraft()` is false for (computed by `recheckRecipes` at init and after each craft, same source as the dimmed-overlay state). Search + tabs + pagination compose with it exactly as with the search text.
+  - Recipe-book collapse: "<<" button at the top-left of the right panel hides the whole left panel (tabs move off-screen so they are neither drawn nor clickable; search/recipe-grid/pagination rects go empty) and the right panel widens to fill the width; ">>" re-opens it. Collapsing while typing unfocuses the search and hides the keyboard first. Layout is a re-run of `setupPositions()`, so a window resize while collapsed re-derives correctly.
+  - Version bump 43 -> 44 (`app/build.gradle`, `AndroidManifest.xml`, `build-apk.sh`). Local NDK r17c build (both ABIs) passes: `libminecraftpe.so` arm64 10,269,512 B / armv7 8,802,180 B (v42 local build, same toolchain: 10,269,512 / 8,798,084 — arm64 byte-identical in size, armv7 +4,096 B; size is codegen noise at this scale, the proof is the symbols: `PaneCraftingScreen::applyFilter / fillCraftGrid / mouseReleased / setupPositions` (T) in the FRESH object files of both ABIs, `ShapelessRecipe::getGridItemFor/WidthFor/HeightFor` (W) + the `ShapelessRecipe`/`ShapedRecipe` vtables in the fresh `Recipes.o` of both ABIs, and an undefined `Recipe::SIZE_2X2` reference in the fresh `PaneCraftingScreen.o` proving the new `gridSize()` compiled in — `gridSize()` itself is inlined, so it has no standalone symbol).
+    CI `./gradlew assembleDebug` SUCCESS (run 42558617788, ~5m36s, 03:51:13–03:56:49 UTC 2026-11-09); APK `minecraft-mcpe-android-0.6.1-debug-v44.apk` 12,959,377 B, sha256 f48325afb00c770b3ac059ac9edc6cafe1a0ac6db817b2ab89d2c2c2a9bb8927, versionCode 44, `apksigner verify` v1+v2 true, `unzip -t` clean; the APK itself was re-checked to contain the new code in its `libminecraftpe.so` (arm64 10,269,512 B / armv7 8,802,180 B — byte-identical sizes to the local build; the .so is stripped so `nm` shows no symbol table — verified instead via the local object files, see above). One download hiccup, not a CI problem: the first artifact fetch via Python `urllib` timed out on the redirect (300 s); the retry via `curl` downloaded the 12,872,587 B artifact zip in ~7 s.
+  ### Known limits / debts
+  - Manual grid placement is still NOT built: tapping an inventory item does nothing, and there is still no crafting container in the tree (see "Next" open question — needs the user's explicit yes before it is built).
+  - The collapse button is "<<" / ">>" text, not the screenshot's green book icon — no book glyph exists in the spritesheet; a drawn icon would be a separate art task.
+  - The craftable-only toggle hides uncraftable recipes entirely while on (modern MC dims them instead); the dimmed-overlay state still exists for the toggle-off view.
+  - All of it is build-only until a live test on device (see the "Next" v44 test list).
 - **v37 — Multi-wither boss bar: lowest-HP wither (SHIPPED,
   build-only).** Pays the v36 "Next" candidate — the last
   wither-only debt. One batch, one file of gameplay code.
@@ -3974,35 +3990,12 @@ Each version is ONE coherent batch of features, shipped as a new APK
   crafting UI v42 + the v42 movement-freeze fix) and the old
   features, no crash. The v42 APK stays the fallback until this
   stage passes.
-- **Next version (v44 candidate): inventory crafting 2x2 (stage 2 of
-  the modern crafting UI) + the v43 device test list above.** The
-  crafting table (v42) is done; the same screen opened from the
-  inventory (block-selection screen → Craft button, `SIZE_2X2`) now
-  needs its stage-2 pass: shrink the auto-fill display to a 2x2 grid
-  (v42 still shows the 3x3 frame with an empty third row/column on
-  2x2 recipes), and decide with the user whether manual grid
-  placement (tap an inventory item → place it in the grid) is wanted
-  — there is no crafting container in the tree, so that is real new
-  work, not a layout tweak. Also in the same batch if cheap: the
-  craftable-only toggle (green check button next to the search bar —
-  needs a drawn checkmark, the font has none) and the recipe-book
-  collapse button (green book icon). OPEN QUESTION from v43 (ask the
-  user, do not guess): the touch hotbar has 7 usable slots + "..."
-  (`MAX_SELECTION_SIZE` 9) while the modern reference shows 9 usable
-  + "..." — is the narrower hotbar part of "inventory kelihatan
-  aneh", and is widening it to 9 usable slots wanted? That change
-  touches selection size, touch areas and MP, so it needs an
-  explicit yes. V42 DEVICE TEST LIST (do this first, before v43 code): open a crafting table while holding D-pad forward — repeat 5x — the player must stop on the same tick the screen opens; same repro from inventory 2x2, from a chest, and from a furnace; tap the search field, type "pick", check the grid filters live, backspace, Esc/back closes the keyboard (not the screen); switch tabs (All/Tools/Blocks/Food/Redstone) and check Mechanisms recipes finally appear; paginate a full tab with < > and check "N/M"; click a recipe → grid fills with have/need counts, tap the result → the item is crafted and counts refresh; tap an uncraftable recipe → result dimmed, tap does nothing; stonecutter screen still works (single tab); re-check the v31–v41 lists and the old features, no crash. The v41 APK stays the fallback until this stage passes.
-  The dragon immunity stays queued right behind crafting: it is
-  still the same one-line family as v38/v40
-  (`EnderDragon::hurt` rejects fireballs whose ownerId is its
-  own) and the key that would let v41's dragon-reflection
-  exclusion be revisited. The rose's dye use still needs a dye
-  system first (a whole subsystem, not a batch), the icon is
-  cosmetic, spawner mob-switching needs a spawn-egg system + a
-  tile-entity renderer that do not exist. All spawner tuning
-  stays provisional until the v39 device feel arrives — do NOT
-  re-tune blind.
+- **Device verification for the v44 inventory-crafting stage (do this before v45 code).** Uninstall the old APK first (fresh CI debug keystore). Open the inventory → Craft: check the crafting grid is 2x2 (no empty third row/column), the recipe list shows only 2x2 recipes (e.g. no crafting-table recipe), and the same recipe clicked on the table (3x3) and in the inventory (2x2) fills its grid identically; click fermented spider eye (3-ingredient shapeless: spider eye + sugar + brown mushroom, `Recipes.cpp:528`) and check all 3 show in the 2x2 grid as 2+1 rows (old 3-wide layout showed 1 row of 3); note the tree has no 4-ingredient shapeless recipe, so the n=4 reflow path itself has no live recipe to test yet; tap the green check toggle — uncraftable recipes disappear, tap again — they return; search + a tab + toggle together filter correctly; collapse the book with "<<" — the crafting panel widens, tabs/search disappear, ">>" brings the book back with the same selection; re-check the v42 table screen (still 3x3, still works), the stonecutter (single tab, 3x3), the v43 fixes and the old features, no crash. The v43 APK stays the fallback until this stage passes.
+- **OPEN QUESTION (ask the user, do not build silently): manual grid placement** — tap an inventory item to place it into the crafting grid by hand. There is no crafting container in the tree, so that is real new work (container + slot interaction), not a layout tweak; the user never asked for it. Also still open from v43: the touch hotbar has 7 usable slots + "..." (`MAX_SELECTION_SIZE` 9) while the modern reference shows 9 usable + "..." — is the narrower hotbar part of "inventory kelihatan aneh", and is widening it to 9 usable slots wanted? That change touches selection size, touch areas and MP, so it needs an explicit yes.
+- **Next version (v45 candidate): dragon immunity to its own fireballs** — the one-line family from v38/v40 (`EnderDragon::hurt` rejects fireballs whose ownerId is its own), the key that lets v41's dragon-reflection exclusion be revisited. The rose's dye use still needs a dye system first (a whole subsystem, not a batch), the icon is cosmetic, spawner mob-switching needs a spawn-egg system + a tile-entity renderer that do not exist. All spawner tuning stays provisional until the v39 device feel arrives — do NOT re-tune blind.
+  V42 DEVICE TEST LIST (do this first, before v43 code): open a crafting table while holding D-pad forward — repeat 5x — the player must stop on the same tick the screen opens; same repro from inventory 2x2, from a chest, and from a furnace; tap the search field, type "pick", check the grid filters live, backspace, Esc/back closes the keyboard (not the screen); switch tabs (All/Tools/Blocks/Food/Redstone) and check Mechanisms recipes finally appear; paginate a full tab with < > and check "N/M"; click a recipe → grid fills with have/need counts, tap the result → the item is crafted and counts refresh; tap an uncraftable recipe → result dimmed, tap does nothing; stonecutter screen still works (single tab); re-check the v31–v41 lists and the old features, no crash. The v41 APK stays the fallback until this stage passes.
+- **v44 — Inventory crafting 2x2.** SHIPPED (see "Done").
+- **v43 — Bug-fix batch (4 user reports).** SHIPPED (see "Done").
 - **v42 — Modern crafting UI.** SHIPPED (see "Done").
 - **v41 — Fireball reflection.** SHIPPED (see "Done").
 - **v40 — Ghast/blaze fireball self-damage.** SHIPPED (see "Done").
