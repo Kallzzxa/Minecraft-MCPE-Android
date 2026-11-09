@@ -2628,8 +2628,17 @@ Each version is ONE coherent batch of features, shipped as a new APK
     new symbols are confirmed defined in the FRESH object
     files: `Fireball::hurt` / `Fireball::isPickable` /
     `Fireball::getPickRadius` (T) in both ABIs).
-    CI `./gradlew assembleDebug` SUCCESS (see run in the v41
-    report).
+    CI `./gradlew assembleDebug` SUCCESS (run 42551678249,
+    ~6m22s, 02:34:22–02:40:44 UTC 2026-11-09); APK
+    `minecraft-mcpe-android-0.6.1-debug-v41.apk`
+    12,947,150 B, sha256
+    818e874701fa6f25e4423cff335b90df11731b29e9ea290039927ab0b89b4848,
+    versionCode 41, `apksigner verify` v1+v2 true, `unzip -t`
+    clean; the APK itself was re-checked to contain the new
+    code in its `libminecraftpe.so` (arm64 10,261,320 B /
+    armv7 8,798,084 B — byte-identical sizes to the local
+    build; the .so is stripped so `nm` shows no symbol table —
+    verified instead via the local object files, see above).
   ### Known limits / debts
   - The 3-block survival pick window is the whole skill check:
     a fireball at 20 blocks/s gives the player ~150 ms of
@@ -3804,21 +3813,37 @@ Each version is ONE coherent batch of features, shipped as a new APK
   fallback until this stage passes. HONEST LIMIT: if the 3-block
   window proves unhittable on touch in practice, report it — the
   fix is a bigger pick radius, not a proximity auto-reflect.
-- **Next version (v42 candidate): ender dragon own-fireball
-  immunity.** The last v40 debt, and the key that would unlock
-  dragon-fireball reflection later: the dragon is the only
-  fireball shooter with no owner immunity, so its own blast can
-  still hurt it. Why this next, and why not the rose dye, the
-  boss-bar icon, or spawner mob-switching: the rose's dye use
-  still needs a dye system first (a whole subsystem, not a batch),
-  the icon is cosmetic, spawner mob-switching needs a spawn-egg
-  system + a tile-entity renderer that do not exist, while the
-  dragon immunity is the same one-line family as v38/v40
+- **Next version (v42 candidate): modern crafting UI — recipe
+  book + 3x3 crafting table (USER REQUEST 2026-11-09 09:38,
+  screenshot).** The user asked for the modern-MC crafting UI:
+  left panel = recipe book (search bar, category tabs, item
+  grid, pagination), right panel = 3x3 grid + arrow + result
+  slot + inventory below; inventory crafting (2x2) looks the
+  same but only offers 2x2 recipes. Why this next, and why not
+  the dragon own-fireball immunity, the rose dye, the boss-bar
+  icon, or spawner mob-switching: the user asked for it
+  directly, with a screenshot — it jumps the queue like v14
+  did. It is a GUI rewrite done in stages, not one batch:
+  v42 = crafting table 3x3 first, v43 = inventory 2x2 after.
+  The search bar must be checked against the code first (the
+  chat text-input as the pattern) — if it is not feasible, ship
+  tabs + pagination first and note the search as a follow-up.
+  BUNDLED into v42 (user bug report 2026-11-09 09:41): walking
+  (holding D-pad forward) then opening a crafting table leaves
+  the player walking — movement must stop the moment a crafting
+  screen opens. It happens intermittently (suspected stuck
+  D-pad input — the release event not arriving when the screen
+  opens); diagnose from code first, do not guess.
+  The dragon immunity stays queued right behind crafting: it is
+  still the same one-line family as v38/v40
   (`EnderDragon::hurt` rejects fireballs whose ownerId is its
-  own) — small, safe, and it closes the fireball-immunity set so
-  v41's dragon-reflection exclusion can be revisited on its own
-  merits. All spawner tuning stays provisional until the v39
-  device feel arrives — do NOT re-tune blind.
+  own) and the key that would let v41's dragon-reflection
+  exclusion be revisited. The rose's dye use still needs a dye
+  system first (a whole subsystem, not a batch), the icon is
+  cosmetic, spawner mob-switching needs a spawn-egg system + a
+  tile-entity renderer that do not exist. All spawner tuning
+  stays provisional until the v39 device feel arrives — do NOT
+  re-tune blind.
 - **v41 — Fireball reflection.** SHIPPED (see "Done").
 - **v40 — Ghast/blaze fireball self-damage.** SHIPPED (see "Done").
 - **v39 — Blaze spawner tile.** SHIPPED (see "Done").
