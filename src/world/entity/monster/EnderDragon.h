@@ -61,6 +61,10 @@ public:
 	// touched.
 	void updateAi();
 
+	// v45: immune to its OWN fireballs only (see EnderDragon::hurt)
+	// — a reflected fireball or another dragon's still hurts it.
+	bool hurt(Entity* source, int dmg);
+
 	const char* getAmbientSound() { return NULL; }
 	std::string getHurtSound() { return "random.pop"; }
 	std::string getDeathSound() { return "random.explode"; }

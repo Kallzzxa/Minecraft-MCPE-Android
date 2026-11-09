@@ -22,6 +22,41 @@ EnderDragon::EnderDragon(Level* level)
 	attackDamage = 6;
 }
 
+bool EnderDragon::hurt(Entity* source, int dmg)
+{
+	// v45: immune to its OWN fireball blasts only — the v40
+	// owner-only rule, copied exactly from Ghast::hurt /
+	// Blaze::hurt (modern MC: the dragon takes no damage from a
+	// fireball it shot itself). The path is the same as the
+	// ghast's: checkHurtTarget shoots `new Fireball(level, this)`
+	// (v30: one aimed ball every 3 s within 40 blocks while
+	// orbiting), Throwable's (Level, Mob) ctor sets ownerId to
+	// the shooter's entityId, and Fireball::onHit explodes with
+	// the fireball itself as the blast source (v40), so
+	// Explosion calls hurt(fireball, dmg) and the ownerId check
+	// here is exact. When it can actually happen: the dragon
+	// orbits at r22/y82 and fires outward/down, so its own blast
+	// landing beside it is even less plausible than the ghast's
+	// (v40 audit) — the real path is a shot hitting a pillar or
+	// the portal ring while the dragon banks close past it, and
+	// its 4-wide body catches a radius-1 blast from ~2 blocks
+	// away. A fireball from ANOTHER dragon (different ownerId)
+	// still hurts — only one dragon exists at a time
+	// (Minecraft::ensureEndDragon), so that half is structural,
+	// not testable — as do TNT / creeper / crystal blasts (NULL
+	// or another entity), player melee, arrows and end-crystal
+	// damage. A REFLECTED fireball will hurt it too once
+	// reflection is enabled for dragon balls and reassigns
+	// ownerId to the deflector (v41 deliberately excluded the
+	// dragon because this immunity did not exist yet; enabling
+	// it is a separate batch/decision, NOT this one — see
+	// ROADMAP v45). Blocked hits return before Mob::hurt, so no
+	// invulnerableTime, knockback or hurt sound is spent.
+	if (source != NULL && source->getEntityTypeId() == EntityTypes::IdFireball
+		&& ((Fireball*)source)->getOwnerId() == entityId) return false;
+	return super::hurt(source, dmg);
+}
+
 void EnderDragon::heal(int amount)
 {
 	// Mob::heal caps at 20 HP; the dragon's max is 200 (see header).
