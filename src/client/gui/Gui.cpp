@@ -709,19 +709,28 @@ void Gui::renderExperience() {
 }
 
 void Gui::renderBossBar() {
-	// v34: wither boss health bar. No boss-bar UI existed before;
+	// v37: wither boss health bar. No boss-bar UI existed before;
 	// this reuses the XP-bar pattern (black background + coloured
 	// fill + centred name, GuiComponent::fill + Font::drawShadow).
 	// The live wither is found by scanning Level::entities — no
 	// tracking state on the boss itself, so a reloaded wither
 	// shows its bar again for free.
+	// v37: with several live withers the bar shows the LOWEST-HP
+	// one (lowest health fraction — the fight the player is
+	// closest to winning), not the first found. The name + phase
+	// colour below follow that same wither.
 	if (minecraft->level == NULL || minecraft->player == NULL) return;
 	Mob* boss = NULL;
+	float bossFrac = 1.0f;
 	for (unsigned int i = 0; i < minecraft->level->entities.size(); i++) {
 		Entity* e = minecraft->level->entities[i];
 		if (e != NULL && e->getEntityTypeId() == MobTypes::Wither && e->isAlive()) {
-			boss = (Mob*)e;
-			break;
+			Mob* w = (Mob*)e;
+			float frac = (float)w->health / (float)w->getMaxHealth();
+			if (boss == NULL || frac < bossFrac) {
+				boss = w;
+				bossFrac = frac;
+			}
 		}
 	}
 	if (boss == NULL) return;

@@ -2079,6 +2079,83 @@ Each version is ONE coherent batch of features, shipped as a new APK
     check perch + heal-beam + respawn v27-v29 still work, no
     crash, old features intact).
 
+- **v37 — Multi-wither boss bar: lowest-HP wither (SHIPPED,
+  build-only).** Pays the v36 "Next" candidate — the last
+  wither-only debt. One batch, one file of gameplay code.
+  ### Audit (read from code before writing anything)
+  - **How the bar found its wither** (`Gui::renderBossBar`,
+    `Gui.cpp:711`, v34): a single scan of
+    `Level::entities`, first entry with type id
+    `MobTypes::Wither` and `isAlive()` wins — then `break`.
+    The bar therefore showed whichever wither the entity list
+    happened to hold first (spawn order in practice), even if
+    another wither was nearly dead. Name + phase colour came
+    from that same wither (`(Wither*)boss` → `isCharging()` /
+    `isArmoured()`, v36), and the fill was
+    `barW * health / getMaxHealth()` — all correct for the
+    wither shown, wrong only in WHICH wither was shown.
+  - **Layout** (`Gui.cpp:732` + `hudLayout`): the bar is
+    hotbar-wide (`barW`), top-centred — name at y=2, bar
+    y0=12, height 5. The hearts/hunger/XP/hotbar row all sit
+    at the BOTTOM, so the top of the screen is otherwise
+    empty; a second bar stacked below the first (name ~y=19,
+    bar ~y=29) would not collide with anything.
+  - **Multi-bar precedent in this HUD tree**: NONE. Every
+    other HUD element is a single instance — one XP bar
+    (`renderExperience`), one hearts row, one hunger row, one
+    bubbles row. No code exists for laying out N stacked bars,
+    and the count is unbounded (every ritual summons another
+    wither), so N bars would eventually march down the screen
+    toward the crosshair.
+  - **Decision: ONE bar, lowest-HP wither — multi-bar NOT
+    shipped.** The brief explicitly allows this, and the audit
+    says it is the right call: a single bar keeps the HUD
+    exactly as v34/v36 laid it out (zero overlap risk with
+    hotbar/XP/hearts), the change is a ~10-line local edit in
+    the scan loop, and the lowest-HP wither IS the fight that
+    matters (the one closest to dying — the progress the player
+    is actually winning). Multi-bar would add layout code for
+    an unbounded count to solve a problem the single correct
+    bar already solves; it stays a possible future polish, not
+    a v37 requirement.
+  ### What shipped
+  - `Gui::renderBossBar` no longer `break`s on the first live
+    wither: it scans ALL live withers and keeps the one with
+    the lowest health FRACTION (`health / getMaxHealth()` —
+    every wither shares max 300, so fraction == absolute HP
+    today, but the fraction is the honest "most damaged"
+    measure if a max ever differs). Ties keep the first-found
+    wither (strict `<`, no flip-flopping between equal-HP
+    bosses). Name + phase colour + fill all follow the
+    selected wither unchanged (Charging blue / Armoured grey /
+    plain purple, v36) — no other line of the bar changed.
+    Dead withers are still skipped (`isAlive()`), so the bar
+    moves to the survivor when the lowest-HP wither dies and
+    disappears when the last one dies, exactly as v34 did for
+    a single boss.
+  - Version bump 36 -> 37 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local NDK r17c
+    build (both ABIs) passes: `libminecraftpe.so` arm64
+    10,244,936 B / armv7 8,793,988 B (v36: 10,265,416 /
+    8,793,988 — arm64 smaller by ~20 KB from the rebuilt
+    translation unit; armv7 byte-identical size by
+    coincidence of layout, Gui.o confirmed rebuilt after the
+    edit in both ABIs). CI `./gradlew assembleDebug` SUCCESS
+    (run <RUN>, <DUR>, <DATE>); APK
+    `minecraft-mcpe-android-0.6.1-debug-v37.apk`
+    <SIZE> B, sha256 <SHA>,
+    versionCode 37, `apksigner verify` v1+v2 true, `unzip -t`
+    clean.
+  ### Known limits / debts
+  - One bar only (see decision above): with 3+ withers the
+    player sees only the lowest-HP one, not the whole fight.
+    If the device test says that hides too much, a stacked
+    multi-bar is the v38+ polish — bounded to the first few
+    withers, never unbounded.
+  - All of it is build-only until a live test on device (see
+    the "Next" v37 test list: lowest-HP selection, bar
+    hand-off on death, bar gone when all dead, no crash, old
+    features intact).
 - **v36 — Wither boss, stage 3: armoured phase + spawn charge-up
   (SHIPPED, build-only).** Pays the v35 "Next" candidate. The
   coordinator's ruling on the v35 note ("wait for the v34/v35
@@ -3067,20 +3144,38 @@ Each version is ONE coherent batch of features, shipped as a new APK
   power-7 blast fair at distance? Is the armoured phase a fun
   second half or a wall (too hard to reach in melee)? Report the
   feel and the v37 numbers follow from it — do NOT re-tune blind.
-- **Next version (v37 candidate): multi-wither boss bar.** The
-  wither trilogy (v34 ritual + boss, v35 volley + rose, v36 armour
-  + charge-up) is complete, and this is the last wither-only debt
-  standing: the bar still shows the FIRST live wither, so a second
-  summon hides the fight that matters. v37 shows the lowest-HP
-  live wither (the one closest to dying — the fight the player is
-  actually winning) instead of the first, or one bar per wither if
-  that fits the HUD. Why this next, and why not the rose dye: the
-  rose's black-dye use needs a dye system first (no dye system
-  exists in this tree — a whole subsystem, not a batch), while the
-  bar fix is local to `Gui::renderBossBar` and closes the boss
-  loop. Smaller debts in the same area: none left on the wither
-  itself until the v36 device feel arrives.
-- **v36 — Wither boss, stage 3.** SHIPPED (see "Done").
+- **Device verification for the multi-wither boss bar (v37's open
+  item).** Uninstall the old APK first (fresh CI debug keystore).
+  Summon TWO withers (two rituals, same as v34) and check the bar
+  shows ONE bar only, for the wither with the lower HP — hit one
+  wither until its HP is clearly lower than the other's and check
+  the bar is the shorter one (and its phase name/colour is that
+  wither's: plain "Wither" purple, or "Wither - Armoured" grey
+  if the low one is below half HP); kill the lowest-HP wither and
+  check the bar jumps to the survivor (longer bar again, that
+  wither's phase); kill the second and check the bar disappears;
+  check a single wither still shows its bar exactly as in v34–v36
+  (Charging blue during the 5 s charge-up, Armoured grey below
+  half HP); re-check the v34–v36 lists and the old features, no
+  crash. The v36 APK stays the fallback until this stage passes.
+- **Next version (v38 candidate): wither skull self-damage.** The
+  wither trilogy + the multi-wither bar (v34–v37) are complete, and
+  this is the last wither-fight correctness debt standing: the
+  wither's own skull blasts can still damage it (NULL source,
+  pre-existing v34/v35 behaviour, noted in the v36 debts). In
+  modern MC the boss never hurts itself with its own volley, and
+  the bug is visible in every fight — a volley fired at a wall
+  next to the boss chips its own bar, so the lowest-HP bar in v37
+  can drain from the boss fighting itself, not from the player.
+  Why this next, and why not the rose dye or the boss-bar icon:
+  the rose's black-dye use needs a dye system first (no dye system
+  exists in this tree — a whole subsystem, not a batch), the icon
+  is cosmetic, while the self-damage fix is local (one damage
+  routing decision in `Wither`/`Explosion`) and makes the v37 bar
+  honest. Smaller debts in the same area: the bar has no wither
+  icon (cosmetic, v34 debt). All wither tuning stays provisional
+  until the v36 device feel arrives — do NOT re-tune blind.
+- **v37 — Multi-wither boss bar.** SHIPPED (see "Done").
 - **v35 — Wither boss, stage 2.** SHIPPED (see "Done").
 
 ## Queued (priority order — re-evaluate after each version)
