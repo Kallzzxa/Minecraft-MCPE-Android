@@ -2191,7 +2191,20 @@ Each version is ONE coherent batch of features, shipped as a new APK
     (r17c, both ABIs, libtinfo.so.5 shim) passes: `libminecraftpe.so`
     arm64 10,249,032 B / armv7 8,789,892 B, `Tile::witherRose`
     symbol confirmed in the built .so. CI `./gradlew
-    assembleDebug` (run + APK details in the follow-up commit).
+    assembleDebug` SUCCESS (run 42542801877, ~5m56s,
+    00:55:33–01:01:29 UTC 2026-11-09); APK
+    `minecraft-mcpe-android-0.6.1-debug-v35.apk`
+    12,944,338 B, sha256
+    652ed3d55c04a32b024460d65c692fea8cb0eb38a3592c30744e625ad9cac694,
+    versionCode 35, `apksigner verify` v1+v2 true, `unzip -t`
+    clean; the APK itself was re-checked to contain the new
+    code in its `libminecraftpe.so` (arm64 10,249,032 B /
+    armv7 8,789,892 B — byte-identical sizes to the local
+    build; the .so is stripped so `nm` shows no symbol table —
+    verified instead via strings: `Tile::witherRose` +
+    `WitherRoseTile` typeinfo present) and the rose sprite in
+    terrain.png cell 253 (56 opaque px, cell 252 skull face
+    untouched) + the `tile.witherRose.name` lang entry.
   ### Known limits / debts (stage 3 and beyond)
   - **No armoured phase — STILL DEFERRED, deliberately.** Modern
     MC gives the wither armour + arrow immunity below half HP.
