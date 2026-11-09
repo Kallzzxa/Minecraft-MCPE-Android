@@ -186,6 +186,17 @@ static void placeFortress(Level* level, int cx, int cz, int wx, int wz, int deck
 		Random chestR((long)(fortHash ^ 0xF0E57A11ULL));
 		ChestLoot::fillFortressChest(level, wx + 22, D + 1, wz, &chestR);
 	}
+	// v39: one blaze spawner in the middle of the blaze room floor
+	// (wx+20, wz — the old first blaze spawn spot, clear of the
+	// glowstone corners, the west doorway and the loot chest).
+	// Placing the block creates the MobSpawnerTileEntity via
+	// EntityTile::onPlace (LevelChunk::setTile calls onPlace), the
+	// same mechanism as the chest above; the entity then spawns
+	// blazes around itself while a player is near. Guarded by
+	// inChunk so only the owning chunk touches it.
+	if (inChunk(cx, cz, wx + 20, wz)) {
+		setF(level, cx, cz, wx + 20, D + 1, wz, Tile::mobSpawner->id);
+	}
 
 	// Wart room (west): 7x5, x wx-23..wx-17, z wz-2..wz+2.
 	// Soul sand floor, mature wart in two rows.
@@ -283,6 +294,20 @@ void NetherFortressFeature::ensureBlazes(Level* level, int chunkX, int chunkZ)
 	// postProcess hook re-runs this once the terrain is populated.
 	LevelChunk* chunk = level->getChunk(chunkX, chunkZ);
 	if (chunk == NULL || !chunk->terrainPopulated) return;
+
+	// v39: if the blaze room already has a spawner block, the
+	// spawner owns the blaze supply — no top-up. The top-up stays
+	// ONLY as the old-world fallback: fortresses generated before
+	// v39 have no spawner block, and without the top-up their blaze
+	// rooms would go empty forever once the blazes die. (Same
+	// fallback covers a spawner the player broke: on the next
+	// centre-chunk reload the room tops up to 3 again.) This check
+	// runs AFTER the terrainPopulated guard above: reading the
+	// spawner block before the fortress exists would top up blazes
+	// over lava where the deck will be.
+	// Spawner pos: blaze room centre (wx+20, wz), deck + 1 — the
+	// same spot placeFortress puts Tile::mobSpawner.
+	if (level->getTile(wx + 20, deckY + 1, wz) == Tile::mobSpawner->id) return;
 
 	// Count blazes already near this fortress and top up to 3.
 	AABB box((float)(wx - 26), (float)deckY, (float)(wz - 18),

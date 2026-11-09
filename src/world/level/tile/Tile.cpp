@@ -105,6 +105,9 @@ Tile* Tile::sign        = NULL;
 Tile* Tile::wallSign    = NULL;
 Tile* Tile::mossStone	= NULL;
 Tile* Tile::torch       = NULL;
+// v39: blaze spawner (id 52, modern MC) — declared since the
+// original tree, defined here for the first time.
+Tile* Tile::mobSpawner  = NULL;
 Tile* Tile::redStoneDust = NULL;
 Tile* Tile::redStoneTorch = NULL;
 Tile* Tile::lever        = NULL;
@@ -224,6 +227,12 @@ void Tile::initTiles() {
 	mossStone	= (new Tile(48, 36, Material::stone))->init()->setDestroyTime(2.0f)->setExplodeable(10)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("stoneMoss");
 	obsidian    = (new ObsidianTile(49, 37, false))->init()->setDestroyTime(10.0f)->setExplodeable(2000)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("obsidian");
 	torch       = (new TorchTile(50, 5 * 16))->init()->setDestroyTime(0.0f)->setLightEmission(15 / 16.0f)->setSoundType(SOUND_WOOD)->setCategory(ItemCategory::Tools)->setDescriptionId("torch");
+	// v39: monster spawner, id 52 (modern MC). Description id
+	// "mobSpawner" reuses the lang string that already exists
+	// (tile.mobSpawner.name=Monster Spawner). Texture 251 is the
+	// drawn cage — see MobSpawnerTile.h. Breaking drops nothing
+	// (MobSpawnerTile::getResource returns 0).
+	mobSpawner  = (new MobSpawnerTile(52))->init()->setDestroyTime(5.0f)->setSoundType(SOUND_STONE)->setCategory(ItemCategory::Structures)->setDescriptionId("mobSpawner");
 
 	stairs_wood = (new StairTile(53, wood))->init()->setCategory(ItemCategory::Structures)->setDescriptionId("stairsWood");
 	chest		= (new ChestTile(54))->init()->setCategory(ItemCategory::Structures)->setDestroyTime(2.5f)->setSoundType(SOUND_WOOD)->setDescriptionId("chest");//->sendTileData();

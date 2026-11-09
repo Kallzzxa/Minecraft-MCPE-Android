@@ -260,6 +260,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/level/tile/EntityTile.cpp \
 ../../../../src/world/level/tile/FurnaceTile.cpp \
 ../../../../src/world/level/tile/BrewingStandTile.cpp \
+../../../../src/world/level/tile/MobSpawnerTile.cpp \
 ../../../../src/world/level/tile/CauldronTile.cpp \
 ../../../../src/world/level/tile/GrassTile.cpp \
 ../../../../src/world/level/tile/HeavyTile.cpp \
@@ -280,6 +281,7 @@ LOCAL_SRC_FILES := ../../../../src/main.cpp \
 ../../../../src/world/level/tile/entity/TileEntity.cpp \
 ../../../../src/world/level/tile/entity/FurnaceTileEntity.cpp \
 ../../../../src/world/level/tile/entity/BrewingStandTileEntity.cpp \
+../../../../src/world/level/tile/entity/MobSpawnerTileEntity.cpp \
 ../../../../src/world/phys/HitResult.cpp
 
 LOCAL_CFLAGS := -Wno-psabi $(LOCAL_CFLAGS)

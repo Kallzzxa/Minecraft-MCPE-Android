@@ -168,6 +168,9 @@ void Inventory::setupDefault() {
 		addItem(new ItemInstance(Item::netherStar));
 		// v35: wither rose in the creative inventory.
 		addItem(new ItemInstance(Tile::witherRose));
+		// v39: blaze spawner in the creative inventory (spawns
+		// blazes wherever it is placed, while a player is near).
+		addItem(new ItemInstance(Tile::mobSpawner));
 		addItem(new ItemInstance(Tile::stairs_stone));
 		addItem(new ItemInstance(Tile::stairs_wood));
 		Sel[6] = addItem(new ItemInstance(Tile::stairs_brick));

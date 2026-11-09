@@ -22,6 +22,8 @@ public:
 	static const int Sign = 4;
 	// v20: brewing stand.
 	static const int BrewingStand = 5;
+	// v39: blaze spawner.
+	static const int MobSpawner = 6;
 };
 
 class TileEntityFactory {

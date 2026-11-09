@@ -6,10 +6,10 @@
 // The v21 Nether shipped terrain, lava, ghasts/blazes and wart farming
 // but no fortress — the Nether had no landmark to explore for. This
 // is the first fortress stage: structure + blaze home + wart room.
-// (No blaze-spawner tile yet: Tile::mobSpawner is declared in Tile.h
-// but never defined/registered, and no spawner tile entity exists in
-// this tree — see ROADMAP. Blaze presence is the village/witch
-// top-up pattern instead. No wither skeleton either — see ROADMAP.)
+// (v39: the blaze spawner tile now EXISTS — Tile::mobSpawner, id
+// 52, + MobSpawnerTileEntity — and the blaze room holds one at its
+// centre. ensureBlazes stays only as the old-world fallback for
+// fortresses generated before v39, which have no spawner block.)
 //
 // Placement reuses the VillageFeature pattern exactly: the Nether is
 // divided into a grid of GRID_CELLS x GRID_CELLS chunks (20x20 = 320
@@ -42,16 +42,19 @@
 //    x=wx+-2 (D+1..D+3) + flat roof at D+4, open at both ends.
 //  - blaze room (east): 7x7 at x wx+17..wx+23, z wz-3..wz+3, walls
 //    D+1..D+3, roof D+4, doorway on the west wall, glowstone in the
-//    4 inner ceiling corners. Blazes live here (ensureBlazes).
+//    4 inner ceiling corners. One blaze spawner at the room centre
+//    (wx+20, D+1, wz, v39); blazes spawn from it while a player is
+//    near (MobSpawnerTileEntity), up to 4 around it.
 //  - wart room (west): 7x5 at x wx-23..wx-17, z wz-2..wz+2, soul
 //    sand floor, 10 mature nether wart (data 3) in two rows, walls
 //    D+1..D+3, roof D+4, doorway on the east wall, 2 glowstone.
 // Blazes are NOT placed by postProcess (entities are not chunk
 // data — they live in the global entities.dat, and chunk eviction
-// despawns them like every other mob). Instead, ensureBlazes() tops
-// the fortress up to BLAZES_PER_FORTRESS whenever its centre chunk
-// (re-)enters the resident set (ChunkCache getChunk / postProcess
-// hooks, same as ensureVillagers / ensureWitch).
+// despawns them like every other mob). In a v39+ fortress the
+// spawner block supplies them; ensureBlazes() tops the fortress up
+// to BLAZES_PER_FORTRESS only when its centre chunk (re-)enters the
+// resident set AND the blaze room has no spawner block (old-world
+// fallback, same hook as ensureVillagers / ensureWitch).
 
 class Level;
 class Random;

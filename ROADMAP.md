@@ -2202,6 +2202,177 @@ Each version is ONE coherent batch of features, shipped as a new APK
     the "Next" v38 test list: self-damage gone, cross-wither
     skulls harmless, player/mobs still hurt, summon blast still
     safe, no crash, old features intact).
+- **v39 — Blaze spawner tile (SHIPPED, build-only).** Pays the
+  v31 debt "no blaze spawner tile" — the oldest open structure
+  debt standing. One tile + one tile entity + a spawn tick, on
+  the ChestTileEntity / MobSpawner precedents.
+  ### Audit (read from code before writing anything)
+  - **`Tile::mobSpawner`**: only DECLARED (`Tile.h:169`), never
+    defined — no `Tile* Tile::mobSpawner = NULL;` in `Tile.cpp`
+    and no registration in `initTiles()`. No spawner tile-entity
+    class existed anywhere; the dungeon spawner is `#if 0`'d
+    out (`DungeonFeature.cpp`, whole file — a cave carver, not a
+    spawner: it never references a spawner tile or entity, so
+    there is nothing to re-enable there, only a dead file to
+    leave alone). The lang string already existed
+    (`tile.mobSpawner.name=Monster Spawner`,
+    `en_US.lang:252`), as did the id string: the commented-out
+    line in `TileEntity::initTileEntities` already named it
+    `"MobSpawner"`.
+  - **Tile-entity plumbing (how a ticking TE works here)**:
+    `EntityTile` (`EntityTile.cpp:9-13`): `onPlace` →
+    `level->setTileEntity(x,y,z,newTileEntity())`, `onRemove` →
+    `level->removeTileEntity`. `LevelChunk::setTile` (line ~136)
+    calls `onPlace` server-side, so placing ANY block through
+    `setTile` — including the fortress's clipped `setF` — creates
+    its tile entity automatically (this is how the v33 chest gets
+    its entity during postProcess; no explicit creation call is
+    needed in `placeFortress`). `Level::tick` ticks every TE in
+    `level->tileEntities` whose chunk is resident
+    (`Level.cpp:1441-1446`, `hasChunkAt` gate), and removes +
+    deletes TEs flagged removed. Furnace (`FurnaceTileEntity::
+    tick`) and brewing stand (`BrewingStandTileEntity::tick`)
+    are the ticking precedents: both early-return on
+    `level->isClientSide`, both keep their state in plain fields
+    saved via `CompoundTag` (`putShort`/`getShort`,
+    `putInt`/`getInt` exist). `shouldSave()` decides what reaches
+    `entities.dat` (`ExternalFileLevelStorage::saveEntities`,
+    ~line 519: skips `!shouldSave()`): chest/furnace return false
+    when empty/idle and are re-created empty by the lazy path,
+    sign returns true always.
+  - **Save/load + eviction (no duplication, no loss)**:
+    `LevelChunk::getTileEntity` (line ~579) lazily creates the TE
+    for any entity tile with no map entry, via
+    `level->setTileEntity` (which sets level/pos through
+    `LevelChunk::setTileEntity` → `setLevelAndPos` and pushes to
+    `level->tileEntities`, or to `pendingTileEntities` while
+    `updatingTileEntities` is true — the pending flush dedups
+    against the chunk map). `loadEntities` re-attaches saved TEs
+    with a `hasTileEntityAt` guard that deletes the duplicate.
+    Eviction (v17) detaches TEs without deleting them
+    (`detachTileEntities` clears only the chunk map; objects stay
+    alive in `level->tileEntities`, the eviction snapshot writes
+    them to `entities.dat`) and `reattachTileEntities` puts the
+    ORIGINAL back on reload, guarded by `hasTileEntityAt`. A
+    spawner TE is a plain `TileEntity` with no container, so all
+    of this applies unchanged — no spawner-specific eviction code
+    was needed. `shouldSave()` returns true (Sign precedent) so
+    the delay persists across quit/reload instead of resetting.
+  - **`MobSpawner` (the ambient spawner, v17)**: `MobSpawner::
+    tick` (`MobSpawner.cpp:28`) polls player-relative ±8 chunks
+    every 2 ticks, caps per `MobCategory` (monster 20 per level,
+    counted over the whole `Level::entities` list) and picks mobs
+    from `Biome`/`getMobsAt` (Nether: blaze weight 6). The
+    spawner TE deliberately does NOT consult that cap (modern MC
+    spawners ignore it; `ensureBlazes` also bypasses it via
+    `addEntity`) — the per-spawner cap (4 nearby) is the limit.
+  - **`ensureBlazes` (v31) + decision**: tops the fortress up to
+    3 blazes whenever its centre chunk (re-)enters the resident
+    set, instantly and with no player-proximity check. DECISION —
+    spawner REPLACES the top-up for new fortresses, top-up stays
+    as the old-world fallback: `ensureBlazes` now returns early
+    when the spawner block is present at the blaze-room centre
+    (`wx+20, deckY+1, wz`), so a v39+ fortress is supplied ONLY
+    by its spawner (no instant refill on chunk reload, no
+    double supply — spawner cap 4 vs top-up 3 could otherwise
+    stack to 4 + a fresh top-up burst). A fortress generated
+    before v39 has no spawner block, so the top-up still fires
+    there exactly as before; the same fallback covers a spawner
+    the player broke (next centre-chunk reload tops the room up
+    to 3 again). The check sits AFTER the `terrainPopulated`
+    guard: reading the spawner block before the fortress exists
+    would top up blazes over lava where the deck will be.
+  - **Texture**: `terrain.png` has no blank cell left (no solid
+    single-colour cell in the whole atlas; the v21 light-purple
+    placeholders are all spent). Cell 251 (11,15) was chosen and
+    verified free the v25 way: no tile tex, not in the
+    `ItemInHandRenderer` mapper (cloth 200-215, logs 216-219,
+    saplings 220-223, slabs 224-231, leaves 232-235), not a
+    destroy stage (240-249, `LevelRenderer::renderHit` uses
+    `15*16 + progress`), not a dynamic-texture target (only the
+    water cells), and no code reference to 251 anywhere in src
+    (the only "251" hits are gui.png blit coords and RakNet
+    telnet). Its old content was a black/white checker. The cage
+    (dark steel bars + orange blaze glow centre) is drawn into
+    it, same PIL precedent as v9/v11/v20/v25/v34/v35; the stale
+    precomputed `terrain_*.h` copies are untouched (v35/v25
+    precedent — nothing references them at runtime).
+  - **Spawner in the fortress (placement)**: blaze room centre
+    floor `(wx+20, D+1, wz)` — the old first blaze spawn spot,
+    clear of the glowstone corners, the west doorway and the
+    v33 loot chest at `(wx+22, D+1, wz)`. Placed via `setF` with
+    the `inChunk` guard, so exactly the owning chunk places it
+    once. Fortresses in ALREADY-generated worlds do NOT get a
+    spawner retroactively (generation only runs on new chunks) —
+    those rooms keep the `ensureBlazes` top-up instead; stated
+    honestly, not papered over.
+  ### What shipped
+  - **Tile** (`MobSpawnerTile`, id 52 modern MC):
+    `Tile::mobSpawner` defined + registered in `Tile.cpp`
+    (destroy 5.0, stone sound, Structures, descriptionId
+    "mobSpawner"); `TileInclude.h` includes it. Plain cube with
+    the drawn cage texture (cell 251) — no custom non-cube tile
+    renderer exists in this tree for a see-through cage with a
+    spinning mob inside, so cube + texture is the honest shape
+    (same precedent as the enchanting table / brewing stand /
+    cauldron). Breaking drops NOTHING (`getResource` returns 0 —
+    modern MC: silk touch only, and there is no silk touch in
+    this tree), so fortress spawners cannot be farmed.
+  - **Tile entity** (`MobSpawnerTileEntity`,
+    `TileEntityType::MobSpawner` = 6, id string `"MobSpawner"` —
+    factory case + `setId` in `TileEntity.cpp`): ticks only
+    server-side, only with a player within 16 blocks (delay
+    frozen otherwise); on an attempt spawns ONE blaze at a random
+    air spot within ±4 blocks horizontally at the spawner level
+    or one above (4 tries, feet + head must be non-solid),
+    unless 4 blazes are already inside the 9×4×9 box around it;
+    delay re-rolls to 200–400 ticks (10–20 s) after every
+    attempt; first delay 200 ticks. `shouldSave()` always true,
+    `Delay` saved/loaded as int.
+  - **Fortress**: 1 spawner in every NEW fortress's blaze room
+    (see Audit); `ensureBlazes` gated on the spawner block as
+    decided above (old-world fallback kept).
+  - **Creative inventory**: spawner added (`Inventory.cpp`, next
+    to the wither rose) — a placed spawner spawns blazes wherever
+    it is put, while a player is near.
+  - Version bump 38 -> 39 (`app/build.gradle`,
+    `AndroidManifest.xml`, `build-apk.sh`). Local NDK r17c
+    build (both ABIs) passes: `libminecraftpe.so` arm64
+    10,261,320 B / armv7 8,798,084 B (v38: 10,244,936 /
+    8,793,988 — the growth is the new tile + tile entity +
+    fortress code); new symbols confirmed in the object files
+    (`MobSpawnerTileEntity::tick/save/load/shouldSave`,
+    `MobSpawnerTile::getResource/newTileEntity`,
+    `Tile::mobSpawner`). CI
+    `./gradlew assembleDebug` __CI_STATUS__ (run __CI_RUN__,
+    __CI_DUR__); APK
+    `minecraft-mcpe-android-0.6.1-debug-v39.apk`
+    __APK_SIZE__ B, sha256
+    __APK_SHA256__,
+    versionCode 39, `apksigner verify` v1+v2 true, `unzip -t`
+    clean.
+  ### Known limits / debts
+  - No spinning blaze model inside the cage (no custom tile-entity
+    renderer exists in this tree) — the orange glow in the cage
+    texture is the only "mob inside" hint; the spawner never
+    shows WHICH mob it spawns. A player-placed spawner always
+    spawns blazes (no spawn-egg / mob-type switching — no such
+    system exists here).
+  - Old-world fortresses (generated before v39) never get a
+    spawner block — they keep the `ensureBlazes` top-up to 3
+    instead. No migration was attempted (rewriting generated
+    chunks is out of scope for this batch).
+  - Spawner delay (200–400 ticks) and cap (4 nearby) are TUNING,
+    provisional until the device feel arrives — do NOT re-tune
+    blind. The spawner ignores the global monster cap of 20 by
+    design (see Audit); in a Nether crowded with monsters the
+    spawner still spawns, like modern MC.
+  - All of it is build-only until a live test on device (see
+    the "Next" v39 test list: new fortress has a cage block in
+    the blaze room, blazes spawn over time to ~4, killing them
+    refills after the delay, >16 blocks away it stops, quit/
+    reload keeps spawner + blazes, breaking it drops nothing,
+    old features intact).
 - **v37 — Multi-wither boss bar: lowest-HP wither (SHIPPED,
   build-only).** Pays the v36 "Next" candidate — the last
   wither-only debt. One batch, one file of gameplay code.
